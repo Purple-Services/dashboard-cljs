@@ -9,3 +9,4 @@ pom.xml
 .lein-repl-history
 .lein-plugins/
 .lein-env
+node_modules/
