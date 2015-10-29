@@ -76,7 +76,7 @@
                          "POST" data header)
         ]))
 
-(defn center-control
+(defn orders-control
   [control-div google-map]
   (let [control-ui (crate/html [:div
                                 {:class "setCenterUI"
@@ -113,13 +113,13 @@
                              (js-obj "center"
                                      (js-obj "lat" 34.0714522 "lng" -118.40362)
                                      "zoom" 16) ))
-      (let [center-control-div (crate/html [:div])
-            centerControl      (center-control
+      (let [orders-control-div (crate/html [:div])
+            centerControl      (orders-control
                                 (do
-                                  (aset center-control-div "index" 1)
-                                  center-control-div) google-map)]
-        (aset center-control-div "index" 1)
+                                  (aset orders-control-div "index" 1)
+                                  orders-control-div) google-map)]
+        (aset orders-control-div "index" 1)
         (.push  (aget google-map "controls"
                       js/google.maps.ControlPosition.LEFT_TOP)
-                center-control-div)
+                orders-control-div)
         (set-orders-points! default-date))))
