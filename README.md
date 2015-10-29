@@ -64,6 +64,12 @@ The code depends on setting a base-url in the html file that it is served from. 
 
 where the attribute 'value' is the base-url. The clojurescript code pulls the value attribute from div#base-url in order to set the base-url used in server calls.
 
+The web-service server should be running when developing. Start it in the web-service dir:
+
+	lein ring server
+
+The base-url defined in the div above assumes the server is running on the default port of 3000
+
 ## exporting to the server
 
 The dashboard-cljs repository contains a script that will do an advanced compilation of the clojurescript code and copy it to the appropriate location in web-service

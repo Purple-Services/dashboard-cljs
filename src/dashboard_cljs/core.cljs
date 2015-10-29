@@ -5,8 +5,6 @@
             [moment]
             ))
 
-(enable-console-print!)
-
 (defn send-xhr
   "Send a xhr to url using callback and HTTP method."
   [url callback method & [data headers]]
@@ -34,22 +32,10 @@
            "center" (js-obj "lat" lat "lng" lng)
            "radius" 10)))
 
-(defn show-orders-callback
-  [reply]
-  (let [xhrio (.-target reply)
-        response (.getResponseJson xhrio)
-        orders (aget response "orders")
-        ]
-    (set!
-     orders-points
-     (mapv #(create-point google-map (.-lat %) (.-lng %)) orders)
-     )))
-
 (defn clear-points
   []
   (if (not (nil? (seq orders-points)))
     (mapv #(.setMap % nil) orders-points)))
-
 
 (defn show-points
   []
@@ -71,12 +57,13 @@
                               (fn [order]
                                 (create-point google-map (.-lat order) (.-lng order)))
                               orders)))
-                         "POST" data header)
-        ]))
+                         "POST" data header)]))
 
 (defn orders-control
-  [control-div google-map]
-  (let [control-ui (crate/html [:div
+  "A button for viewing orders on the map"
+  []
+  (let [containing-div (crate/html [:div])
+        control-ui (crate/html [:div
                                 {:class "setCenterUI"
                                  :title "Click to recenter the map"}])
         checkbox     (crate/html [:input {:type "checkbox"
@@ -97,27 +84,34 @@
         control-text (crate/html [:div {:class "setCenterText"}
                                   checkbox "Orders"
                                   " since date " orders-date-input])]
-    (.appendChild control-div control-ui)
+    (.appendChild containing-div control-ui)
     (.appendChild control-ui control-text)
     (.addEventListener checkbox "click" #(if (aget checkbox "checked")
                                            (show-points)
                                            (clear-points)))
-    control-div))
+    ;; the line below does not seem to be needed when adding only one control to
+    ;; the map. Left in as a reminder in case adding more than one control has
+    ;; an affect. If so, than index management should be handled in add-control!
+    ;;(aset containing-div "index" 1)
+    containing-div))
+
+(defn add-control!
+  "Add control to g-map using position"
+  [g-map control position]
+  (.push  (aget g-map "controls" position)
+          control))
 
 (defn ^:export init-map
   []
-  (do (set! google-map
-        (js/google.maps.Map. (.getElementById js/document "map")
-                             (js-obj "center"
-                                     (js-obj "lat" 34.0714522 "lng" -118.40362)
-                                     "zoom" 16) ))
-      (let [orders-control-div (crate/html [:div])
-            centerControl      (orders-control
-                                (do
-                                  (aset orders-control-div "index" 1)
-                                  orders-control-div) google-map)]
-        (aset orders-control-div "index" 1)
-        (.push  (aget google-map "controls"
-                      js/google.maps.ControlPosition.LEFT_TOP)
-                orders-control-div)
-        (set-orders-points! default-date))))
+  (do
+      (set! google-map
+            (js/google.maps.Map.
+             (.getElementById js/document "map")
+             (js-obj "center"
+                     (js-obj "lat" 34.0714522 "lng" -118.40362)
+                     "zoom" 16) ))
+      ;; add the orders control to the map
+      (add-control! google-map (orders-control)
+                    js/google.maps.ControlPosition.LEFT_TOP)
+      ;; initialize the point
+      (set-orders-points! default-date)))
