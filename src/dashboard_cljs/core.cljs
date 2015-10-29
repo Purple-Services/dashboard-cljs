@@ -18,6 +18,12 @@
 
 (def google-map nil)
 
+;; the base url to use for server calls
+;; used for local development
+(def base-server-url "http://localhost:3000/dashboard/")
+;; used for the server
+;;(def base-server-url "")
+
 (defn create-point
   [google-map lat lng]
   (js/google.maps.Circle.
@@ -54,7 +60,7 @@
 (defn set-orders-points!
   [date]
   ;; clear out the current orders-points
-  (let [url "http://localhost:3000/dashboard/orders-since-date"
+  (let [url (str base-server-url "orders-since-date")
         data (js/JSON.stringify (clj->js {:date date}))
         header (clj->js {"Content-Type" "application/json"})
         orders (send-xhr url

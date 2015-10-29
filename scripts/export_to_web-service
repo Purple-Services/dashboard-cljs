@@ -1,0 +1,5 @@
+#!/bin/bash
+scripts/release
+echo "copying release/dashboard_cljs.js to ../web-service/src/public/js/"
+cp release/dashboard_cljs.js ../web-service/src/public/js/
+
