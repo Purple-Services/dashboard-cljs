@@ -7,5 +7,10 @@
     {:output-to "release/dashboard_cljs.js"
      :output-dir "release"
      :optimizations :advanced
-     :verbose true})
+     :verbose true
+     :foreign-libs [{:file "resources/js/pikaday.js"
+                     :provides ["pikaday"]}
+                    {:file "resources/js/moment.js"
+                     :provides ["moment"]}
+                    ]})
   (println "... done. Elapsed" (/ (- (System/nanoTime) start) 1e9) "seconds"))
