@@ -19,10 +19,8 @@
 (def google-map nil)
 
 ;; the base url to use for server calls
-;; used for local development
-(def base-server-url "http://localhost:3000/dashboard/")
-;; used for the server
-;;(def base-server-url "")
+(def base-server-url (-> (.getElementById js/document "base-url")
+                          (.getAttribute "value")))
 
 (defn create-point
   [google-map lat lng]
