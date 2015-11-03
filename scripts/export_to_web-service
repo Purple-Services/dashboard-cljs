@@ -2,4 +2,5 @@
 scripts/release
 echo "copying release/dashboard_cljs.js to ../web-service/src/public/js/"
 cp release/dashboard_cljs.js ../web-service/src/public/js/
-
+echo "copying resources/css/dashmap.css to ../web-service/src/public/css/"
+cp resources/css/dashmap.css ../web-service/src/public/css/
