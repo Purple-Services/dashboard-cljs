@@ -30,6 +30,11 @@
   [url callback method & [data headers]]
   (.send goog.net.XhrIo url callback method data headers))
 
+(defn get-obj-with-prop-val
+  "Get the object in array by prop with val"
+  [array prop val]
+  (first (filter #(= val (aget % prop)) array)))
+
 ;; the base url to use for server calls
 (def base-server-url (-> (.getElementById js/document "base-url")
                          (.getAttribute "value")))
@@ -61,56 +66,42 @@
   [objs map-value]
   (mapv #(set-obj-point-map! % map-value) objs))
 
-(defn display-status-selected-points!
-  "Given state, set the map to nil for any points that are not selected in
-  (:status @state)"
-  [state]
-  (mapv
-   (fn [status]
-     (let [orders (filterv (fn [order] (= (aget order "status")
-                                          (name (key status))))
-                           (:orders @state))
-           selected? (:selected? (val status))]
-       (do
-         (if selected?
-           (set-objs-points-map! orders (:google-map @state))
-           (set-objs-points-map! orders nil)))))
-   (:status @state)))
-
-(defn display-orders-before-date!
-  "Given the state, set the maps of all order's points who occur after date to
-  nil"
-  [state]
-  (let [date (+ (.parse js/Date (:to-date @state))
-                (* 24 60 60 1000))
-        orders-beyond-date
-        (filterv (fn [order] (>=
-                              (aget order "timestamp_created")
-                              date))
-                 (:orders @state))]
-    (set-objs-points-map! orders-beyond-date nil)))
+(defn point-displayed?
+  "Given the state, determine if an order should be displayed or not"
+  [state order]
+  (let [from-date (.parse js/Date (:from-date @state))
+        order-date (aget order "timestamp_created")
+        to-date (+ (.parse js/Date (:to-date @state))
+                   (* 24 60 60 1000)) ; need to add 24 hours so day is included
+        status  (aget order "status")
+        status-selected? (get-in @state [:status (keyword status) :selected?])
+        ]
+    (and
+     ;; order is within the range of dates
+     (<= from-date order-date to-date)
+     status-selected?)))
 
 (defn display-selected-points!
-  "Given state, set the map to nil for any points that should not be shown"
+  "Given the state, only display points that are selected in state"
   [state]
-  (do
-    ;; check the selected? status first
-    (display-status-selected-points! state)
-    ;; remove any points that occur after (:to-date @state)
-    (display-orders-before-date! state)))
+  (mapv #(if (point-displayed? state %)
+           (set-obj-point-map! % (:google-map @state))
+           (set-obj-point-map! % nil)
+           )
+        (:orders @state)))
 
 (defn add-point-to-spatial-object!
   "Given an object with lat,lng properties, create a point on gmap
-with color and optional click-fn. Add point as obj property."
+  with color and optional click-fn. Add point as obj property."
   ([obj gmap color]
    (add-point-to-spatial-object! obj gmap color #()))
   ([obj gmap color click-fn]
    (aset obj "point"
-          (create-point gmap
-                        (aget obj "lat")
-                        (aget obj "lng")
-                        color
-                        click-fn))))
+         (create-point gmap
+                       (aget obj "lat")
+                       (aget obj "lng")
+                       color
+                       click-fn))))
 
 (defn click-order-fn
   "Given order, display information about it when it is clicked on the map"
@@ -120,11 +111,11 @@ with color and optional click-fn. Add point as obj property."
                          (aget order "timestamp_created")))))
 
 
-(defn retrieve-couriers
-  "Retrieve courirers from the server and process them with f"
-  [f]
-  (let [url (str base-server-url "couriers")
-        data {}
+(defn retrieve-route
+  "Access route with data and process xhr callback with f"
+  [route data f]
+  (let [url (str base-server-url route)
+        data data
         header (clj->js {"Content-Type" "application/json"})]
     (send-xhr url
               f
@@ -132,94 +123,153 @@ with color and optional click-fn. Add point as obj property."
               data
               header)))
 
-(defn get-obj-with-prop-val
-  "Get the object in array by prop with val"
-  [array prop val]
-  (first (filter #(= val (aget % prop)) array)))
-
 (defn set-couriers!
   "Get the couriers from the server and store them in the state atom"
   [state]
-  (retrieve-couriers
-   #(let [xhrio (.-target %)
-          response (.getResponseJson xhrio)
-          couriers (aget response "couriers")]
-      (do
-        ;; replace the couriers
-        (swap! state assoc :couriers couriers)
-        ;; add a point for each courier
-        (mapv
-         (fn [courier]
-           (add-point-to-spatial-object!
-            courier
-            (:google-map @state)
-            (get-in @state [:couriers-control
-                            :color])))
-         (:couriers @state))
-        ))))
+  (retrieve-route "couriers" {}
+                  #(let [xhrio (.-target %)
+                         response (.getResponseJson xhrio)
+                         couriers (aget response "couriers")]
+                     (do
+                       ;; replace the couriers
+                       (swap! state assoc :couriers couriers)
+                       ;; add a point for each courier
+                       (mapv
+                        (fn [courier]
+                          (add-point-to-spatial-object!
+                           courier
+                           (:google-map @state)
+                           (get-in @state [:couriers-control
+                                           :color])))
+                        (:couriers @state))))))
 
 
 (defn update-couriers!
   "Update the couriers positions with data from the server"
   [state]
-  (retrieve-couriers
-   #(let [xhrio (.-target %)
-          response (.getResponseJson xhrio)
-          couriers (aget response "couriers")]
-      (do
-        (mapv (fn [courier]
-                (let [state-courier
-                      (get-obj-with-prop-val (:couriers @state)
-                                             "id" (aget courier "id"))
-                      state-courier-point
-                      (aget state-courier "point")
-                      new-lat (aget courier "lat")
-                      new-lng (aget courier "lng")
-                      new-center (clj->js {:lat new-lat
-                                           :lng new-lng})]
-                  ;; update the couriers lat lng
-                  (aset state-courier "lat" new-lat)
-                  (aset state-courier "lng" new-lng)
-                  ;; set the corresponding point's center
-                  (.setCenter state-courier-point
-                              new-center)
-                  (.setRadius state-courier-point 50)))
-              couriers)))))
+  (retrieve-route "couriers" {}
+                  #(let [xhrio (.-target %)
+                         response (.getResponseJson xhrio)
+                         couriers (aget response "couriers")]
+                     (do
+                       (mapv (fn [courier]
+                               (let [state-courier
+                                     (get-obj-with-prop-val (:couriers @state)
+                                                            "id" (aget courier
+                                                                       "id"))
+                                     state-courier-point
+                                     (aget state-courier "point")
+                                     new-lat (aget courier "lat")
+                                     new-lng (aget courier "lng")
+                                     new-center (clj->js {:lat new-lat
+                                                          :lng new-lng})]
+                                 ;; update the couriers lat lng
+                                 (aset state-courier "lat" new-lat)
+                                 (aset state-courier "lng" new-lng)
+                                 ;; set the corresponding point's center
+                                 (.setCenter state-courier-point
+                                             new-center)
+                                 (.setRadius state-courier-point 50)))
+                             couriers)))))
 
-(defn swap-orders!
-  "Get the orders since date (YYYY-MM-DD) store them in the state atom"
-  [state date]
-  (let [url (str base-server-url "orders-since-date")
-        data (js/JSON.stringify (clj->js {:date date}))
-        header (clj->js {"Content-Type" "application/json"})]
-    (send-xhr url
-              #(let [xhrio (.-target %)
-                     response (.getResponseJson xhrio)
-                     orders (aget response "orders")]
-                 (do
-                   ;; remove all orders points from the map
-                   (set-objs-points-map! (:orders @state) nil)
-                   (swap! state assoc :orders orders)
-                   ;; add a point for each order
-                   (mapv
-                    (fn [order]
-                      (add-point-to-spatial-object!
-                       order
-                       (:google-map @state)
-                       (get-in @state [:status
-                                       (keyword
-                                        (.-status order))
-                                       :color])))
-                    (:orders @state))
-                   ;; convert the server dates to js/Date (i.e. unix timestamp)
-                   (mapv (fn [order]
-                           (aset order "timestamp_created"
-                                 (.parse js/Date
-                                         (aget order "timestamp_created"))))
-                         (:orders @state))
-                   ;; redraw the points according to which ones are selected
-                   (display-selected-points! state)))
-              "POST" data header)))
+(defn retrieve-orders
+  "Retrieve the orders since date and apply f to them"
+  [date f]
+  (retrieve-route "orders-since-date" (js/JSON.stringify
+                                       (clj->js {:date date})) f))
+
+(defn init-orders!
+  "Get the all orders from the server and store them in the state atom. This
+  should only be called once initially."
+  [state]
+  (do
+    (retrieve-orders
+     "" ; because an empty date will return ALL orders
+     #(let [xhrio (.-target %)
+            response (.getResponseJson xhrio)
+            orders (aget response "orders")]
+        (do
+          (swap! state assoc :orders orders)
+          ;; add a point for each order
+          (mapv
+           (fn [order]
+             (add-point-to-spatial-object!
+              order
+              (:google-map @state)
+              (get-in @state [:status
+                              (keyword
+                               (.-status order))
+                              :color])
+              (fn [] (click-order-fn order))))
+           (:orders @state))
+          ;; convert the server dates to js/Date
+          ;; (i.e. unix timestamp)
+          (mapv (fn [order]
+                  (aset order "timestamp_created"
+                        (.parse js/Date
+                                (aget order "timestamp_created"))))
+                (:orders @state))
+          ;; redraw the points according to which ones are selected
+          (display-selected-points! state))))))
+
+(defn update-orders!
+  "Retrieve orders that are more recent than those in state"
+  [state]
+  (let [most-recent-order (first (sort #(>
+                                         (aget %1 "timestamp_created")
+                                         (aget %2 "timestamp_created"))
+                                       (:orders @state)))
+        most-recent-date  (js/Date.
+                           (aget most-recent-order "timestamp_created"))
+        server-date       (str (.getUTCFullYear most-recent-date) "-"
+                               (+ 1 (.getUTCMonth    most-recent-date)) "-"
+                               (+ 1 (.getUTCDay      most-recent-date)) " "
+                               (.getUTCHours    most-recent-date) ":"
+                               (.getUTCMinutes  most-recent-date) ":"
+                               (.getUTCSeconds  most-recent-date))]
+    (retrieve-orders
+     server-date
+     #(let [xhrio (.-target %)
+            response (.getResponseJson xhrio)
+            orders (aget response "orders")]
+        (mapv (fn [order]
+                (do
+                  ;; add the point to the order
+                  (add-point-to-spatial-object!
+                   order
+                   (:google-map @state)
+                   (get-in @state [:status
+                                   (keyword
+                                    (aget order "status"))
+                                   :color])
+                   (fn [] (click-order-fn order)))
+                  ;; convert the server dates to js/Date
+                  (aset order "timestamp_created"
+                        (.parse js/Date
+                                (aget order "timestamp_created")))
+                  (.push (:orders @state) order)))
+              orders)
+        ;; redraw the points
+        (display-selected-points! state)
+        ;; (.log js/console (count orders
+        ;;                         ;;(mapv (fn [order]) orders)
+        ;;                         ))
+        ))))
+
+;; (defn sync-orders!
+;;   "Retrieve orders from the server since date and update the orders in state"
+;;   [state date]
+;;   (retrieve-route date
+;;                   #(let [xhrio (.-target %)
+;;                          response (.getResponseJson xhrio)
+;;                          orders (aget response "orders")]
+;;                      (do
+;;                        ;; check to see if the order already exists
+;;                        ;; if it does, change all values inside of it
+;;                        ;; change its point as well
+;;                        ;; if it doesn't exists, add the order to orders
+;;                        ;; add a point for it as well
+;;                        ))))
 
 (defn legend-symbol
   "A round div for use as a legend symbol"
@@ -287,14 +337,14 @@ with color and optional click-fn. Add point as obj property."
         from-input (date-picker-input (:from-date @state))
         from-date-picker (date-picker from-input
                                       #(do
-                                         (swap-orders! state from-input.value)))
+                                         (swap! state assoc :from-date
+                                                from-input.value)
+                                         (display-selected-points! state)))
         to-input (date-picker-input (:to-date @state))
-        to-date-picker
-        (date-picker
-         to-input
-         #(do
-            (swap! state assoc :to-date to-input.value)
-            (display-selected-points! state)))]
+        to-date-picker (date-picker
+                        to-input #(do
+                                    (swap! state assoc :to-date to-input.value)
+                                    (display-selected-points! state)))]
     (crate/html [:div
                  [:div {:class "setCenterUI"
                         :title "Click to change dates"}
@@ -367,9 +417,11 @@ with color and optional click-fn. Add point as obj property."
                   (crate/html [:div (couriers-control state)])
                   js/google.maps.ControlPosition.LEFT_TOP)
     ;; initialize the orders
-    (swap-orders! state (:from-date @state))
+    (init-orders! state)
     ;; initialize the couriers
     (set-couriers! state)
     ;; poll the server every second and update the courier's position
-    (continous-update #(update-couriers! state))
+    (continous-update #(do (update-couriers! state)
+                           ;;(update-orders! state)
+                           ))
     ))
