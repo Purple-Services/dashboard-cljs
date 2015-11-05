@@ -3,6 +3,7 @@
             [goog.net.XhrIo :as xhr]
             [pikaday]
             [moment]
+            [maplabel]
             ))
 
 (def state (atom {:orders nil
@@ -55,11 +56,37 @@
     (.addListener point "click" click-fn)
     point))
 
-(defn set-obj-point-map!
-  "Given an obj with a point property, set its point's map to map-value"
-  [obj map-value]
-  (if (not (nil? (aget obj "point")))
-    (.setMap (aget obj "point") map-value)))
+(defn add-point-to-spatial-object!
+  "Given an object with lat,lng properties, create a point on gmap
+  with color and optional click-fn. Add point as obj property."
+  ([obj gmap color]
+   (add-point-to-spatial-object! obj gmap color #()))
+  ([obj gmap color click-fn]
+   (aset obj "point"
+         (create-point gmap
+                       (aget obj "lat")
+                       (aget obj "lng")
+                       color
+                       click-fn))))
+(defn create-label
+  "Create a MapLabel object on google-map with lat, lng and text"
+  [google-map lat lng text]
+  (js/MapLabel.
+   (js-obj "map" google-map
+           "position" (js/google.maps.LatLng. lat lng)
+           "text" text
+           "fontSize" 20
+           "align" "center")))
+
+(defn add-label-to-spatial-object!
+  "Given an object with lat,lng properties, create a label on gmap
+  with text. Add label as obj property"
+  [obj gmap text]
+  (aset obj "label"
+        (create-label gmap
+                      (aget obj "lat")
+                      (aget obj "lng")
+                      text)))
 
 (defn order-displayed?
   "Given the state, determine if an order should be displayed or not"
@@ -81,32 +108,25 @@
   [state courier]
   (let [active?    (aget courier "active")
         on-duty?   (aget courier "on_duty")
-        connected? (aget courier "connected")
+        connected? true ;;(aget courier "connected")
         selected?  (get-in @state [:couriers-control :selected?])
         ]
     (and connected? active? on-duty? selected?)))
 
-(defn display-selected-points!
-  "Given the state, only display points of objs that satisfy pred on
-object in objs"
-  [state objs pred]
-  (mapv #(if (pred %)
-           (set-obj-point-map! % (:google-map @state))
-           (set-obj-point-map! % nil))
-        objs))
+(defn set-obj-prop-map!
+  "Given an obj with prop, set its point's map to map-value"
+  [obj prop map-value]
+  (if (not (nil? (aget obj prop)))
+    (.setMap (aget obj prop) map-value)))
 
-(defn add-point-to-spatial-object!
-  "Given an object with lat,lng properties, create a point on gmap
-  with color and optional click-fn. Add point as obj property."
-  ([obj gmap color]
-   (add-point-to-spatial-object! obj gmap color #()))
-  ([obj gmap color click-fn]
-   (aset obj "point"
-         (create-point gmap
-                       (aget obj "lat")
-                       (aget obj "lng")
-                       color
-                       click-fn))))
+(defn display-selected-props!
+  "Given the state, only display props of objs that satisfy pred on
+object in objs"
+  [state objs prop pred]
+  (mapv #(if (pred %)
+           (set-obj-prop-map! % prop (:google-map @state))
+           (set-obj-prop-map! % prop nil))
+        objs))
 
 (defn retrieve-route
   "Access route with data and process xhr callback with f"
@@ -139,10 +159,19 @@ object in objs"
                            (get-in @state [:couriers-control
                                            :color])))
                         (:couriers @state))
+                       ;; add a label for each courier
+                       (mapv
+                        (fn [courier]
+                          (add-label-to-spatial-object!
+                           courier
+                           (:google-map @state)
+                           (aget courier "name")))
+                        (:couriers @state))
                        ;; display the couriers
-                       (display-selected-points!
+                       (display-selected-props!
                         state
                         (:couriers @state)
+                        "point"
                         (partial courier-displayed? state))
                        ))))
 
@@ -162,6 +191,8 @@ object in objs"
                                                                        "id"))
                                      state-courier-point
                                      (aget state-courier "point")
+                                     state-courier-label
+                                     (aget state-courier "label")
                                      new-lat    (aget courier "lat")
                                      new-lng    (aget courier "lng")
                                      active?    (aget courier "active")
@@ -179,13 +210,19 @@ object in objs"
                                  ;; set the corresponding point's center
                                  (.setCenter state-courier-point
                                              new-center)
+                                 ;; set the corresponding label's position
+                                 (.set state-courier-label "position"
+                                       (js/google.maps.LatLng. new-lat new-lng))
+                                 ;; redraw label so it moves
+                                 (.draw state-courier-label)
                                  ;;(.setRadius state-courier-point 50)
                                  ))
                              couriers))
                      ;; show the couriers
-                     (display-selected-points!
+                     (display-selected-props!
                       state
                       (:couriers @state)
+                      "point"
                       (partial courier-displayed? state)))))
 
 (defn retrieve-orders
@@ -240,7 +277,8 @@ object in objs"
            convert-orders-timestamp!
            (:orders @state))
           ;; redraw the points according to which ones are selected
-          (display-selected-points! state (:orders @state)
+          (display-selected-props! state (:orders @state)
+                                   "point"
                                     (partial order-displayed? state)))))))
 
 (defn sync-order!
@@ -311,9 +349,10 @@ add it to the orders in state"
                                                (swap! state assoc-in
                                                       [:status (keyword status)
                                                        :selected?] false))
-                                             (display-selected-points!
+                                             (display-selected-props!
                                               state
                                               (:orders @state)
+                                              "point"
                                               (partial order-displayed? state)
                                               )))
     control-text))
@@ -349,16 +388,18 @@ add it to the orders in state"
                                       #(do
                                          (swap! state assoc :from-date
                                                 from-input.value)
-                                         (display-selected-points!
+                                         (display-selected-props!
                                           state (:orders @state)
+                                          "point"
                                           (partial order-displayed? state))))
         to-input (date-picker-input (:to-date @state))
         to-date-picker (date-picker
                         to-input #(do
                                     (swap! state assoc :to-date to-input.value)
-                                    (display-selected-points!
-                                          state (:orders @state)
-                                          (partial order-displayed? state))))]
+                                    (display-selected-props!
+                                     state (:orders @state)
+                                     "point"
+                                     (partial order-displayed? state))))]
     (crate/html [:div
                  [:div {:class "setCenterUI"
                         :title "Click to change dates"}
@@ -391,9 +432,10 @@ add it to the orders in state"
                                     [:couriers-control :selected?] true)
                              (swap! state assoc-in
                                     [:couriers-control :selected?] false))
-                           (display-selected-points!
+                           (display-selected-props!
                             state
                             (:couriers @state)
+                            "point"
                             (partial courier-displayed? state)
                             )))
     (crate/html [:div [:div {:class "setCenterUI" :title "Select couriers"}
@@ -424,7 +466,7 @@ add it to the orders in state"
             (.getElementById js/document "map")
             (js-obj "center"
                     (js-obj "lat" 34.0714522 "lng" -118.40362)
-                    "zoom" 16) ))
+                    "zoom" 12) ))
     ;; add controls
     (add-control! (:google-map @state) (crate/html
                                         [:div
@@ -465,4 +507,4 @@ add it to the orders in state"
     (continous-update #(do (update-couriers! state)
                            (sync-orders! state)
                            )
-                      5000)))
+                      1000)))
