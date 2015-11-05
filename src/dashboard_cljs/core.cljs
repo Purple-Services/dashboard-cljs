@@ -51,7 +51,7 @@
                  "fillOpacity" 1
                  "map" google-map
                  "center" (js-obj "lat" lat "lng" lng)
-                 "radius" 20))]
+                 "radius" 200))]
     (.addListener point "click" click-fn)
     point))
 
@@ -61,12 +61,7 @@
   (if (not (nil? (aget obj "point")))
     (.setMap (aget obj "point") map-value)))
 
-(defn set-objs-points-map!
-  "Given a set of objs, set their points map to map-value"
-  [objs map-value]
-  (mapv #(set-obj-point-map! % map-value) objs))
-
-(defn point-displayed?
+(defn order-displayed?
   "Given the state, determine if an order should be displayed or not"
   [state order]
   (let [from-date (.parse js/Date (:from-date @state))
@@ -81,14 +76,24 @@
      (<= from-date order-date to-date)
      status-selected?)))
 
+(defn courier-displayed?
+  "Given the state, determine if a courier should be displayed or not"
+  [state courier]
+  (let [active?    (aget courier "active")
+        on-duty?   (aget courier "on_duty")
+        connected? (aget courier "connected")
+        selected?  (get-in @state [:couriers-control :selected?])
+        ]
+    (and connected? active? on-duty? selected?)))
+
 (defn display-selected-points!
-  "Given the state, only display points that are selected in state"
-  [state]
-  (mapv #(if (point-displayed? state %)
+  "Given the state, only display points of objs that satisfy pred on
+object in objs"
+  [state objs pred]
+  (mapv #(if (pred %)
            (set-obj-point-map! % (:google-map @state))
-           (set-obj-point-map! % nil)
-           )
-        (:orders @state)))
+           (set-obj-point-map! % nil))
+        objs))
 
 (defn add-point-to-spatial-object!
   "Given an object with lat,lng properties, create a point on gmap
@@ -102,14 +107,6 @@
                        (aget obj "lng")
                        color
                        click-fn))))
-
-(defn click-order-fn
-  "Given order, display information about it when it is clicked on the map"
-  [order]
-  (.log js/console (str "timestamp_created: "
-                        (js/Date.
-                         (aget order "timestamp_created")))))
-
 
 (defn retrieve-route
   "Access route with data and process xhr callback with f"
@@ -141,7 +138,13 @@
                            (:google-map @state)
                            (get-in @state [:couriers-control
                                            :color])))
-                        (:couriers @state))))))
+                        (:couriers @state))
+                       ;; display the couriers
+                       (display-selected-points!
+                        state
+                        (:couriers @state)
+                        (partial courier-displayed? state))
+                       ))))
 
 
 (defn update-couriers!
@@ -159,18 +162,31 @@
                                                                        "id"))
                                      state-courier-point
                                      (aget state-courier "point")
-                                     new-lat (aget courier "lat")
-                                     new-lng (aget courier "lng")
+                                     new-lat    (aget courier "lat")
+                                     new-lng    (aget courier "lng")
+                                     active?    (aget courier "active")
+                                     on_duty?   (aget courier "on_duty")
+                                     connected? (aget courier "connected")
                                      new-center (clj->js {:lat new-lat
                                                           :lng new-lng})]
                                  ;; update the couriers lat lng
                                  (aset state-courier "lat" new-lat)
                                  (aset state-courier "lng" new-lng)
+                                 ;; update the statuses of courier
+                                 (aset state-courier "active" active?)
+                                 (aset state-courier "on_duty" on_duty?)
+                                 (aset state-courier "connected" connected?)
                                  ;; set the corresponding point's center
                                  (.setCenter state-courier-point
                                              new-center)
-                                 (.setRadius state-courier-point 50)))
-                             couriers)))))
+                                 ;;(.setRadius state-courier-point 50)
+                                 ))
+                             couriers))
+                     ;; show the couriers
+                     (display-selected-points!
+                      state
+                      (:couriers @state)
+                      (partial courier-displayed? state)))))
 
 (defn retrieve-orders
   "Retrieve the orders since date and apply f to them"
@@ -178,13 +194,37 @@
   (retrieve-route "orders-since-date" (js/JSON.stringify
                                        (clj->js {:date date})) f))
 
+(defn click-order-fn
+  "Given order, display information about it when it is clicked on the map"
+  [order]
+  (.log js/console (str "timestamp_created: "
+                        (js/Date.
+                         (aget order "timestamp_created")))))
+
+(defn add-point-to-order!
+  "Given state, add a point to order"
+  [state order]
+  (add-point-to-spatial-object! order (:google-map @state)
+                                (get-in @state [:status
+                                                (keyword
+                                                 (.-status order))
+                                                :color])
+                                (fn [] (click-order-fn order))))
+
+(defn convert-orders-timestamp!
+  "Convert an orders timestamp_created to a js/Date"
+  [order]
+  (aset order "timestamp_created"
+        (.parse js/Date
+                (aget order "timestamp_created"))))
+
 (defn init-orders!
   "Get the all orders from the server and store them in the state atom. This
   should only be called once initially."
-  [state]
+  [state date]
   (do
     (retrieve-orders
-     "" ; because an empty date will return ALL orders
+     date ; because an empty date will return ALL orders
      #(let [xhrio (.-target %)
             response (.getResponseJson xhrio)
             orders (aget response "orders")]
@@ -192,84 +232,50 @@
           (swap! state assoc :orders orders)
           ;; add a point for each order
           (mapv
-           (fn [order]
-             (add-point-to-spatial-object!
-              order
-              (:google-map @state)
-              (get-in @state [:status
-                              (keyword
-                               (.-status order))
-                              :color])
-              (fn [] (click-order-fn order))))
+           (partial add-point-to-order! state)
            (:orders @state))
           ;; convert the server dates to js/Date
           ;; (i.e. unix timestamp)
-          (mapv (fn [order]
-                  (aset order "timestamp_created"
-                        (.parse js/Date
-                                (aget order "timestamp_created"))))
-                (:orders @state))
+          (mapv
+           convert-orders-timestamp!
+           (:orders @state))
           ;; redraw the points according to which ones are selected
-          (display-selected-points! state))))))
+          (display-selected-points! state (:orders @state)
+                                    (partial order-displayed? state)))))))
 
-(defn update-orders!
-  "Retrieve orders that are more recent than those in state"
+(defn sync-order!
+  "Given an order, sync it with the one in state. If it does not already exist,
+add it to the orders in state"
+  [state order]
+  (let [order-status (aget order "status")
+        status-color (get-in @state [:status (keyword order-status)
+                                     :color])
+        state-order (get-obj-with-prop-val (:orders @state) "id"
+                                           (aget order "id"))]
+    (if (nil? state-order)
+      ;; process the order and add it to orders of state
+      (do
+        (add-point-to-order! state order)
+        (convert-orders-timestamp! order)
+        (.push (:orders @state) order))
+      ;; update the existing orders properties
+      (do
+        ;; currently, only the status could change
+        (aset state-order "status" order-status)
+        ;; change the color of point to correspond to order status
+        (let [color (get-in @state [:status (keyword order-status)])]
+          (.setOptions (aget state-order "point")
+                       (clj->js {:options {:fillColor status-color
+                                           :strokeColor status-color}})))))))
+
+(defn sync-orders!
+  "Retrieve today's orders and sync them with the state"
   [state]
-  (let [most-recent-order (first (sort #(>
-                                         (aget %1 "timestamp_created")
-                                         (aget %2 "timestamp_created"))
-                                       (:orders @state)))
-        most-recent-date  (js/Date.
-                           (aget most-recent-order "timestamp_created"))
-        server-date       (str (.getUTCFullYear most-recent-date) "-"
-                               (+ 1 (.getUTCMonth    most-recent-date)) "-"
-                               (+ 1 (.getUTCDay      most-recent-date)) " "
-                               (.getUTCHours    most-recent-date) ":"
-                               (.getUTCMinutes  most-recent-date) ":"
-                               (.getUTCSeconds  most-recent-date))]
-    (retrieve-orders
-     server-date
-     #(let [xhrio (.-target %)
-            response (.getResponseJson xhrio)
-            orders (aget response "orders")]
-        (mapv (fn [order]
-                (do
-                  ;; add the point to the order
-                  (add-point-to-spatial-object!
-                   order
-                   (:google-map @state)
-                   (get-in @state [:status
-                                   (keyword
-                                    (aget order "status"))
-                                   :color])
-                   (fn [] (click-order-fn order)))
-                  ;; convert the server dates to js/Date
-                  (aset order "timestamp_created"
-                        (.parse js/Date
-                                (aget order "timestamp_created")))
-                  (.push (:orders @state) order)))
-              orders)
-        ;; redraw the points
-        (display-selected-points! state)
-        ;; (.log js/console (count orders
-        ;;                         ;;(mapv (fn [order]) orders)
-        ;;                         ))
-        ))))
-
-;; (defn sync-orders!
-;;   "Retrieve orders from the server since date and update the orders in state"
-;;   [state date]
-;;   (retrieve-route date
-;;                   #(let [xhrio (.-target %)
-;;                          response (.getResponseJson xhrio)
-;;                          orders (aget response "orders")]
-;;                      (do
-;;                        ;; check to see if the order already exists
-;;                        ;; if it does, change all values inside of it
-;;                        ;; change its point as well
-;;                        ;; if it doesn't exists, add the order to orders
-;;                        ;; add a point for it as well
-;;                        ))))
+  (retrieve-orders (.format (js/moment) "YYYY-MM-DD")
+                   #(let [xhrio (.-target %)
+                          response (.getResponseJson xhrio)
+                          orders (aget response "orders")]
+                      (mapv (partial sync-order! state) orders))))
 
 (defn legend-symbol
   "A round div for use as a legend symbol"
@@ -305,7 +311,11 @@
                                                (swap! state assoc-in
                                                       [:status (keyword status)
                                                        :selected?] false))
-                                             (display-selected-points! state)))
+                                             (display-selected-points!
+                                              state
+                                              (:orders @state)
+                                              (partial order-displayed? state)
+                                              )))
     control-text))
 
 (defn orders-status-control
@@ -339,12 +349,16 @@
                                       #(do
                                          (swap! state assoc :from-date
                                                 from-input.value)
-                                         (display-selected-points! state)))
+                                         (display-selected-points!
+                                          state (:orders @state)
+                                          (partial order-displayed? state))))
         to-input (date-picker-input (:to-date @state))
         to-date-picker (date-picker
                         to-input #(do
                                     (swap! state assoc :to-date to-input.value)
-                                    (display-selected-points! state)))]
+                                    (display-selected-points!
+                                          state (:orders @state)
+                                          (partial order-displayed? state))))]
     (crate/html [:div
                  [:div {:class "setCenterUI"
                         :title "Click to change dates"}
@@ -373,10 +387,15 @@
                                                      :color]))])]
     (.addEventListener
      checkbox "click" #(do (if (aget checkbox "checked")
-                             (set-objs-points-map! (:couriers @state)
-                                                   (:google-map @state))
-                             (set-objs-points-map! (:couriers @state)
-                                                   nil))))
+                             (swap! state assoc-in
+                                    [:couriers-control :selected?] true)
+                             (swap! state assoc-in
+                                    [:couriers-control :selected?] false))
+                           (display-selected-points!
+                            state
+                            (:couriers @state)
+                            (partial courier-displayed? state)
+                            )))
     (crate/html [:div [:div {:class "setCenterUI" :title "Select couriers"}
                        control-text]])))
 
@@ -388,14 +407,14 @@
 
 
 (defn continous-update
-  "Call f continously "
-  [f]
+  "Call f continously every n seconds"
+  [f n]
   (js/setTimeout #(do (f)
-                      (continous-update f))
-                 1000))
+                      (continous-update f n))
+                 n))
 
-(defn ^:export init-map
-  "Initialize the map for managing orders"
+(defn ^:export init-map-orders
+  "Initialize the map for viewing all orders"
   []
   (do
     (swap! state
@@ -406,22 +425,44 @@
             (js-obj "center"
                     (js-obj "lat" 34.0714522 "lng" -118.40362)
                     "zoom" 16) ))
-    ;; add a control for selecting dates of orders
+    ;; add controls
     (add-control! (:google-map @state) (crate/html
                                         [:div
                                          (orders-date-control state)
-                                         (orders-status-control state)])
-                  js/google.maps.ControlPosition.LEFT_TOP)
-    ;; add a control for the couriers
-    (add-control! (:google-map @state)
-                  (crate/html [:div (couriers-control state)])
+                                         (orders-status-control state)
+                                         ])
                   js/google.maps.ControlPosition.LEFT_TOP)
     ;; initialize the orders
-    (init-orders! state)
+    (init-orders! state "")
+    ;; poll the server and update orders
+    (continous-update #(do (sync-orders! state))
+                      (* 10 60 1000))))
+
+(defn ^:export init-map-couriers
+  "Initialize the map for manager couriers"
+  []
+  (do
+    (swap! state
+           assoc
+           :google-map
+           (js/google.maps.Map.
+            (.getElementById js/document "map")
+            (js-obj "center"
+                    (js-obj "lat" 34.0714522 "lng" -118.40362)
+                    "zoom" 12) ))
+    ;; add controls
+    (add-control! (:google-map @state) (crate/html
+                                        [:div
+                                         (orders-status-control state)
+                                         (crate/html
+                                          [:div (couriers-control state)])])
+                  js/google.maps.ControlPosition.LEFT_TOP)
+    ;; initialize the orders
+    (init-orders! state (.format (js/moment) "YYYY-MM-DD"))
     ;; initialize the couriers
     (set-couriers! state)
-    ;; poll the server every second and update the courier's position
+    ;; poll the server and update the orders and couriers
     (continous-update #(do (update-couriers! state)
-                           ;;(update-orders! state)
-                           ))
-    ))
+                           (sync-orders! state)
+                           )
+                      5000)))
