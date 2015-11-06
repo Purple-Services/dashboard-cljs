@@ -12,5 +12,7 @@
                      :provides ["pikaday"]}
                     {:file "resources/js/moment.js"
                      :provides ["moment"]}
+                    {:file "resources/js/maplabel.js"
+                     :provides ["maplabel"]}
                     ]})
   (println "... done. Elapsed" (/ (- (System/nanoTime) start) 1e9) "seconds"))

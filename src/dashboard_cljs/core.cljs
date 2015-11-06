@@ -6,7 +6,7 @@
             [maplabel]
             ))
 
-(def state (atom {:orders nil
+(def state (atom {:orders (array)
                   :couriers nil
                   :couriers-control
                   {:selected? true
@@ -17,14 +17,16 @@
                   :status
                   {:unassigned {:color "#ff0000"
                                 :selected? true}
+                   :accepted   {:color "#808080"
+                                :selected? true}
                    :enroute    {:color "#ffdd00"
                                 :selected? true}
                    :servicing  {:color "#0000ff"
                                 :selected? true}
                    :complete   {:color "#00ff00"
                                 :selected? true}
-                   :cancelled   {:color "#000000"
-                                 :selected? true}}}))
+                   :cancelled  {:color "#000000"
+                                :selected? true}}}))
 
 (defn send-xhr
   "Send a xhr to url using callback and HTTP method."
@@ -103,16 +105,6 @@
      (<= from-date order-date to-date)
      status-selected?)))
 
-(defn courier-displayed?
-  "Given the state, determine if a courier should be displayed or not"
-  [state courier]
-  (let [active?    (aget courier "active")
-        on-duty?   (aget courier "on_duty")
-        connected? true ;;(aget courier "connected")
-        selected?  (get-in @state [:couriers-control :selected?])
-        ]
-    (and connected? active? on-duty? selected?)))
-
 (defn set-obj-prop-map!
   "Given an obj with prop, set its point's map to map-value"
   [obj prop map-value]
@@ -121,12 +113,31 @@
 
 (defn display-selected-props!
   "Given the state, only display props of objs that satisfy pred on
-object in objs"
+  object in objs"
   [state objs prop pred]
   (mapv #(if (pred %)
            (set-obj-prop-map! % prop (:google-map @state))
            (set-obj-prop-map! % prop nil))
         objs))
+
+(defn courier-displayed?
+  "Given the state, determine if a courier should be displayed or not"
+  [state courier]
+  (let [active?    (aget courier "active")
+        on-duty?   (aget courier "on_duty")
+        connected? (aget courier "connected")
+        selected?  (get-in @state [:couriers-control :selected?])
+        ]
+    (and connected? active? on-duty? selected?)))
+
+(defn display-selected-couriers!
+  "Given the state, display selected couriers"
+  [state]
+  (let [display-courier-props!
+        #(display-selected-props!
+          state (:couriers @state) % (partial courier-displayed? state))]
+    (display-courier-props! "point")
+    (display-courier-props! "label")))
 
 (defn retrieve-route
   "Access route with data and process xhr callback with f"
@@ -168,12 +179,7 @@ object in objs"
                            (aget courier "name")))
                         (:couriers @state))
                        ;; display the couriers
-                       (display-selected-props!
-                        state
-                        (:couriers @state)
-                        "point"
-                        (partial courier-displayed? state))
-                       ))))
+                       (display-selected-couriers! state)))))
 
 
 (defn update-couriers!
@@ -219,11 +225,7 @@ object in objs"
                                  ))
                              couriers))
                      ;; show the couriers
-                     (display-selected-props!
-                      state
-                      (:couriers @state)
-                      "point"
-                      (partial courier-displayed? state)))))
+                     (display-selected-couriers! state))))
 
 (defn retrieve-orders
   "Retrieve the orders since date and apply f to them"
@@ -265,25 +267,26 @@ object in objs"
      #(let [xhrio (.-target %)
             response (.getResponseJson xhrio)
             orders (aget response "orders")]
-        (do
-          (swap! state assoc :orders orders)
-          ;; add a point for each order
-          (mapv
-           (partial add-point-to-order! state)
-           (:orders @state))
-          ;; convert the server dates to js/Date
-          ;; (i.e. unix timestamp)
-          (mapv
-           convert-orders-timestamp!
-           (:orders @state))
-          ;; redraw the points according to which ones are selected
-          (display-selected-props! state (:orders @state)
-                                   "point"
-                                    (partial order-displayed? state)))))))
+        (if (not (nil? orders))
+          (do
+            (swap! state assoc :orders orders)
+            ;; add a point for each order
+            (mapv
+             (partial add-point-to-order! state)
+             (:orders @state))
+            ;; convert the server dates to js/Date
+            ;; (i.e. unix timestamp)
+            (mapv
+             convert-orders-timestamp!
+             (:orders @state))
+            ;; redraw the points according to which ones are selected
+            (display-selected-props! state (:orders @state)
+                                     "point"
+                                     (partial order-displayed? state))))))))
 
 (defn sync-order!
   "Given an order, sync it with the one in state. If it does not already exist,
-add it to the orders in state"
+  add it to the orders in state"
   [state order]
   (let [order-status (aget order "status")
         status-color (get-in @state [:status (keyword order-status)
@@ -313,7 +316,8 @@ add it to the orders in state"
                    #(let [xhrio (.-target %)
                           response (.getResponseJson xhrio)
                           orders (aget response "orders")]
-                      (mapv (partial sync-order! state) orders))))
+                      (if (not (nil? orders))
+                        (mapv (partial sync-order! state) orders)))))
 
 (defn legend-symbol
   "A round div for use as a legend symbol"
@@ -366,6 +370,7 @@ add it to the orders in state"
                  :title "Select order status"}
                 (map #(order-status-checkbox state %)
                      '("unassigned"
+                       "accepted"
                        "enroute"
                        "servicing"
                        "complete"
@@ -507,4 +512,4 @@ add it to the orders in state"
     (continous-update #(do (update-couriers! state)
                            (sync-orders! state)
                            )
-                      1000)))
+                      5000)))
