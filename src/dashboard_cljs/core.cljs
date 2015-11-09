@@ -42,10 +42,10 @@
 (def base-server-url (-> (.getElementById js/document "base-url")
                          (.getAttribute "value")))
 
-(defn create-point
-  "Create a circle point on google-map with lat lng and color"
+(defn create-circle
+  "Create a circle shape on google-map with lat lng and color"
   [google-map lat lng color click-fn]
-  (let [point
+  (let [circle
         (js/google.maps.Circle.
          (js-obj "strokeColor" color
                  "strokeOpacity" 1.0
@@ -55,29 +55,95 @@
                  "map" google-map
                  "center" (js-obj "lat" lat "lng" lng)
                  "radius" 200))]
-    (.addListener point "click" click-fn)
-    point))
+    (.addListener circle "click" click-fn)
+    circle))
 
-(defn add-point-to-spatial-object!
-  "Given an object with lat,lng properties, create a point on gmap
-  with color and optional click-fn. Add point as obj property."
+(defn add-circle-to-spatial-object!
+  "Given an object with lat,lng properties, create a circle on gmap
+  with color and optional click-fn. Add circle as obj property."
   ([obj gmap color]
-   (add-point-to-spatial-object! obj gmap color #()))
+   (add-circle-to-spatial-object! obj gmap color #()))
   ([obj gmap color click-fn]
-   (aset obj "point"
-         (create-point gmap
+   (aset obj "circle"
+         (create-circle gmap
                        (aget obj "lat")
                        (aget obj "lng")
                        color
                        click-fn))))
+
+(defn scale-by-zoom
+  "Given a zoom, min-val and max-val return a value scaled by zoom"
+  [zoom min-val max-val]
+  (let [min-zoom 10
+        max-zoom 21
+        zoom-normalized (- zoom min-zoom)
+        scale-factor (.pow js/Math 2 (- 21 zoom))
+        new-radius   (cond (>= zoom max-zoom)
+                           min-val
+                           (<= zoom min-zoom )
+                           max-val
+                           (< min-zoom zoom max-zoom)
+                           (* scale-factor 1128.497220 0.0027 (/ 1 10)))]
+    new-radius))
+
+(defn scale-spatial-object-circle-radius!
+  "Given obj with a circle prop, scale its radius by zoom"
+  [zoom obj]
+  (.setRadius (aget obj "circle") (scale-by-zoom zoom 1 200)))
+
+(defn dlat-label
+  "Calculate the dLat by which the label should be moved based on the zoom so
+  that it can be seen"
+  [zoom]
+  (* -1 (.pow js/Math 10 (/ (* -1 zoom) 4.2))))
+
+(defn set-obj-label-lat-lng!
+  "Given an obj, set the lat, lng positions of the label"
+  [lat lng obj]
+  (let [label (aget obj "label")]
+    (.set label "position"
+            (js/google.maps.LatLng. lat lng))
+    (.draw label)))
+
+(defn set-obj-label-position!
+  "Given state, set the obj's label position based on the map's zoom"
+  [state obj]
+  (let [circle (aget obj "circle")
+        circle-center (aget circle "center")
+        label (aget obj "label")
+        circle-lat (.lat circle-center)
+        circle-lng (.lng circle-center)
+        zoom       (.getZoom (:google-map @state))
+        dlat       (dlat-label zoom)]
+    (set-obj-label-lat-lng! (+ circle-lat dlat) circle-lng obj)))
+
+(defn ^:export get-map-info
+  "Utility function for viewing map information in the browser"
+  []
+  (.log js/console (str "Map-Zoom:" (.getZoom (:google-map @state))
+                        " "
+                        "Font-size:" (-> (:couriers @state)
+                                         first
+                                         (aget "label")
+                                         (aget "fontSize"))
+                        " "
+                        "label-lat:" (-> (:couriers @state)
+                                         first
+                                         (aget "label")
+                                         (aget "position")
+                                         .lat))))
+
 (defn create-label
   "Create a MapLabel object on google-map with lat, lng and text"
   [google-map lat lng text]
   (js/MapLabel.
    (js-obj "map" google-map
-           "position" (js/google.maps.LatLng. lat lng)
+           "position" (js/google.maps.LatLng. (+ lat
+                                                 (dlat-label
+                                                  (.getZoom google-map)))
+                                              lng)
            "text" text
-           "fontSize" 20
+           "fontSize" 12
            "align" "center")))
 
 (defn add-label-to-spatial-object!
@@ -106,7 +172,7 @@
      status-selected?)))
 
 (defn set-obj-prop-map!
-  "Given an obj with prop, set its point's map to map-value"
+  "Given an obj with prop, set its circle's map to map-value"
   [obj prop map-value]
   (if (not (nil? (aget obj prop)))
     (.setMap (aget obj prop) map-value)))
@@ -136,7 +202,7 @@
   (let [display-courier-props!
         #(display-selected-props!
           state (:couriers @state) % (partial courier-displayed? state))]
-    (display-courier-props! "point")
+    (display-courier-props! "circle")
     (display-courier-props! "label")))
 
 (defn retrieve-route
@@ -161,10 +227,10 @@
                      (do
                        ;; replace the couriers
                        (swap! state assoc :couriers couriers)
-                       ;; add a point for each courier
+                       ;; add a circle for each courier
                        (mapv
                         (fn [courier]
-                          (add-point-to-spatial-object!
+                          (add-circle-to-spatial-object!
                            courier
                            (:google-map @state)
                            (get-in @state [:couriers-control
@@ -195,8 +261,8 @@
                                      (get-obj-with-prop-val (:couriers @state)
                                                             "id" (aget courier
                                                                        "id"))
-                                     state-courier-point
-                                     (aget state-courier "point")
+                                     state-courier-circle
+                                     (aget state-courier "circle")
                                      state-courier-label
                                      (aget state-courier "label")
                                      new-lat    (aget courier "lat")
@@ -213,16 +279,11 @@
                                  (aset state-courier "active" active?)
                                  (aset state-courier "on_duty" on_duty?)
                                  (aset state-courier "connected" connected?)
-                                 ;; set the corresponding point's center
-                                 (.setCenter state-courier-point
+                                 ;; set the corresponding circle's center
+                                 (.setCenter state-courier-circle
                                              new-center)
-                                 ;; set the corresponding label's position
-                                 (.set state-courier-label "position"
-                                       (js/google.maps.LatLng. new-lat new-lng))
-                                 ;; redraw label so it moves
-                                 (.draw state-courier-label)
-                                 ;;(.setRadius state-courier-point 50)
-                                 ))
+                                 ;;set the corresponding label's position
+                                 (set-obj-label-position! state state-courier)))
                              couriers))
                      ;; show the couriers
                      (display-selected-couriers! state))))
@@ -240,10 +301,10 @@
                         (js/Date.
                          (aget order "timestamp_created")))))
 
-(defn add-point-to-order!
-  "Given state, add a point to order"
+(defn add-circle-to-order!
+  "Given state, add a circle to order"
   [state order]
-  (add-point-to-spatial-object! order (:google-map @state)
+  (add-circle-to-spatial-object! order (:google-map @state)
                                 (get-in @state [:status
                                                 (keyword
                                                  (.-status order))
@@ -270,18 +331,18 @@
         (if (not (nil? orders))
           (do
             (swap! state assoc :orders orders)
-            ;; add a point for each order
+            ;; add a circle for each order
             (mapv
-             (partial add-point-to-order! state)
+             (partial add-circle-to-order! state)
              (:orders @state))
             ;; convert the server dates to js/Date
             ;; (i.e. unix timestamp)
             (mapv
              convert-orders-timestamp!
              (:orders @state))
-            ;; redraw the points according to which ones are selected
+            ;; redraw the circles according to which ones are selected
             (display-selected-props! state (:orders @state)
-                                     "point"
+                                     "circle"
                                      (partial order-displayed? state))))))))
 
 (defn sync-order!
@@ -296,16 +357,16 @@
     (if (nil? state-order)
       ;; process the order and add it to orders of state
       (do
-        (add-point-to-order! state order)
+        (add-circle-to-order! state order)
         (convert-orders-timestamp! order)
         (.push (:orders @state) order))
       ;; update the existing orders properties
       (do
         ;; currently, only the status could change
         (aset state-order "status" order-status)
-        ;; change the color of point to correspond to order status
+        ;; change the color of circle to correspond to order status
         (let [color (get-in @state [:status (keyword order-status)])]
-          (.setOptions (aget state-order "point")
+          (.setOptions (aget state-order "circle")
                        (clj->js {:options {:fillColor status-color
                                            :strokeColor status-color}})))))))
 
@@ -356,7 +417,7 @@
                                              (display-selected-props!
                                               state
                                               (:orders @state)
-                                              "point"
+                                              "circle"
                                               (partial order-displayed? state)
                                               )))
     control-text))
@@ -395,7 +456,7 @@
                                                 from-input.value)
                                          (display-selected-props!
                                           state (:orders @state)
-                                          "point"
+                                          "circle"
                                           (partial order-displayed? state))))
         to-input (date-picker-input (:to-date @state))
         to-date-picker (date-picker
@@ -403,7 +464,7 @@
                                     (swap! state assoc :to-date to-input.value)
                                     (display-selected-props!
                                      state (:orders @state)
-                                     "point"
+                                     "circle"
                                      (partial order-displayed? state))))]
     (crate/html [:div
                  [:div {:class "setCenterUI"
@@ -440,7 +501,7 @@
                            (display-selected-props!
                             state
                             (:couriers @state)
-                            "point"
+                            "circle"
                             (partial courier-displayed? state)
                             )))
     (crate/html [:div [:div {:class "setCenterUI" :title "Select couriers"}
@@ -472,6 +533,11 @@
             (js-obj "center"
                     (js-obj "lat" 34.0714522 "lng" -118.40362)
                     "zoom" 12) ))
+    ;; add listener for when the map is zoomed
+    (.addListener (:google-map @state) "zoom_changed"
+                  #(mapv (partial scale-spatial-object-circle-radius!
+                                  (.getZoom (:google-map @state)))
+                         (:orders @state)))
     ;; add controls
     (add-control! (:google-map @state) (crate/html
                                         [:div
@@ -496,7 +562,18 @@
             (.getElementById js/document "map")
             (js-obj "center"
                     (js-obj "lat" 34.0714522 "lng" -118.40362)
-                    "zoom" 12) ))
+                    "zoom" 12)))
+    ;; listener for map zone
+    (.addListener (:google-map @state) "zoom_changed"
+                  #(do
+                     (mapv (partial scale-spatial-object-circle-radius!
+                                    (.getZoom (:google-map @state)))
+                           (:orders @state))
+                     (mapv (partial scale-spatial-object-circle-radius!
+                                    (.getZoom (:google-map @state)))
+                           (:couriers @state))
+                     (mapv (partial set-obj-label-position! state)
+                           (:couriers @state))))
     ;; add controls
     (add-control! (:google-map @state) (crate/html
                                         [:div
@@ -510,6 +587,5 @@
     (set-couriers! state)
     ;; poll the server and update the orders and couriers
     (continous-update #(do (update-couriers! state)
-                           (sync-orders! state)
-                           )
+                           (sync-orders! state))
                       5000)))
