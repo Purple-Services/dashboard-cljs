@@ -49,7 +49,7 @@
         (js/google.maps.Circle.
          (js-obj "strokeColor" color
                  "strokeOpacity" 1.0
-                 "strokeWeight" 2
+                 "strokeWeight" 1
                  "fillColor" color
                  "fillOpacity" 1
                  "map" google-map
@@ -70,7 +70,7 @@
                        (aget obj "lng")
                        color
                        click-fn))))
-
+;; see: http://goo.gl/SgBTn4 (stackoverflow)
 (defn scale-by-zoom
   "Given a zoom, min-val and max-val return a value scaled by zoom"
   [zoom min-val max-val]
@@ -95,6 +95,10 @@
   "Calculate the dLat by which the label should be moved based on the zoom so
   that it can be seen"
   [zoom]
+  ;; This equation was determined by zooming and modifying
+  ;; the lat value of the label by hand for reasonable behavior.
+  ;; This resulted in (zoom,dLat) pairs. The equation below was fitted to those
+  ;; points in gnuplot.
   (* -1 (.pow js/Math 10 (/ (* -1 zoom) 4.2))))
 
 (defn set-obj-label-lat-lng!
@@ -205,6 +209,19 @@
     (display-courier-props! "circle")
     (display-courier-props! "label")))
 
+(defn indicate-courier-busy-status!
+  "Given a courier, indicate whether or not they are busy"
+  [obj]
+  (let [busy? (aget obj "busy")
+        circle (aget obj "circle")]
+    (if busy?
+      ;; set red stroke
+      (.setOptions circle
+                   (clj->js {:options {:strokeColor "#ff0000"}}))
+      ;; set green stroke
+      (.setOptions circle
+                   (clj->js {:options {:strokeColor "#00ff00"}})))))
+
 (defn retrieve-route
   "Access route with data and process xhr callback with f"
   [route data f]
@@ -244,6 +261,10 @@
                            (:google-map @state)
                            (aget courier "name")))
                         (:couriers @state))
+                       ;; indicate courier status
+                       (mapv
+                        (partial indicate-courier-busy-status!)
+                        (:couriers @state))
                        ;; display the couriers
                        (display-selected-couriers! state)))))
 
@@ -270,6 +291,7 @@
                                      active?    (aget courier "active")
                                      on_duty?   (aget courier "on_duty")
                                      connected? (aget courier "connected")
+                                     busy?      (aget courier "busy")
                                      new-center (clj->js {:lat new-lat
                                                           :lng new-lng})]
                                  ;; update the couriers lat lng
@@ -279,11 +301,15 @@
                                  (aset state-courier "active" active?)
                                  (aset state-courier "on_duty" on_duty?)
                                  (aset state-courier "connected" connected?)
+                                 (aset state-courier "busy" busy?)
                                  ;; set the corresponding circle's center
                                  (.setCenter state-courier-circle
                                              new-center)
                                  ;;set the corresponding label's position
-                                 (set-obj-label-position! state state-courier)))
+                                 (set-obj-label-position! state state-courier)
+                                 ;; indicate busy status
+                                 (indicate-courier-busy-status! state-courier)
+                                 ))
                              couriers))
                      ;; show the couriers
                      (display-selected-couriers! state))))
@@ -382,7 +408,7 @@
 
 (defn legend-symbol
   "A round div for use as a legend symbol"
-  [color]
+  [fill-color & [stroke-color]]
   (crate/html [:div {:style (str "height: 10px;"
                                  " width: 10px;"
                                  " display: inline-block;"
@@ -391,7 +417,12 @@
                                  " margin-top: 7px;"
                                  " margin-left: 5px;"
                                  " background-color: "
-                                 color)}]))
+                                 fill-color
+                                 "; "
+                                 (if (not (nil? stroke-color))
+                                   (str " border: 1px solid "
+                                        stroke-color ";"))
+                                 )}]))
 
 (defn order-status-checkbox
   "A checkbox for controlling an order of status"
@@ -488,10 +519,18 @@
                                       :checked true}])
         control-text (crate/html
                       [:div {:class "setCenterText"}
-                       checkbox "Couriers" (legend-symbol
-                                            (get-in
-                                             @state [:couriers-control
-                                                     :color]))])]
+                       checkbox "Couriers"
+                       [:br]
+                       "Busy"
+                       (legend-symbol (get-in @state
+                                              [:couriers-control :color])
+                                      "#ff0000")
+                       [:br]
+                       "Not Busy"
+                       (legend-symbol (get-in @state
+                                              [:couriers-control :color])
+                                      "#00ff00")
+                       ])]
     (.addEventListener
      checkbox "click" #(do (if (aget checkbox "checked")
                              (swap! state assoc-in
