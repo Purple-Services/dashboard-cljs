@@ -6,7 +6,8 @@
             [maplabel]
             ))
 
-(def state (atom {:orders (array)
+(def state (atom {:timeout-interval 5000
+                  :orders (array)
                   :couriers nil
                   :couriers-control
                   {:selected? true
@@ -30,8 +31,18 @@
 
 (defn send-xhr
   "Send a xhr to url using callback and HTTP method."
-  [url callback method & [data headers]]
-  (.send goog.net.XhrIo url callback method data headers))
+  [url callback method & [data headers timeout]]
+  (.send goog.net.XhrIo url callback method data headers timeout))
+
+(defn xhrio-wrapper
+  "A callback for processing the xhrio response event. If
+  response.target.isSuccess() is true, call f on the json response"
+  [f response]
+  (let [target (.-target response)]
+    (if (.isSuccess target)
+      (f (.getResponseJson target))
+      (.log js/console
+            (str "xhrio-wrapper error:" (aget target "lastError_"))))))
 
 (defn get-obj-with-prop-val
   "Get the object in array by prop with val"
@@ -66,10 +77,10 @@
   ([obj gmap color click-fn]
    (aset obj "circle"
          (create-circle gmap
-                       (aget obj "lat")
-                       (aget obj "lng")
-                       color
-                       click-fn))))
+                        (aget obj "lat")
+                        (aget obj "lng")
+                        color
+                        click-fn))))
 
 ;; see: http://goo.gl/SgBTn4 (stackoverflow)
 (defn scale-by-zoom
@@ -107,7 +118,7 @@
   [lat lng obj]
   (let [label (aget obj "label")]
     (.set label "position"
-            (js/google.maps.LatLng. lat lng))
+          (js/google.maps.LatLng. lat lng))
     (.draw label)))
 
 (defn set-obj-label-position!
@@ -175,9 +186,9 @@
   [obj node]
   (aset obj "info-window"
         (create-info-window
-                        (aget obj "lat")
-                        (aget obj "lng")
-                        node)))
+         (aget obj "lat")
+         (aget obj "lng")
+         node)))
 
 (defn create-info-window-tr
   [key value]
@@ -188,23 +199,23 @@
   [order]
   (crate/html [:table (map #(create-info-window-tr (key %) (val %))
                            (array-map
-                              "Status" (aget order "status")
-                              "Courier" (aget order "courier_name")
-                              "Customer" (aget order "customer_name")
-                              "Phone" (aget order "customer_phone_number")
-                              "Address"  (crate/raw
-                                          (str
-                                           (aget order "address_street")
-                                           "</br>"
-                                           (aget order "address_city")
-                                           ","
-                                           (aget order "address_state")
-                                           " "
-                                           (aget order "address_zip")))
-                              "Plate #" (aget order "license_plate")
-                              "Gallons" (aget order "gallons")
-                              "Octane"  (aget order "gas_type")
-                              "Total Price" (aget order "total_price"))
+                            "Status" (aget order "status")
+                            "Courier" (aget order "courier_name")
+                            "Customer" (aget order "customer_name")
+                            "Phone" (aget order "customer_phone_number")
+                            "Address"  (crate/raw
+                                        (str
+                                         (aget order "address_street")
+                                         "</br>"
+                                         (aget order "address_city")
+                                         ","
+                                         (aget order "address_state")
+                                         " "
+                                         (aget order "address_zip")))
+                            "Plate #" (aget order "license_plate")
+                            "Gallons" (aget order "gallons")
+                            "Octane"  (aget order "gas_type")
+                            "Total Price" (aget order "total_price"))
                            )]))
 (defn order-displayed?
   "Given the state, determine if an order should be displayed or not"
@@ -270,7 +281,7 @@
 
 (defn retrieve-route
   "Access route with data and process xhr callback with f"
-  [route data f]
+  [route data f & [timeout]]
   (let [url (str base-server-url route)
         data data
         header (clj->js {"Content-Type" "application/json"})]
@@ -278,93 +289,96 @@
               f
               "POST"
               data
-              header)))
+              header
+              timeout
+              )))
 
 (defn set-couriers!
   "Get the couriers from the server and store them in the state atom"
   [state]
   (retrieve-route "couriers" {}
-                  #(let [xhrio (.-target %)
-                         response (.getResponseJson xhrio)
-                         couriers (aget response "couriers")]
-                     (do
-                       ;; replace the couriers
-                       (swap! state assoc :couriers couriers)
-                       ;; add a circle for each courier
-                       (mapv
-                        (fn [courier]
-                          (add-circle-to-spatial-object!
-                           courier
-                           (:google-map @state)
-                           (get-in @state [:couriers-control
-                                           :color])))
-                        (:couriers @state))
-                       ;; add a label for each courier
-                       (mapv
-                        (fn [courier]
-                          (add-label-to-spatial-object!
-                           courier
-                           (:google-map @state)
-                           (aget courier "name")))
-                        (:couriers @state))
-                       ;; indicate courier status
-                       (mapv
-                        (partial indicate-courier-busy-status!)
-                        (:couriers @state))
-                       ;; display the couriers
-                       (display-selected-couriers! state)))))
+                  (partial xhrio-wrapper
+                           #(let [couriers (aget % "couriers")]
+                              (do
+                                ;; replace the couriers
+                                (swap! state assoc :couriers couriers)
+                                ;; add a circle for each courier
+                                (mapv
+                                 (fn [courier]
+                                   (add-circle-to-spatial-object!
+                                    courier
+                                    (:google-map @state)
+                                    (get-in @state [:couriers-control
+                                                    :color])))
+                                 (:couriers @state))
+                                ;; add a label for each courier
+                                (mapv
+                                 (fn [courier]
+                                   (add-label-to-spatial-object!
+                                    courier
+                                    (:google-map @state)
+                                    (aget courier "name")))
+                                 (:couriers @state))
+                                ;; indicate courier status
+                                (mapv
+                                 (partial indicate-courier-busy-status!)
+                                 (:couriers @state))
+                                ;; display the couriers
+                                (display-selected-couriers! state))))))
 
 
 (defn update-couriers!
   "Update the couriers positions with data from the server"
   [state]
   (retrieve-route "couriers" {}
-                  #(let [xhrio (.-target %)
-                         response (.getResponseJson xhrio)
-                         couriers (aget response "couriers")]
-                     (do
-                       (mapv (fn [courier]
-                               (let [state-courier
-                                     (get-obj-with-prop-val (:couriers @state)
-                                                            "id" (aget courier
-                                                                       "id"))
-                                     state-courier-circle
-                                     (aget state-courier "circle")
-                                     state-courier-label
-                                     (aget state-courier "label")
-                                     new-lat    (aget courier "lat")
-                                     new-lng    (aget courier "lng")
-                                     active?    (aget courier "active")
-                                     on_duty?   (aget courier "on_duty")
-                                     connected? (aget courier "connected")
-                                     busy?      (aget courier "busy")
-                                     new-center (clj->js {:lat new-lat
-                                                          :lng new-lng})]
-                                 ;; update the couriers lat lng
-                                 (aset state-courier "lat" new-lat)
-                                 (aset state-courier "lng" new-lng)
-                                 ;; update the statuses of courier
-                                 (aset state-courier "active" active?)
-                                 (aset state-courier "on_duty" on_duty?)
-                                 (aset state-courier "connected" connected?)
-                                 (aset state-courier "busy" busy?)
-                                 ;; set the corresponding circle's center
-                                 (.setCenter state-courier-circle
-                                             new-center)
-                                 ;;set the corresponding label's position
-                                 (set-obj-label-position! state state-courier)
-                                 ;; indicate busy status
-                                 (indicate-courier-busy-status! state-courier)
-                                 ))
-                             couriers))
-                     ;; show the couriers
-                     (display-selected-couriers! state))))
+                  (partial
+                   xhrio-wrapper
+                   #(let [couriers (aget % "couriers")]
+                      (do
+                        (mapv (fn [courier]
+                                (let [state-courier
+                                      (get-obj-with-prop-val (:couriers @state)
+                                                             "id" (aget courier
+                                                                        "id"))
+                                      state-courier-circle
+                                      (aget state-courier "circle")
+                                      state-courier-label
+                                      (aget state-courier "label")
+                                      new-lat    (aget courier "lat")
+                                      new-lng    (aget courier "lng")
+                                      active?    (aget courier "active")
+                                      on_duty?   (aget courier "on_duty")
+                                      connected? (aget courier "connected")
+                                      busy?      (aget courier "busy")
+                                      new-center (clj->js {:lat new-lat
+                                                           :lng new-lng})]
+                                  ;; update the couriers lat lng
+                                  (aset state-courier "lat" new-lat)
+                                  (aset state-courier "lng" new-lng)
+                                  ;; update the statuses of courier
+                                  (aset state-courier "active" active?)
+                                  (aset state-courier "on_duty" on_duty?)
+                                  (aset state-courier "connected" connected?)
+                                  (aset state-courier "busy" busy?)
+                                  ;; set the corresponding circle's center
+                                  (.setCenter state-courier-circle
+                                              new-center)
+                                  ;;set the corresponding label's position
+                                  (set-obj-label-position! state state-courier)
+                                  ;; indicate busy status
+                                  (indicate-courier-busy-status! state-courier)
+                                  ))
+                              couriers))
+                      ;; show the couriers
+                      (display-selected-couriers! state)))
+                  (:timeout-interval @state)
+                  ))
 
 (defn retrieve-orders
   "Retrieve the orders since date and apply f to them"
-  [date f]
+  [date f & [timeout]]
   (retrieve-route "orders-since-date" (js/JSON.stringify
-                                       (clj->js {:date date})) f))
+                                       (clj->js {:date date})) f timeout))
 
 (defn click-order-fn
   "Given order, display information about it when it is clicked on the map"
@@ -446,28 +460,29 @@
   (do
     (retrieve-orders
      date ; note: an empty date will return ALL orders
-     #(let [xhrio (.-target %)
-            response (.getResponseJson xhrio)
-            orders (aget response "orders")]
-        (if (not (nil? orders))
-          (do (mapv (partial sync-order! state) orders)
-              ;; redraw the circles according to which ones are selected
-              (display-selected-props! state (:orders @state) "circle"
-                                       (partial order-displayed? state))))))))
+     (partial
+      xhrio-wrapper
+      #(let [orders (aget % "orders")]
+         (if (not (nil? orders))
+           (do (mapv (partial sync-order! state) orders)
+               ;; redraw the circles according to which ones are selected
+               (display-selected-props! state (:orders @state) "circle"
+                                        (partial order-displayed? state)))))))))
 
 (defn sync-orders!
   "Retrieve today's orders and sync them with the state"
   [state]
   (retrieve-orders
    (.format (js/moment) "YYYY-MM-DD")
-   #(let [xhrio (.-target %)
-          response (.getResponseJson xhrio)
-          orders (aget response "orders")]
-      (if (not (nil? orders))
-        (do (mapv (partial sync-order! state) orders)
-            ;; redraw the circles according to which ones are selected
-            (display-selected-props! state (:orders @state) "circle"
-                                     (partial order-displayed? state)))))))
+   (partial
+    xhrio-wrapper
+    #(let [orders (aget % "orders")]
+       (if (not (nil? orders))
+         (do (mapv (partial sync-order! state) orders)
+             ;; redraw the circles according to which ones are selected
+             (display-selected-props! state (:orders @state) "circle"
+                                      (partial order-displayed? state))))))
+   (:timeout-interval @state)))
 
 (defn legend-symbol
   "A round div for use as a legend symbol"
@@ -689,4 +704,4 @@
     ;; poll the server and update the orders and couriers
     (continous-update #(do (update-couriers! state)
                            (sync-orders! state))
-                      5000)))
+                      (:timeout-interval @state))))
