@@ -70,6 +70,7 @@
                        (aget obj "lng")
                        color
                        click-fn))))
+
 ;; see: http://goo.gl/SgBTn4 (stackoverflow)
 (defn scale-by-zoom
   "Given a zoom, min-val and max-val return a value scaled by zoom"
@@ -160,6 +161,51 @@
                       (aget obj "lng")
                       text)))
 
+(defn create-info-window
+  "Create an InfoWindow at lat,lng with node as content"
+  [lat lng node]
+  (js/google.maps.InfoWindow.
+   (js-obj
+    "position" (js-obj "lat" lat "lng" lng)
+    "content" (aget node "outerHTML"))))
+
+(defn add-info-window-to-spatial-object!
+  "Given an obj with lat,lng properties, create an info-window on gmap
+  with node as content"
+  [obj node]
+  (aset obj "info-window"
+        (create-info-window
+                        (aget obj "lat")
+                        (aget obj "lng")
+                        node)))
+
+(defn create-info-window-tr
+  [key value]
+  (crate/html [:tr [:td {:class "info-window-td"} key] [:td value]]))
+
+(defn create-order-info-window-node
+  "Create an html node containing information about order"
+  [order]
+  (crate/html [:table (map #(create-info-window-tr (key %) (val %))
+                           (array-map
+                              "Status" (aget order "status")
+                              "Courier" (aget order "courier_name")
+                              "Customer" (aget order "customer_name")
+                              "Phone" (aget order "customer_phone_number")
+                              "Address"  (crate/raw
+                                          (str
+                                           (aget order "address_street")
+                                           "</br>"
+                                           (aget order "address_city")
+                                           ","
+                                           (aget order "address_state")
+                                           " "
+                                           (aget order "address_zip")))
+                              "Plate #" (aget order "license_plate")
+                              "Gallons" (aget order "gallons")
+                              "Octane"  (aget order "gas_type")
+                              "Total Price" (aget order "total_price"))
+                           )]))
 (defn order-displayed?
   "Given the state, determine if an order should be displayed or not"
   [state order]
@@ -322,60 +368,34 @@
 
 (defn click-order-fn
   "Given order, display information about it when it is clicked on the map"
-  [order]
-  (.log js/console (str "timestamp_created: "
-                        (js/Date.
-                         (aget order "timestamp_created")))))
-
-(defn add-circle-to-order!
-  "Given state, add a circle to order"
   [state order]
-  (add-circle-to-spatial-object! order (:google-map @state)
-                                (get-in @state [:status
-                                                (keyword
-                                                 (.-status order))
-                                                :color])
-                                (fn [] (click-order-fn order))))
+  (let [info-window (aget order "info-window")]
+    (.open info-window (:google-map @state))))
 
-(defn convert-orders-timestamp!
-  "Convert an orders timestamp_created to a js/Date"
+(defn convert-order-timestamp!
+  "Convert an order's timestamp_created to a js/Date"
   [order]
   (aset order "timestamp_created"
         (.parse js/Date
                 (aget order "timestamp_created"))))
 
-(defn init-orders!
-  "Get the all orders from the server and store them in the state atom. This
-  should only be called once initially."
-  [state date]
-  (do
-    (retrieve-orders
-     date ; because an empty date will return ALL orders
-     #(let [xhrio (.-target %)
-            response (.getResponseJson xhrio)
-            orders (aget response "orders")]
-        (if (not (nil? orders))
-          (do
-            (swap! state assoc :orders orders)
-            ;; add a circle for each order
-            (mapv
-             (partial add-circle-to-order! state)
-             (:orders @state))
-            ;; convert the server dates to js/Date
-            ;; (i.e. unix timestamp)
-            (mapv
-             convert-orders-timestamp!
-             (:orders @state))
-            ;; redraw the circles according to which ones are selected
-            (display-selected-props! state (:orders @state)
-                                     "circle"
-                                     (partial order-displayed? state))))))))
+(defn convert-order-price-to-dollars!
+  "Convert an order's price from the server to a dollar amount"
+  [order]
+  (let [total-price (aget order "total_price")
+        dollar-amt  (str "$"
+                         (-> total-price
+                             (/ 100)
+                             (.toFixed 2)))]
+    (aset order "total_price"
+          dollar-amt)))
 
 (defn sync-order!
   "Given an order, sync it with the one in state. If it does not already exist,
   add it to the orders in state"
   [state order]
   (let [order-status (aget order "status")
+        order-courier-name (aget order "courier_name")
         status-color (get-in @state [:status (keyword order-status)
                                      :color])
         state-order (get-obj-with-prop-val (:orders @state) "id"
@@ -383,28 +403,71 @@
     (if (nil? state-order)
       ;; process the order and add it to orders of state
       (do
-        (add-circle-to-order! state order)
-        (convert-orders-timestamp! order)
+        ;; add a circle to represent the order
+        (add-circle-to-spatial-object!
+         order (:google-map @state)
+         (get-in @state [:status
+                         (keyword
+                          (.-status order))
+                         :color])
+         (fn [] (click-order-fn state order)))
+        (convert-order-timestamp! order)
+        ;; convert the server price to human readable format
+        (convert-order-price-to-dollars! order)
+        ;; add a info window to order
+        ;; Note: The info window must be added after all modifications
+        ;; to the order have been carried out
+        (add-info-window-to-spatial-object!
+         order
+         (create-order-info-window-node order))
+        ;; push the order
         (.push (:orders @state) order))
       ;; update the existing orders properties
       (do
-        ;; currently, only the status could change
+        ;; the status could change
         (aset state-order "status" order-status)
+        ;; .. and so could the courier_name
+        (aset state-order "courier_name" order-courier-name)
+        ;; the content window has to be udpated
+        (.setContent (aget state-order "info-window")
+                     (-> state-order
+                         (create-order-info-window-node)
+                         (aget "outerHTML")))
         ;; change the color of circle to correspond to order status
         (let [color (get-in @state [:status (keyword order-status)])]
           (.setOptions (aget state-order "circle")
                        (clj->js {:options {:fillColor status-color
                                            :strokeColor status-color}})))))))
 
+(defn init-orders!
+  "Get the all orders from the server and store them in the state atom. This
+  should only be called once initially."
+  [state date]
+  (do
+    (retrieve-orders
+     date ; note: an empty date will return ALL orders
+     #(let [xhrio (.-target %)
+            response (.getResponseJson xhrio)
+            orders (aget response "orders")]
+        (if (not (nil? orders))
+          (do (mapv (partial sync-order! state) orders)
+              ;; redraw the circles according to which ones are selected
+              (display-selected-props! state (:orders @state) "circle"
+                                       (partial order-displayed? state))))))))
+
 (defn sync-orders!
   "Retrieve today's orders and sync them with the state"
   [state]
-  (retrieve-orders (.format (js/moment) "YYYY-MM-DD")
-                   #(let [xhrio (.-target %)
-                          response (.getResponseJson xhrio)
-                          orders (aget response "orders")]
-                      (if (not (nil? orders))
-                        (mapv (partial sync-order! state) orders)))))
+  (retrieve-orders
+   (.format (js/moment) "YYYY-MM-DD")
+   #(let [xhrio (.-target %)
+          response (.getResponseJson xhrio)
+          orders (aget response "orders")]
+      (if (not (nil? orders))
+        (do (mapv (partial sync-order! state) orders)
+            ;; redraw the circles according to which ones are selected
+            (display-selected-props! state (:orders @state) "circle"
+                                     (partial order-displayed? state)))))))
 
 (defn legend-symbol
   "A round div for use as a legend symbol"
@@ -421,8 +484,7 @@
                                  "; "
                                  (if (not (nil? stroke-color))
                                    (str " border: 1px solid "
-                                        stroke-color ";"))
-                                 )}]))
+                                        stroke-color ";")))}]))
 
 (defn order-status-checkbox
   "A checkbox for controlling an order of status"
@@ -602,7 +664,7 @@
             (js-obj "center"
                     (js-obj "lat" 34.0714522 "lng" -118.40362)
                     "zoom" 12)))
-    ;; listener for map zone
+    ;; listener for map zoom
     (.addListener (:google-map @state) "zoom_changed"
                   #(do
                      (mapv (partial scale-spatial-object-circle-radius!
