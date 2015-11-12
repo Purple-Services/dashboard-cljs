@@ -6,8 +6,9 @@
                   :exclusion [org.clojure/data.json]]
                  [org.clojure/data.json "0.2.6" :classifier "aot"]
                  [cljsjs/google-maps "3.18-1"]
-                 [crate "0.2.5"]
-                 ]
+                 [cljsjs/moment "2.10.6-0"]
+                 [cljsjs/pikaday "1.3.2-0"]
+                 [crate "0.2.5"]]
   :jvm-opts ^:replace ["-Xmx1g" "-server"]
   :plugins [[lein-npm "0.6.1"]]
   :npm {:dependencies [[source-map-support "0.3.2"]]}

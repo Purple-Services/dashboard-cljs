@@ -1,8 +1,8 @@
 (ns dashboard-cljs.core
   (:require [crate.core :as crate]
             [goog.net.XhrIo :as xhr]
-            [pikaday]
-            [moment]
+            [cljsjs.moment]
+            [cljsjs.pikaday.with-moment]
             [maplabel]
             ))
 
@@ -13,7 +13,9 @@
                   {:selected? true
                    :color "#8E44AD"}
                   :google-map nil
-                  :from-date "2015-05-01"
+                  :from-date (-> (js/moment)
+                                 (.subtract 30 "days")
+                                 (.format "YYYY-MM-DD"))
                   :to-date   (.format (js/moment) "YYYY-MM-DD")
                   :status
                   {:unassigned {:color "#ff0000"
