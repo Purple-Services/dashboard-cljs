@@ -1,6 +1,7 @@
 (ns dashboard-cljs.core
   (:require [crate.core :as crate]
             [goog.net.XhrIo :as xhr]
+            [goog.object]
             [cljsjs.moment]
             [cljsjs.pikaday.with-moment]
             [maplabel]
@@ -8,7 +9,7 @@
 
 (def state (atom {:timeout-interval 5000
                   :orders (array)
-                  :couriers nil
+                  :couriers (array)
                   :couriers-control
                   {:selected? true
                    :color "#8E44AD"}
@@ -50,6 +51,31 @@
   "Get the object in array by prop with val"
   [array prop val]
   (first (filter #(= val (aget % prop)) array)))
+
+(defn swap-obj-prop!
+  "Set obj's prop to the result of using f(prop)"
+  [obj prop f]
+  (let [prop-value (aget obj (str prop))]
+    (aset obj (str prop) (f prop-value))))
+
+(defn sync-obj-properties!
+  "Sync all object properties of target-obj with sync-obj"
+  [target-obj sync-obj]
+  (goog.object/forEach
+   sync-obj
+   (fn [el key obj]
+     (aset target-obj (str key) el))))
+
+(defn unix-epoch->hrf
+  "Convert a unix epoch (in seconds) to a human readable format"
+  [unix-epoch]
+  (-> (js/moment.unix unix-epoch)
+      (.format "MM/DD hh:mm A")))
+
+(defn cents->dollars
+  "Converts an integer value of cents to dollar string"
+  [cents]
+  (str "$" (-> cents (/ 100) (.toFixed 2))))
 
 ;; the base url to use for server calls
 (def base-server-url (-> (.getElementById js/document "base-url")
@@ -192,33 +218,58 @@
          (aget obj "lng")
          node)))
 
+(defn open-obj-info-window
+  "Given an obj with a info-window prop, open it"
+  [state obj]
+  (let [info-window (aget obj "info-window")]
+    (.open info-window (:google-map @state))))
+
 (defn create-info-window-tr
   [key value]
   (crate/html [:tr [:td {:class "info-window-td"} key] [:td value]]))
 
+(defn create-info-window-table
+  "Create a info window table node using array-map"
+  [array-map]
+  (crate/html [:table (map #(create-info-window-tr (key %) (val %))
+                           array-map)]))
+
 (defn create-order-info-window-node
   "Create an html node containing information about order"
   [order]
-  (crate/html [:table (map #(create-info-window-tr (key %) (val %))
-                           (array-map
-                            "Status" (aget order "status")
-                            "Courier" (aget order "courier_name")
-                            "Customer" (aget order "customer_name")
-                            "Phone" (aget order "customer_phone_number")
-                            "Address"  (crate/raw
-                                        (str
-                                         (aget order "address_street")
-                                         "</br>"
-                                         (aget order "address_city")
-                                         ","
-                                         (aget order "address_state")
-                                         " "
-                                         (aget order "address_zip")))
-                            "Plate #" (aget order "license_plate")
-                            "Gallons" (aget order "gallons")
-                            "Octane"  (aget order "gas_type")
-                            "Total Price" (aget order "total_price"))
-                           )]))
+  (create-info-window-table
+   (array-map
+    "Status" (aget order "status")
+    "Courier" (aget order "courier_name")
+    "Customer" (aget order "customer_name")
+    "Phone" (aget order "customer_phone_number")
+    "Address"  (crate/raw
+                (str
+                 (aget order "address_street")
+                 "</br>"
+                 (aget order "address_city")
+                 ","
+                 (aget order "address_state")
+                 " "
+                 (aget order "address_zip")))
+    "Plate #" (aget order "license_plate")
+    "Gallons" (aget order "gallons")
+    "Octane"  (aget order "gas_type")
+    "Total Price" (-> (aget order "total_price")
+                      (cents->dollars)))))
+
+(defn create-courier-info-window-node
+  "Create an html node containing information about order"
+  [courier]
+  (create-info-window-table
+   (array-map
+    "Name" (aget courier "name")
+    "Phone" (aget courier "phone_number")
+    "Last Seen" (-> (aget courier "last_ping")
+                    (unix-epoch->hrf))
+    "87 Octane" (aget courier "gallons_87")
+    "91 Octane" (aget courier "gallons_91"))))
+
 (defn order-displayed?
   "Given the state, determine if an order should be displayed or not"
   [state order]
@@ -227,8 +278,7 @@
         to-date (+ (.parse js/Date (:to-date @state))
                    (* 24 60 60 1000)) ; need to add 24 hours so day is included
         status  (aget order "status")
-        status-selected? (get-in @state [:status (keyword status) :selected?])
-        ]
+        status-selected? (get-in @state [:status (keyword status) :selected?])]
     (and
      ;; order is within the range of dates
      (<= from-date order-date to-date)
@@ -249,14 +299,14 @@
            (set-obj-prop-map! % prop nil))
         objs))
 
+;; could this be refactored to use "every-pred" ?
 (defn courier-displayed?
   "Given the state, determine if a courier should be displayed or not"
   [state courier]
   (let [active?    (aget courier "active")
         on-duty?   (aget courier "on_duty")
         connected? (aget courier "connected")
-        selected?  (get-in @state [:couriers-control :selected?])
-        ]
+        selected?  (get-in @state [:couriers-control :selected?])]
     (and connected? active? on-duty? selected?)))
 
 (defn display-selected-couriers!
@@ -287,106 +337,91 @@
   (let [url (str base-server-url route)
         data data
         header (clj->js {"Content-Type" "application/json"})]
-    (send-xhr url
-              f
-              "POST"
-              data
-              header
-              timeout
-              )))
+    (send-xhr url f "POST" data header timeout)))
 
-(defn set-couriers!
-  "Get the couriers from the server and store them in the state atom"
+(defn sync-courier!
+  "Given a courier, sync it with the one in state. If it does not already exist,
+  add it to the orders in state"
+  [state courier]
+  (let [state-courier (get-obj-with-prop-val (:couriers @state) "id"
+                                             (aget courier "id"))]
+    (if (nil? state-courier)
+      ;; process the courier and add it to couriers of state
+      (do
+        ;; add a circle to represent the courier
+        (add-circle-to-spatial-object!
+         courier (:google-map @state)
+         (get-in @state [:couriers-control
+                         :color])
+         (fn [] (open-obj-info-window state courier)))
+        ;; add a label to the courier
+        (add-label-to-spatial-object!
+         courier
+         (:google-map @state)
+         (aget courier "name"))
+        ;; indicate courier status
+        (indicate-courier-busy-status! courier)
+        ;; add an info window to the courier
+        ;; note: The info window must be added after all modifications
+        ;; to the state courier have been carried out
+        (add-info-window-to-spatial-object!
+         courier
+         (create-courier-info-window-node courier))
+        ;; push the order
+        (.push (:couriers @state) courier))
+      ;; update the existing courier's properties
+      (let [state-courier-circle (aget state-courier "circle")
+            state-courier-label (aget state-courier "label")
+            state-courier-info-window (aget state-courier "info-window")
+            new-position  (js/google.maps.LatLng.
+                           (aget courier "lat")
+                           (aget courier "lng"))]
+        ;; sync the object properties of state-courier with courier
+        (sync-obj-properties! state-courier courier)
+        ;; set the corresponding circle's center
+        (.setCenter state-courier-circle
+                    new-position)
+        ;;set the corresponding label's position
+        (set-obj-label-position! state state-courier)
+        ;; indicate busy status
+        (indicate-courier-busy-status! state-courier)
+        ;; the content window has to be updated
+        (.setContent state-courier-info-window
+                     (-> state-courier
+                         (create-courier-info-window-node)
+                         (aget "outerHTML")))
+        ;; move the info window position
+        (.setPosition state-courier-info-window
+                      new-position)))))
+
+(defn retrieve-couriers!
+  "Get the couriers from the server and sync them with the state atom"
+  [state & [timeout]]
+  (retrieve-route
+   "couriers" {}
+   (partial xhrio-wrapper
+            #(let [couriers (aget % "couriers")]
+               (if (not (nil? couriers))
+                 (do
+                   ;; update the couriers
+                   (mapv (partial sync-courier! state) couriers)
+                   ;; display the selected couriers
+                   (display-selected-couriers! state)))))
+   timeout))
+
+(defn init-couriers!
   [state]
-  (retrieve-route "couriers" {}
-                  (partial xhrio-wrapper
-                           #(let [couriers (aget % "couriers")]
-                              (do
-                                ;; replace the couriers
-                                (swap! state assoc :couriers couriers)
-                                ;; add a circle for each courier
-                                (mapv
-                                 (fn [courier]
-                                   (add-circle-to-spatial-object!
-                                    courier
-                                    (:google-map @state)
-                                    (get-in @state [:couriers-control
-                                                    :color])))
-                                 (:couriers @state))
-                                ;; add a label for each courier
-                                (mapv
-                                 (fn [courier]
-                                   (add-label-to-spatial-object!
-                                    courier
-                                    (:google-map @state)
-                                    (aget courier "name")))
-                                 (:couriers @state))
-                                ;; indicate courier status
-                                (mapv
-                                 (partial indicate-courier-busy-status!)
-                                 (:couriers @state))
-                                ;; display the couriers
-                                (display-selected-couriers! state))))))
+  (retrieve-couriers! state))
 
-
-(defn update-couriers!
-  "Update the couriers positions with data from the server"
+(defn sync-couriers!
   [state]
-  (retrieve-route "couriers" {}
-                  (partial
-                   xhrio-wrapper
-                   #(let [couriers (aget % "couriers")]
-                      (do
-                        (mapv (fn [courier]
-                                (let [state-courier
-                                      (get-obj-with-prop-val (:couriers @state)
-                                                             "id" (aget courier
-                                                                        "id"))
-                                      state-courier-circle
-                                      (aget state-courier "circle")
-                                      state-courier-label
-                                      (aget state-courier "label")
-                                      new-lat    (aget courier "lat")
-                                      new-lng    (aget courier "lng")
-                                      active?    (aget courier "active")
-                                      on_duty?   (aget courier "on_duty")
-                                      connected? (aget courier "connected")
-                                      busy?      (aget courier "busy")
-                                      new-center (clj->js {:lat new-lat
-                                                           :lng new-lng})]
-                                  ;; update the couriers lat lng
-                                  (aset state-courier "lat" new-lat)
-                                  (aset state-courier "lng" new-lng)
-                                  ;; update the statuses of courier
-                                  (aset state-courier "active" active?)
-                                  (aset state-courier "on_duty" on_duty?)
-                                  (aset state-courier "connected" connected?)
-                                  (aset state-courier "busy" busy?)
-                                  ;; set the corresponding circle's center
-                                  (.setCenter state-courier-circle
-                                              new-center)
-                                  ;;set the corresponding label's position
-                                  (set-obj-label-position! state state-courier)
-                                  ;; indicate busy status
-                                  (indicate-courier-busy-status! state-courier)
-                                  ))
-                              couriers))
-                      ;; show the couriers
-                      (display-selected-couriers! state)))
-                  (:timeout-interval @state)
-                  ))
+  (retrieve-couriers! state (:timeout-interval @state)))
 
 (defn retrieve-orders
   "Retrieve the orders since date and apply f to them"
   [date f & [timeout]]
   (retrieve-route "orders-since-date" (js/JSON.stringify
                                        (clj->js {:date date})) f timeout))
-
-(defn click-order-fn
-  "Given order, display information about it when it is clicked on the map"
-  [state order]
-  (let [info-window (aget order "info-window")]
-    (.open info-window (:google-map @state))))
 
 (defn convert-order-timestamp!
   "Convert an order's timestamp_created to a js/Date"
@@ -395,26 +430,11 @@
         (.parse js/Date
                 (aget order "timestamp_created"))))
 
-(defn convert-order-price-to-dollars!
-  "Convert an order's price from the server to a dollar amount"
-  [order]
-  (let [total-price (aget order "total_price")
-        dollar-amt  (str "$"
-                         (-> total-price
-                             (/ 100)
-                             (.toFixed 2)))]
-    (aset order "total_price"
-          dollar-amt)))
-
 (defn sync-order!
   "Given an order, sync it with the one in state. If it does not already exist,
   add it to the orders in state"
   [state order]
-  (let [order-status (aget order "status")
-        order-courier-name (aget order "courier_name")
-        status-color (get-in @state [:status (keyword order-status)
-                                     :color])
-        state-order (get-obj-with-prop-val (:orders @state) "id"
+  (let [state-order (get-obj-with-prop-val (:orders @state) "id"
                                            (aget order "id"))]
     (if (nil? state-order)
       ;; process the order and add it to orders of state
@@ -426,10 +446,8 @@
                          (keyword
                           (.-status order))
                          :color])
-         (fn [] (click-order-fn state order)))
-        (convert-order-timestamp! order)
-        ;; convert the server price to human readable format
-        (convert-order-price-to-dollars! order)
+         (fn [] (open-obj-info-window state order)))
+        (swap-obj-prop! order "timestamp_created" #(.parse js/Date %))
         ;; add a info window to order
         ;; Note: The info window must be added after all modifications
         ;; to the order have been carried out
@@ -440,17 +458,18 @@
         (.push (:orders @state) order))
       ;; update the existing orders properties
       (do
-        ;; the status could change
-        (aset state-order "status" order-status)
-        ;; .. and so could the courier_name
-        (aset state-order "courier_name" order-courier-name)
+        ;; sync the object properties of state-order with order
+        (sync-obj-properties! state-order order)
+        (swap-obj-prop! state-order "timestamp_created" #(.parse js/Date %))
         ;; the content window has to be udpated
         (.setContent (aget state-order "info-window")
                      (-> state-order
                          (create-order-info-window-node)
                          (aget "outerHTML")))
         ;; change the color of circle to correspond to order status
-        (let [color (get-in @state [:status (keyword order-status)])]
+        (let [status-color (get-in @state [:status
+                                           (keyword (aget state-order "status"))
+                                           :color])]
           (.setOptions (aget state-order "circle")
                        (clj->js {:options {:fillColor status-color
                                            :strokeColor status-color}})))))))
@@ -702,8 +721,8 @@
     ;; initialize the orders
     (init-orders! state (.format (js/moment) "YYYY-MM-DD"))
     ;; initialize the couriers
-    (set-couriers! state)
+    (init-couriers! state)
     ;; poll the server and update the orders and couriers
-    (continous-update #(do (update-couriers! state)
+    (continous-update #(do (sync-couriers! state)
                            (sync-orders! state))
                       (:timeout-interval @state))))
