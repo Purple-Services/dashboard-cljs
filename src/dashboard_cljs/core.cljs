@@ -245,6 +245,7 @@
          address-state (aget order "address_state")]
      (array-map
       ;; "Status" (aget order "status")
+      "Courier" (aget order "courier_name")
       "Customer" (aget order "customer_name")
       "Phone" (aget order "customer_phone_number")
       "Address"  (crate/raw
@@ -258,12 +259,15 @@
                           (aget order "address_state")
                           " "))
                    (aget order "address_zip")))
-      "Courier" (aget order "courier_name")
       "Plate #" (aget order "license_plate")
       "Gallons" (aget order "gallons")
       "Octane"  (aget order "gas_type")
       "Total Price" (-> (aget order "total_price")
-                        (cents->dollars))))))
+                        (cents->dollars))
+      "Placed"  (-> (aget order "target_time_start")
+                    (unix-epoch->hrf))
+      "Deadline" (-> (aget order "target_time_end")
+                     (unix-epoch->hrf))))))
 
 (defn create-courier-info-window-node
   "Create an html node containing information about order"
