@@ -231,32 +231,39 @@
 (defn create-info-window-table
   "Create a info window table node using array-map"
   [array-map]
-  (crate/html [:table (map #(create-info-window-tr (key %) (val %))
+  (crate/html [:table (map #(if (not (nil? (val %)))
+                              (create-info-window-tr
+                               (key %)
+                               [:div {:class "info-window-value"} (val %)]))
                            array-map)]))
 
 (defn create-order-info-window-node
   "Create an html node containing information about order"
   [order]
   (create-info-window-table
-   (array-map
-    "Status" (aget order "status")
-    "Courier" (aget order "courier_name")
-    "Customer" (aget order "customer_name")
-    "Phone" (aget order "customer_phone_number")
-    "Address"  (crate/raw
-                (str
-                 (aget order "address_street")
-                 "</br>"
-                 (aget order "address_city")
-                 ","
-                 (aget order "address_state")
-                 " "
-                 (aget order "address_zip")))
-    "Plate #" (aget order "license_plate")
-    "Gallons" (aget order "gallons")
-    "Octane"  (aget order "gas_type")
-    "Total Price" (-> (aget order "total_price")
-                      (cents->dollars)))))
+   (let [address-city (aget order "address_city")
+         address-state (aget order "address_state")]
+     (array-map
+      ;; "Status" (aget order "status")
+      "Customer" (aget order "customer_name")
+      "Phone" (aget order "customer_phone_number")
+      "Address"  (crate/raw
+                  (str
+                   (aget order "address_street")
+                   "</br>"
+                   (if (and (not (nil? (seq address-city)))
+                            (not (nil? (seq address-state))))
+                     (str (aget order "address_city")
+                          ","
+                          (aget order "address_state")
+                          " "))
+                   (aget order "address_zip")))
+      "Courier" (aget order "courier_name")
+      "Plate #" (aget order "license_plate")
+      "Gallons" (aget order "gallons")
+      "Octane"  (aget order "gas_type")
+      "Total Price" (-> (aget order "total_price")
+                        (cents->dollars))))))
 
 (defn create-courier-info-window-node
   "Create an html node containing information about order"
@@ -267,8 +274,9 @@
     "Phone" (aget courier "phone_number")
     "Last Seen" (-> (aget courier "last_ping")
                     (unix-epoch->hrf))
-    "87 Octane" (aget courier "gallons_87")
-    "91 Octane" (aget courier "gallons_91"))))
+    ;; "87 Octane" (aget courier "gallons_87")
+    ;; "91 Octane" (aget courier "gallons_91")
+    )))
 
 (defn order-displayed?
   "Given the state, determine if an order should be displayed or not"
