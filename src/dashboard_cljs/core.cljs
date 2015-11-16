@@ -233,8 +233,8 @@
   [array-map]
   (crate/html [:table (map #(if (not (nil? (val %)))
                               (create-info-window-tr
-                               (key %)
-                               [:div {:class "info-window-value"} (val %)]))
+                               [:span {:class "info-window-label"} (key %)]
+                               [:span {:class "info-window-value"} (val %)]))
                            array-map)]))
 
 (defn create-order-info-window-node
