@@ -5,6 +5,7 @@
             [cljsjs.moment]
             [cljsjs.pikaday.with-moment]
             [maplabel]
+            [cljs.reader :refer [read-string]]
             ))
 
 (def state (atom {:timeout-interval 5000
@@ -30,7 +31,8 @@
                    :complete   {:color "#00ff00"
                                 :selected? true}
                    :cancelled  {:color "#000000"
-                                :selected? true}}}))
+                                :selected? true}}
+                  :zones (array)}))
 
 (defn send-xhr
   "Send a xhr to url using callback and HTTP method."
@@ -96,6 +98,29 @@
                  "radius" 200))]
     (.addListener circle "click" click-fn)
     circle))
+
+;; color can be defined using css color names or RGB (#000000) values
+(defn create-polygon
+  "Create a zip-boundrary Polygon from coords in gmap with color"
+  [gmap color coords]
+  (js/google.maps.Polygon. (js-obj "paths" coords
+                                   "strokeColor" color
+                                   "strokeOpacity" 1
+                                   "strokeWeight" 1
+                                   "fillColor" color
+                                   "fillOpacity" 0.15
+                                   "map" gmap)))
+
+(defn add-polygon-to-spatial-object!
+  "Create a polygon from coords on gmap and add it as obj property"
+  [obj gmap color coords]
+  (aset obj "polygon" (create-polygon gmap color coords)))
+
+(defn create-kml-layer
+  "Create a kml layer on google-map"
+  [gmap kml-url]
+  (js/google.maps.KmlLayer. (js-obj "url" kml-url
+                                    "map" gmap)))
 
 (defn add-circle-to-spatial-object!
   "Given an object with lat,lng properties, create a circle on gmap
@@ -171,11 +196,7 @@
                                          (aget "label")
                                          (aget "fontSize"))
                         " "
-                        "label-lat:" (-> (:couriers @state)
-                                         first
-                                         (aget "label")
-                                         (aget "position")
-                                         .lat))))
+                        "map-center:" (-> (.getCenter (:google-map @state))))))
 
 (defn create-label
   "Create a MapLabel object on google-map with lat, lng and text"
@@ -487,7 +508,7 @@
                                            :strokeColor status-color}})))))))
 
 (defn init-orders!
-  "Get the all orders from the server and store them in the state atom. This
+  "Get all orders from the server and store them in the state atom. This
   should only be called once initially."
   [state date]
   (do
@@ -516,6 +537,74 @@
              (display-selected-props! state (:orders @state) "circle"
                                       (partial order-displayed? state))))))
    (:timeout-interval @state)))
+
+(defn vec-coords->json
+  "Convert a vector of lat,lng vectors to a json obj"
+  [vec-coords]
+  (let [clj-coords (read-string vec-coords)
+        js-coords  (clj->js (mapv #(hash-map :lat (second %) :lng (first %))
+                                  clj-coords))]
+    js-coords))
+
+(defn process-zcta!
+  "Given a zcta, process the coordinates and add it as a polygon"
+  [state color zcta]
+  (add-polygon-to-spatial-object! zcta
+                                  (:google-map @state)
+                                  color
+                                  (vec-coords->json (aget zcta "coordinates"))))
+
+(defn get-zctas!
+  "Given an array of zip code strings, return an array of zctas defintions with
+  polygons that are color."
+  [state color zips]
+  (retrieve-route
+   "zctas"
+   (js/JSON.stringify (clj->js {:zips (.join zips ",")}))
+   (partial xhrio-wrapper
+            #(let [zctas (aget % "zctas")]
+               (if (not (nil? zctas))
+                 (mapv
+                  (partial process-zcta! state color) zctas))))))
+
+(defn sync-zone!
+  "Given a zone, sync it with the one in state. If it does not already exist,
+  add it the zones in state."
+  [state zone]
+  (let [state-zone (get-obj-with-prop-val (:zones @state) "id"
+                                          (aget zone "id"))]
+    (if (nil? state-zone)
+      ;; process the zone and add it to zones of state
+      (do
+        ;; get all of the zips for the zone
+        (swap-obj-prop! zone "zctas"
+                        #(get-zctas! state
+                                     (aget zone "color")
+                                     (aget zone "zip_codes")))
+        ;; convert the coordinates of each zone to a polygon
+        ;; add the zone to state
+        (.push (:zones @state) zone))
+      ;; update the existing zone
+      (do
+        ;; sync properties with zone
+
+        ;; check to see if zone zips have changed
+
+        ;; obtain the zips and convert them
+        ))))
+
+(defn init-zones!
+  "Get all zones from the server and store them in the state atom. This should
+  only be called once initially."
+  [state]
+  (retrieve-route
+   "zones"
+   {}
+   (partial xhrio-wrapper
+            #(let [zones (aget % "zones")]
+               (if (not (nil? zones))
+                 (mapv (partial sync-zone! state) zones))))))
+
 
 (defn legend-symbol
   "A round div for use as a legend symbol"
@@ -696,6 +785,8 @@
                   js/google.maps.ControlPosition.LEFT_TOP)
     ;; initialize the orders
     (init-orders! state "")
+    ;; initalize the zones
+    (init-zones! state)
     ;; poll the server and update orders
     (continous-update #(do (sync-orders! state))
                       (* 10 60 1000))))
@@ -734,6 +825,8 @@
     (init-orders! state (.format (js/moment) "YYYY-MM-DD"))
     ;; initialize the couriers
     (init-couriers! state)
+    ;; initialize the zones
+    (init-zones! state)
     ;; poll the server and update the orders and couriers
     (continous-update #(do (sync-couriers! state)
                            (sync-orders! state))
