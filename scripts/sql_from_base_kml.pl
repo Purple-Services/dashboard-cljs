@@ -21,29 +21,38 @@ open(FILE,$file_name);
 @file = <FILE>;
 $db = join('',@file);
 
-@sql;
+my @sql;
 
 # extract the coordinates and create sql for each zip
-while ($db  =~ m/ZCTA5CE10">(\d+)([<\/>="]|\s|\w|\d)+(.*)<\/coordinates/g)
+while ($db =~ m/(<Placemark((\s|\w|\W)+?)<\/Placemark>)/g)
 {
-    # the regex paren capture is $1 and is the zip code
-    # $3 is the coordinates
-    my $line;
-    $line = "(" . $1 . ", '[";
-    @kml = split /\s+/, $3;
-    foreach (@kml)
+    my $zcta;
+    $placemark = $1;
+    $1 =~  m/name="ZCTA5CE10">(\d+)/;
+    $zcta = "($1, '[";
+    my @latlng;
+    while ($placemark =~ m/<coordinates>((-|\d|[.]|,|\s)+?)<\/coordinates>/g)
     {
-    	@coords = split /,/,$_;
-    	$line .=  "[" . $coords[0] . " " . $coords[1] . "]";
+	my @path;
+	my @rawcoords = split /\s+/,$1;
+	foreach (@rawcoords)
+	{
+	    my @coords = split /,/,$_;
+	    push @path,"[$coords[1] $coords[0]]";
+	}
+	$zcta .= "[";
+	foreach (@path)
+	{
+	    $zcta .= $_;
+	}
+	$zcta .= "]";
     }
-    $line .= "]')";
-
-    push @sql, $line;
-    
+    $zcta .= "]')";
+    push @sql, $zcta;
 }
 
-# Create a INSERT sql command for all zips
-print "INSERT INTO `zcta` (`zip`,`coordinates`) VALUES\n";
+#Create a INSERT sql command for all zips
+print "INSERT INTO `zctas` (`zip`,`coordinates`) VALUES\n";
 
 for ($i = 0; $i <= $#sql; $i++) {
     print $sql[$i];

@@ -111,16 +111,23 @@
                                    "fillOpacity" 0.15
                                    "map" gmap)))
 
-(defn add-polygon-to-spatial-object!
-  "Create a polygon from coords on gmap and add it as obj property"
-  [obj gmap color coords]
-  (aset obj "polygon" (create-polygon gmap color coords)))
-
-(defn create-kml-layer
-  "Create a kml layer on google-map"
-  [gmap kml-url]
-  (js/google.maps.KmlLayer. (js-obj "url" kml-url
-                                    "map" gmap)))
+(defn polygon-centroid
+  "Given a polygon (google.maps.Polygon), return the centroid of the object
+  as a lat lng literal i.e. {:lat <val> , :lng <val>}"
+  [polygon]
+  (let [paths (aget polygon "paths")
+        lats  (mapv #(aget paths "lat") paths)
+        lngs  (mapv #(aget paths "lng") paths)
+        lats-sum (apply + lats)
+        lngs-sum (apply + lngs)
+        lats-count (count lats)
+        lngs-count (count lngs)
+        centroid-lat (/ lats-sum lats-count)
+        centroid-lng (/ lngs-sum lngs-count)]
+    (js-obj "lat"
+            centroid-lat
+            "lng"
+            centroid-lng)))
 
 (defn add-circle-to-spatial-object!
   "Given an object with lat,lng properties, create a circle on gmap
@@ -541,31 +548,52 @@
 (defn vec-coords->json
   "Convert a vector of lat,lng vectors to a json obj"
   [vec-coords]
-  (let [clj-coords (read-string vec-coords)
-        js-coords  (clj->js (mapv #(hash-map :lat (second %) :lng (first %))
-                                  clj-coords))]
-    js-coords))
+  (clj->js (mapv #(hash-map :lat (first %) :lng (second %))
+                   vec-coords)))
+
+(defn zcta-paths->polygons
+  "Given a vector of path vectors, return an array of polygons"
+  [gmap color paths]
+  (let [json-coords (mapv vec-coords->json paths)]
+    (mapv (partial create-polygon gmap color) json-coords)))
 
 (defn process-zcta!
-  "Given a zcta, process the coordinates and add it as a polygon"
-  [state color zcta]
-  (add-polygon-to-spatial-object! zcta
-                                  (:google-map @state)
-                                  color
-                                  (vec-coords->json (aget zcta "coordinates"))))
+  "Given a zcta, process the coordinates and add them as a polygon"
+  [gmap color zcta]
+  (do
+    (aset zcta "polygons" (zcta-paths->polygons
+                           gmap color (read-string (aget zcta "coordinates"))))
+    zcta))
 
-(defn get-zctas!
-  "Given an array of zip code strings, return an array of zctas defintions with
-  polygons that are color."
-  [state color zips]
+(defn ^:export show-zcta-for-zip
+  "Given a zip code, show the zcta on map"
+  [zip]
   (retrieve-route
    "zctas"
-   (js/JSON.stringify (clj->js {:zips (.join zips ",")}))
+   (js/JSON.stringify (clj->js {:zips zip}))
    (partial xhrio-wrapper
             #(let [zctas (aget % "zctas")]
-               (if (not (nil? zctas))
-                 (mapv
-                  (partial process-zcta! state color) zctas))))))
+               (process-zcta! (:google-map @state)
+                              "green"
+                              (first zctas))))))
+
+(defn set-zctas!
+  "Given a zone, retrieve all zctas for the zone's zips, add polygons to the
+  zctas and add them as a 'zctas' prop on zone"
+  [state zone]
+  (retrieve-route
+   "zctas"
+   (js/JSON.stringify (clj->js {:zips (.join (aget zone "zip_codes") ",")}))
+   (partial xhrio-wrapper
+            #(let [server-zctas (aget % "zctas")]
+               (if (not (nil? server-zctas))
+                 (let [zctas (mapv (partial
+                                   process-zcta!
+                                   (:google-map @state)
+                                   (aget zone "color"))
+                                  server-zctas)]
+                   (aset zone "zctas" zctas)))))))
+
 
 (defn sync-zone!
   "Given a zone, sync it with the one in state. If it does not already exist,
@@ -576,20 +604,37 @@
     (if (nil? state-zone)
       ;; process the zone and add it to zones of state
       (do
-        ;; get all of the zips for the zone
-        (swap-obj-prop! zone "zctas"
-                        #(get-zctas! state
-                                     (aget zone "color")
-                                     (aget zone "zip_codes")))
-        ;; convert the coordinates of each zone to a polygon
+        ;; sync properties with zone
+        ;;(sync-obj-properties! state-zone zone)
+        ;; add a zcta property to the zone
+        ;;(aset zone "zctas" (array))
+        ;; get all of the zctas for the zone
+        (set-zctas! state zone)
         ;; add the zone to state
         (.push (:zones @state) zone))
       ;; update the existing zone
-      (do
-        ;; sync properties with zone
-
+      (let [state-zips  (aget state-zone "zip_codes")
+            state-color (aget state-zone "color")
+            new-zips    (aget zone "zip_codes")
+            new-color   (aget zone "color")]
+        ;; (.log js/console "old zips")
+        ;; (.log js/console state-zips)
+        ;; (.log js/console "new zips")
+        ;; (.log js/console new-zips)
         ;; check to see if zone zips have changed
-
+        (if (not= (vec state-zips) (vec new-zips))
+          ;;(.log js/console "Zips are not the same")
+          "foo"
+          ;;(.log js/console "Zips are the same")
+          )
+        ;; check to see if zone color has changed
+        (if (not= state-color new-color)
+          ;;(.log js/console "Color is not the same")
+          (.setOptions (aget state-zone "polygon")
+                       (clj->js {:options {:strokeColor new-color
+                                           :fillColor new-color}}))
+          ;;(.log js/console "Color is the same")
+          )
         ;; obtain the zips and convert them
         ))))
 
@@ -605,6 +650,10 @@
                (if (not (nil? zones))
                  (mapv (partial sync-zone! state) zones))))))
 
+(defn sync-zones!
+  "Retrieve the zones and sync them with the state"
+  [state]
+  (init-zones! state))
 
 (defn legend-symbol
   "A round div for use as a legend symbol"
@@ -829,5 +878,11 @@
     (init-zones! state)
     ;; poll the server and update the orders and couriers
     (continous-update #(do (sync-couriers! state)
-                           (sync-orders! state))
+                           (sync-orders! state)
+                           ;;(sync-zones! state)
+                           )
                       (:timeout-interval @state))))
+
+(defn ^:export get-zones
+  []
+  (.log js/console (:zones @state)))
