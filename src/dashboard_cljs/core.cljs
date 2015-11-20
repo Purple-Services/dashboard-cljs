@@ -95,7 +95,8 @@
                  "fillOpacity" 1
                  "map" google-map
                  "center" (js-obj "lat" lat "lng" lng)
-                 "radius" 200))]
+                 "radius" 200
+                 "zIndex" 999))]
     (.addListener circle "click" click-fn)
     circle))
 
@@ -561,9 +562,31 @@
   "Given a zcta, process the coordinates and add them as a polygon"
   [gmap color zcta]
   (do
-    (aset zcta "polygons" (zcta-paths->polygons
-                           gmap color (read-string (aget zcta "coordinates"))))
+    (aset zcta "polygons"
+          (clj->js (zcta-paths->polygons
+                    gmap color (read-string (aget zcta "coordinates")))))
     zcta))
+
+(defn modify-zone-polygons!
+  "Call f on every polygon of zone's zctas"
+  [f zone]
+  (let [zctas (aget zone "zctas")
+        get-polygons #(aget % "polygons")]
+    (mapv #(mapv f (get-polygons %)) zctas)))
+
+(defn change-zone-color!
+  "Given a zone, set zctas to color"
+  [color zone]
+  (modify-zone-polygons!
+   #(.setOptions % (clj->js {:options {:strokeColor color
+                                       :fillColor color}}))
+   zone))
+
+(defn change-zones-map!
+  "Given a zone, change all zcta polygons to gmap"
+  [gmap zone]
+  (modify-zone-polygons!
+   #(.setMap % gmap) zone))
 
 (defn ^:export show-zcta-for-zip
   "Given a zip code, show the zcta on map"
@@ -583,7 +606,8 @@
   [state zone]
   (retrieve-route
    "zctas"
-   (js/JSON.stringify (clj->js {:zips (.join (aget zone "zip_codes") ",")}))
+   (js/JSON.stringify ;;(clj->js {:zips (.join (aget zone "zip_codes") ",")})
+    (clj->js  {:zips (aget zone "zip_codes")}))
    (partial xhrio-wrapper
             #(let [server-zctas (aget % "zctas")]
                (if (not (nil? server-zctas))
@@ -592,7 +616,7 @@
                                    (:google-map @state)
                                    (aget zone "color"))
                                   server-zctas)]
-                   (aset zone "zctas" zctas)))))))
+                   (aset zone "zctas" (clj->js zctas))))))))
 
 
 (defn sync-zone!
@@ -604,10 +628,6 @@
     (if (nil? state-zone)
       ;; process the zone and add it to zones of state
       (do
-        ;; sync properties with zone
-        ;;(sync-obj-properties! state-zone zone)
-        ;; add a zcta property to the zone
-        ;;(aset zone "zctas" (array))
         ;; get all of the zctas for the zone
         (set-zctas! state zone)
         ;; add the zone to state
@@ -617,26 +637,18 @@
             state-color (aget state-zone "color")
             new-zips    (aget zone "zip_codes")
             new-color   (aget zone "color")]
-        ;; (.log js/console "old zips")
-        ;; (.log js/console state-zips)
-        ;; (.log js/console "new zips")
-        ;; (.log js/console new-zips)
+        ;; sync obj properties
+        (sync-obj-properties! state-zone zone)
         ;; check to see if zone zips have changed
         (if (not= (vec state-zips) (vec new-zips))
-          ;;(.log js/console "Zips are not the same")
-          "foo"
-          ;;(.log js/console "Zips are the same")
-          )
+          (do
+            ;; set all of the polygons to nil
+            (change-zones-map! nil state-zone)
+            ;; get all of the zctas for the zone
+            (set-zctas! state state-zone)))
         ;; check to see if zone color has changed
         (if (not= state-color new-color)
-          ;;(.log js/console "Color is not the same")
-          (.setOptions (aget state-zone "polygon")
-                       (clj->js {:options {:strokeColor new-color
-                                           :fillColor new-color}}))
-          ;;(.log js/console "Color is the same")
-          )
-        ;; obtain the zips and convert them
-        ))))
+          (change-zone-color! new-color state-zone))))))
 
 (defn init-zones!
   "Get all zones from the server and store them in the state atom. This should
@@ -879,8 +891,7 @@
     ;; poll the server and update the orders and couriers
     (continous-update #(do (sync-couriers! state)
                            (sync-orders! state)
-                           ;;(sync-zones! state)
-                           )
+                           (sync-zones! state))
                       (:timeout-interval @state))))
 
 (defn ^:export get-zones
