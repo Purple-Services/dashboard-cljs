@@ -116,9 +116,11 @@
   "Given a polygon (google.maps.Polygon), return the centroid of the object
   as a lat lng literal i.e. {:lat <val> , :lng <val>}"
   [polygon]
-  (let [paths (aget polygon "paths")
-        lats  (mapv #(aget paths "lat") paths)
-        lngs  (mapv #(aget paths "lng") paths)
+  (let [path (-> polygon
+                 .getPath
+                 .getArray)
+        lats  (mapv #(.lat %)  path)
+        lngs  (mapv #(.lng %) path)
         lats-sum (apply + lats)
         lngs-sum (apply + lngs)
         lats-count (count lats)
@@ -211,9 +213,10 @@
   [google-map lat lng text]
   (js/MapLabel.
    (js-obj "map" google-map
-           "position" (js/google.maps.LatLng. (+ lat
-                                                 (dlat-label
-                                                  (.getZoom google-map)))
+           "position" (js/google.maps.LatLng. lat
+                       ;; (+ lat
+                       ;;    (dlat-label
+                       ;;     (.getZoom google-map)))
                                               lng)
            "text" text
            "fontSize" 12
@@ -226,6 +229,17 @@
   (aset obj "label"
         (create-label gmap
                       (aget obj "lat")
+                      (aget obj "lng")
+                      text)))
+
+(defn add-label-to-courier!
+  "Add a label to the courier"
+  [obj gmap text]
+  (aset obj "label"
+        (create-label gmap
+                      (+ (aget obj "lat")
+                         (dlat-label
+                          (.getZoom gmap)))
                       (aget obj "lng")
                       text)))
 
@@ -396,7 +410,11 @@
                          :color])
          (fn [] (open-obj-info-window state courier)))
         ;; add a label to the courier
-        (add-label-to-spatial-object!
+        ;; (add-label-to-spatial-object!
+        ;;  courier
+        ;;  (:google-map @state)
+        ;;  (aget courier "name"))
+        (add-label-to-courier!
          courier
          (:google-map @state)
          (aget courier "name"))
@@ -567,17 +585,53 @@
                     gmap color (read-string (aget zcta "coordinates")))))
     zcta))
 
-(defn modify-zone-polygons!
+(defn modify-zone-zcta-polygons!
   "Call f on every polygon of zone's zctas"
   [f zone]
   (let [zctas (aget zone "zctas")
         get-polygons #(aget % "polygons")]
     (mapv #(mapv f (get-polygons %)) zctas)))
 
+
+(defn modify-zone-zcta!
+  "Call f on zcta"
+  [f zcta]
+  (f zcta))
+
+(defn add-centers-to-zcta!
+  "Call f on zcta"
+  [zcta]
+  (modify-zone-zcta! #(let [polygons (aget % "polygons")
+                            centers  (clj->js (mapv polygon-centroid polygons))]
+                        (aset % "centers" centers))
+                     zcta))
+
+
+(defn modify-zone-zctas!
+  "Modify the zone zctas"
+  [zone]
+  (let [zctas (aget zone "zctas")]
+    (mapv add-centers-to-zcta! zctas)
+    (mapv (partial modify-zone-zcta!
+                   #(let [centers (aget % "centers")]
+                      (mapv (fn [center]
+                              (js/MapLabel.
+                               (js-obj "map" (:google-map @state)
+                                       "position" (js/google.maps.LatLng.
+                                                   (aget center "lat")
+                                                   (aget center "lng"))
+                                       "text" (aget % "zip")
+                                       "fontColor" (aget zone "color")
+                                       "strokeWeight" 0
+                                       "align" "center"
+                                       "minZoom" 11))) 
+                            centers))
+                   ) zctas)))
+
 (defn change-zone-color!
   "Given a zone, set zctas to color"
   [color zone]
-  (modify-zone-polygons!
+  (modify-zone-zcta-polygons!
    #(.setOptions % (clj->js {:options {:strokeColor color
                                        :fillColor color}}))
    zone))
@@ -585,7 +639,7 @@
 (defn change-zones-map!
   "Given a zone, change all zcta polygons to gmap"
   [gmap zone]
-  (modify-zone-polygons!
+  (modify-zone-zcta-polygons!
    #(.setMap % gmap) zone))
 
 (defn ^:export show-zcta-for-zip
@@ -606,8 +660,9 @@
   [state zone]
   (retrieve-route
    "zctas"
-   (js/JSON.stringify ;;(clj->js {:zips (.join (aget zone "zip_codes") ",")})
-    (clj->js  {:zips (aget zone "zip_codes")}))
+   (js/JSON.stringify (clj->js {:zips (.join (aget zone "zip_codes") ",")})
+    ;;(clj->js  {:zips (aget zone "zip_codes")})
+    )
    (partial xhrio-wrapper
             #(let [server-zctas (aget % "zctas")]
                (if (not (nil? server-zctas))
@@ -616,7 +671,10 @@
                                    (:google-map @state)
                                    (aget zone "color"))
                                   server-zctas)]
-                   (aset zone "zctas" (clj->js zctas))))))))
+                   (aset zone "zctas" (clj->js zctas))
+                   ;;(.log js/console (modify-zone-zcta! zone))
+                   (modify-zone-zctas! zone)
+                   ))))))
 
 
 (defn sync-zone!
@@ -630,6 +688,8 @@
       (do
         ;; get all of the zctas for the zone
         (set-zctas! state zone)
+        ;;
+        ;;(modify-zone-zcta! zone)
         ;; add the zone to state
         (.push (:zones @state) zone))
       ;; update the existing zone
@@ -891,7 +951,8 @@
     ;; poll the server and update the orders and couriers
     (continous-update #(do (sync-couriers! state)
                            (sync-orders! state)
-                           (sync-zones! state))
+                           ;;(sync-zones! state)
+                           )
                       (:timeout-interval @state))))
 
 (defn ^:export get-zones
