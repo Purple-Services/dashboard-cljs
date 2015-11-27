@@ -14,6 +14,9 @@
                   :couriers-control
                   {:selected? true
                    :color "#8E44AD"}
+                  :zones-control
+                  {:zones-display {:selected? true}
+                   :zones-zips-display {:selected? true}}
                   :google-map nil
                   :from-date (-> (js/moment)
                                  (.subtract 30 "days")
@@ -354,6 +357,7 @@
            (set-obj-prop-map! % prop nil))
         objs))
 
+
 ;; could this be refactored to use "every-pred" ?
 (defn courier-displayed?
   "Given the state, determine if a courier should be displayed or not"
@@ -585,13 +589,19 @@
                     gmap color (read-string (aget zcta "coordinates")))))
     zcta))
 
-(defn modify-zone-zcta-polygons!
-  "Call f on every polygon of zone's zctas"
-  [f zone]
+(defn swap-zones-zctas-attributes!
+  "Call f on the attr of every zcta in zone. Assumes attr is an array of
+  objects"
+  [attr f zone]
   (let [zctas (aget zone "zctas")
-        get-polygons #(aget % "polygons")]
-    (mapv #(mapv f (get-polygons %)) zctas)))
+        get-attr #(aget % attr)]
+    (mapv #(mapv f (get-attr %)) zctas)))
 
+(defn modify-zones-zctas-attributes!
+  "Set the attr of every zcta in zone to val"
+  [attr val zone]
+  (let [zctas (aget zone "zctas")]
+    (mapv #(aset % attr val) zctas)))
 
 (defn modify-zone-zcta!
   "Call f on zcta"
@@ -606,41 +616,66 @@
                         (aset % "centers" centers))
                      zcta))
 
-
 (defn modify-zone-zctas!
   "Modify the zone zctas"
   [zone]
   (let [zctas (aget zone "zctas")]
     (mapv add-centers-to-zcta! zctas)
     (mapv (partial modify-zone-zcta!
-                   #(let [centers (aget % "centers")]
-                      (mapv (fn [center]
-                              (js/MapLabel.
-                               (js-obj "map" (:google-map @state)
-                                       "position" (js/google.maps.LatLng.
-                                                   (aget center "lat")
-                                                   (aget center "lng"))
-                                       "text" (aget % "zip")
-                                       "fontColor" (aget zone "color")
-                                       "strokeWeight" 0
-                                       "align" "center"
-                                       "minZoom" 11))) 
-                            centers))
+                   #(let [centers (aget % "centers")
+                          labels
+                          (clj->js
+                           (mapv (fn [center]
+                                   (js/MapLabel.
+                                    (js-obj "map" (:google-map @state)
+                                            "position" (js/google.maps.LatLng.
+                                                        (aget center "lat")
+                                                        (aget center "lng"))
+                                            "text" (aget % "zip")
+                                            "fontColor" (aget zone "color")
+                                            "strokeWeight" 0
+                                            "align" "center"
+                                            "minZoom" 11))) 
+                                 centers))]
+                      (aset % "labels" labels))
                    ) zctas)))
 
 (defn change-zone-color!
   "Given a zone, set zctas to color"
   [color zone]
-  (modify-zone-zcta-polygons!
+  ;; (modify-zone-zcta-polygons!
+  ;;  #(.setOptions % (clj->js {:options {:strokeColor color
+  ;;                                      :fillColor color}}))
+  ;;  zone)
+  (swap-zones-zctas-attributes!
+   "polygons"
    #(.setOptions % (clj->js {:options {:strokeColor color
                                        :fillColor color}}))
    zone))
 
-(defn change-zones-map!
+(defn change-zone-zcta-zips-map!
+  "Given a zone, change all zcta labels to gmap"
+  [gmap zone]
+  (swap-zones-zctas-attributes!
+   "labels" #(.setMap % gmap) zone))
+
+(defn change-zone-zcta-polygons-map!
   "Given a zone, change all zcta polygons to gmap"
   [gmap zone]
-  (modify-zone-zcta-polygons!
-   #(.setMap % gmap) zone))
+  (swap-zones-zctas-attributes!
+   "polygons" #(.setMap % gmap) zone))
+
+(defn change-zone-zcta-map!
+  "Given a zone, change all zcta polygons and labels to gmap"
+  [gmap zone]
+  (do (swap-zones-zctas-attributes!
+       "polygons"
+       #(.setMap % gmap)
+       zone)
+      (swap-zones-zctas-attributes!
+       "labels"
+       #(.setMap % gmap)
+       zone)))
 
 (defn ^:export show-zcta-for-zip
   "Given a zip code, show the zcta on map"
@@ -654,14 +689,42 @@
                               "green"
                               (first zctas))))))
 
+;; this is changed when handler.clj is changed
+(defn display-zone-selections!
+  "Given the state, display the zones or zip codes"
+  [state]
+  (let [display-zones (get-in @state
+                              [:zones-control
+                               :zones-display
+                               :selected?])
+        display-zips (get-in @state
+                             [:zones-control
+                              :zones-zips-display
+                              :selected?])]
+    (cond (and display-zones display-zips)
+          (mapv (partial change-zone-zcta-map!
+                         (:google-map @state))
+                (:zones @state))
+          (and display-zones (not display-zips))
+          (do (mapv (partial change-zone-zcta-polygons-map!
+                             (:google-map @state))
+                    (:zones @state))
+              (mapv (partial change-zone-zcta-zips-map!
+                             nil)
+                    (:zones @state)))
+          (not display-zones)
+          (mapv (partial change-zone-zcta-map!
+                         nil)
+                (:zones @state)))))
+
 (defn set-zctas!
   "Given a zone, retrieve all zctas for the zone's zips, add polygons to the
   zctas and add them as a 'zctas' prop on zone"
   [state zone]
   (retrieve-route
    "zctas"
-   (js/JSON.stringify (clj->js {:zips (.join (aget zone "zip_codes") ",")})
-    ;;(clj->js  {:zips (aget zone "zip_codes")})
+   (js/JSON.stringify ;;(clj->js {:zips (.join (aget zone "zip_codes") ",")})
+    (clj->js  {:zips (aget zone "zip_codes")})
     )
    (partial xhrio-wrapper
             #(let [server-zctas (aget % "zctas")]
@@ -672,8 +735,8 @@
                                    (aget zone "color"))
                                   server-zctas)]
                    (aset zone "zctas" (clj->js zctas))
-                   ;;(.log js/console (modify-zone-zcta! zone))
                    (modify-zone-zctas! zone)
+                   (display-zone-selections! state)
                    ))))))
 
 
@@ -696,19 +759,30 @@
       (let [state-zips  (aget state-zone "zip_codes")
             state-color (aget state-zone "color")
             new-zips    (aget zone "zip_codes")
-            new-color   (aget zone "color")]
+            new-color   (aget zone "color")
+            ]
         ;; sync obj properties
         (sync-obj-properties! state-zone zone)
         ;; check to see if zone zips have changed
         (if (not= (vec state-zips) (vec new-zips))
           (do
             ;; set all of the polygons to nil
-            (change-zones-map! nil state-zone)
+            (change-zone-zcta-map! nil state-zone)
+            ;; clear out all of the polygons and labels of the zctas
+            ;; in zone
+            (modify-zones-zctas-attributes! "polygons" nil state-zone)
+            (modify-zones-zctas-attributes! "labels" nil state-zone)
             ;; get all of the zctas for the zone
-            (set-zctas! state state-zone)))
+            (set-zctas! state state-zone)
+            ;; display only if selected
+            ;;(display-zone-selections! state)
+            ))
         ;; check to see if zone color has changed
         (if (not= state-color new-color)
-          (change-zone-color! new-color state-zone))))))
+          (do (change-zone-color! new-color state-zone)
+              ;;(display-zone-selections! state)
+              ))))))
+
 
 (defn init-zones!
   "Get all zones from the server and store them in the state atom. This should
@@ -720,7 +794,8 @@
    (partial xhrio-wrapper
             #(let [zones (aget % "zones")]
                (if (not (nil? zones))
-                 (mapv (partial sync-zone! state) zones))))))
+                 (mapv (partial sync-zone! state) zones))
+               ))))
 
 (defn sync-zones!
   "Retrieve the zones and sync them with the state"
@@ -866,6 +941,67 @@
     (crate/html [:div [:div {:class "setCenterUI" :title "Select couriers"}
                        control-text]])))
 
+
+(defn zones-display
+  "A checkbox for controlling the display of zones"
+  [state]
+  (let [checkbox (crate/html [:input {:type "checkbox"
+                                      :name "zones"
+                                      :value "zones"
+                                      :class "zones-checkbox"
+                                      :checked (get-in @state
+                                                       [:zones-control
+                                                        :zones-display
+                                                        :selected?])}])
+        control-text (crate/html
+                      [:div {:class "setCenterText"}
+                       checkbox "Zones"])]
+    (.addEventListener
+     checkbox "click" #(do (if (aget checkbox "checked")
+                             (swap! state assoc-in
+                                    [:zones-control :zones-display :selected?]
+                                    true)
+                             (swap! state assoc-in
+                                    [:zones-control :zones-display :selected?]
+                                    false))
+                           (display-zone-selections! state)))
+    control-text))
+
+(defn zones-zips-display
+  "A Checkbox for controlling the display of zip codes inside of the zones"
+  [state]
+  (let [checkbox (crate/html [:input {:type "checkbox"
+                                      :name "zones-zips"
+                                      :value "zones-zips"
+                                      :class "zones-zips-checkbox"
+                                      :checked (get-in @state
+                                                       [:zones-control
+                                                        :zones-zips-display
+                                                        :selected?] )}])
+        control-text (crate/html
+                      [:div {:class "setCenterText"}
+                       checkbox "Zip Code Labels"])]
+    (.addEventListener
+     checkbox "click" #(do (if (aget checkbox "checked")
+                             (swap! state assoc-in
+                                    [:zones-control :zones-zips-display
+                                     :selected?]
+                                    true)
+                             (swap! state assoc-in
+                                    [:zones-control :zones-zips-display
+                                     :selected?]
+                                    false))
+                           (display-zone-selections! state)
+                           ))
+    control-text))
+
+(defn zones-control
+  "A control for zones"
+  [state]
+  (crate/html [:div [:div {:class "setCenterUI" :title "select zones"}
+                     (zones-display state)
+                     (zones-zips-display state)]]))
+
 (defn add-control!
   "Add control to g-map using position"
   [g-map control position]
@@ -897,11 +1033,15 @@
                   #(mapv (partial scale-spatial-object-circle-radius!
                                   (.getZoom (:google-map @state)))
                          (:orders @state)))
+    ;; set the controls state
+    (swap! state assoc-in [:zones-control :zones-zips-display :selected?] false)
+    (swap! state assoc-in [:zones-control :zones-display :selected?] false)
     ;; add controls
     (add-control! (:google-map @state) (crate/html
                                         [:div
                                          (orders-date-control state)
                                          (orders-status-control state)
+                                         (zones-control state)
                                          ])
                   js/google.maps.ControlPosition.LEFT_TOP)
     ;; initialize the orders
@@ -940,7 +1080,10 @@
                                         [:div
                                          (orders-status-control state)
                                          (crate/html
-                                          [:div (couriers-control state)])])
+                                          [:div (couriers-control state)])
+                                         (crate/html
+                                          [:div (zones-control state)])
+                                         ])
                   js/google.maps.ControlPosition.LEFT_TOP)
     ;; initialize the orders
     (init-orders! state (.format (js/moment) "YYYY-MM-DD"))
@@ -951,7 +1094,7 @@
     ;; poll the server and update the orders and couriers
     (continous-update #(do (sync-couriers! state)
                            (sync-orders! state)
-                           ;;(sync-zones! state)
+                           (sync-zones! state)
                            )
                       (:timeout-interval @state))))
 
