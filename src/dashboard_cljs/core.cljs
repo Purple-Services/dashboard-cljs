@@ -681,6 +681,7 @@
   (retrieve-route
    "zctas"
    (js/JSON.stringify (clj->js {:zips zip}))
+   ;;(js/JSON.stringify (clj->js {:zips (.join zip ",")}))
    (partial xhrio-wrapper
             #(let [zctas (aget % "zctas")]
                (process-zcta! (:google-map @state)
@@ -951,7 +952,7 @@
                                                         :zones-display
                                                         :selected?])}])
         control-text (crate/html
-                      [:div {:class "setCenterText"}
+                      [:div {:class "setCenterText map-control-font"}
                        checkbox "Zones"])]
     (.addEventListener
      checkbox "click" #(do (if (aget checkbox "checked")
@@ -976,7 +977,7 @@
                                                         :zones-zips-display
                                                         :selected?] )}])
         control-text (crate/html
-                      [:div {:class "setCenterText"}
+                      [:div {:class "setCenterText map-control-font"}
                        checkbox "Zip Code Labels"])]
     (.addEventListener
      checkbox "click" #(do (if (aget checkbox "checked")
@@ -1081,7 +1082,6 @@
            (js/google.maps.Map.
             (.getElementById js/document "map")
             (js-obj "center"
-                    ;;(js-obj "lat" 34.0714522 "lng" -118.40362)
                     (get-in @state [:cities "Los Angeles" :coords])
                     "zoom" 12)))
     ;; listener for map zoom
@@ -1103,7 +1103,8 @@
                                           [:div (couriers-control state)])
                                          (crate/html
                                           [:div (zones-control state)])
-                                         (city-control state state)])
+                                         ;;(city-control state)
+                                         ])
                   js/google.maps.ControlPosition.LEFT_TOP)
     ;; initialize the orders
     (init-orders! state (.format (js/moment) "YYYY-MM-DD"))
