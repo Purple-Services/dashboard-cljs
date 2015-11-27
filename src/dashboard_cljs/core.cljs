@@ -6,6 +6,7 @@
             [cljsjs.pikaday.with-moment]
             [maplabel]
             [cljs.reader :refer [read-string]]
+            [goog.dom.classes]
             ))
 
 (def state (atom {:timeout-interval 5000
@@ -35,6 +36,8 @@
                                 :selected? true}
                    :cancelled  {:color "#000000"
                                 :selected? true}}
+                  :cities-control
+                  {:selected-city "Los Angeles"}
                   :cities
                   {"Los Angeles"
                    {:coords (js-obj "lat" 34.0714522
@@ -718,7 +721,8 @@
 
 (defn set-zctas!
   "Given a zone, retrieve all zctas for the zone's zips, add polygons to the
-  zctas and add them as a 'zctas' prop on zone"
+  zctas and add them as a 'zctas' prop on zone. Optionally use default-color
+  in state instead of zone's default color"
   [state zone]
   (retrieve-route
    "zctas"
@@ -728,11 +732,15 @@
    (partial xhrio-wrapper
             #(let [server-zctas (aget % "zctas")]
                (if (not (nil? server-zctas))
-                 (let [zctas (mapv (partial
-                                   process-zcta!
-                                   (:google-map @state)
-                                   (aget zone "color"))
-                                  server-zctas)]
+                 (let [default-color (get-in @state [:zones-control
+                                                     :default-color])
+                       zctas (mapv (partial
+                                    process-zcta!
+                                    (:google-map @state)
+                                    (if default-color
+                                      default-color
+                                      (aget zone "color")))
+                                   server-zctas)]
                    (aset zone "zctas" (clj->js zctas))
                    (modify-zone-zctas! zone)
                    (display-zone-selections! state)
@@ -750,8 +758,6 @@
       (do
         ;; get all of the zctas for the zone
         (set-zctas! state zone)
-        ;;
-        ;;(modify-zone-zcta! zone)
         ;; add the zone to state
         (.push (:zones @state) zone))
       ;; update the existing zone
@@ -1003,13 +1009,18 @@
 (defn city-button
   "Create a button for selecting city-name"
   [state city-name]
-  (let [city-button (crate/html [:div {:class "map-control-font cities"}
-                                 city-name])]
+  (let [state-selected-city (get-in @state [:cities-control :selected-city])
+        city-button (crate/html
+                     [:div
+                      {:class (str "map-control-font cities "
+                                   (if (= state-selected-city
+                                          city-name)
+                                     "city-selected"))}
+                      city-name])]
     (.addEventListener
      city-button
      "click"
-     #(do (.log js/console (str "I clicked "
-                                city-name))
+     #(do (swap! state assoc-in [:cities-control :selected-city] city-name)
           (.setCenter (:google-map @state)
                       (get-in @state [:cities city-name :coords]))))
     city-button))
@@ -1017,10 +1028,24 @@
 (defn city-control
   "A control for selecting which City to view"
   [state]
-  (let [cities      (keys (:cities @state))]
-    (crate/html [:div [:div {:class "setCenterUI" :title "cities"}
-                       (crate/html
-                        [:div (map (partial city-button state) cities)])]])))
+  (let [cities (keys (:cities @state))
+        city-control
+        (crate/html  [:div {:class "setCenterUI city-ui-container"
+                              :title "cities"}
+                        (map (partial city-button state) cities)])]
+    (.addEventListener
+     city-control
+     "click"
+     #(let [city-buttons (array-seq (goog.dom.getChildren city-control))]
+        (mapv (fn [button]
+                (if (= (goog.dom.getTextContent button)
+                       (get-in @state [:cities-control :selected-city]))
+                  (goog.dom.classes.add button "city-selected")
+                  (goog.dom.classes.remove button "city-selected")))
+             city-buttons)
+        ))
+    city-control
+    ))
 
 (defn add-control!
   "Add control to g-map using position"
@@ -1119,6 +1144,33 @@
                            (sync-zones! state)
                            )
                       (:timeout-interval @state))))
+
+(defn ^:export init-map-coverage-map
+  "Initialize the map for manager couriers"
+  []
+  (do
+    (swap! state
+           assoc
+           :google-map
+           (js/google.maps.Map.
+            (.getElementById js/document "map")
+            (js-obj "center"
+                    (get-in @state [:cities "Los Angeles" :coords])
+                    "zoom" 11)))
+    ;; turn off displaying zips
+    (swap! state assoc-in [:zones-control :zones-zips-display :selected?] false)
+    ;; set the zones default colors
+    (swap! state assoc-in [:zones-control :default-color] "purple")
+    ;; set the city to display
+    (swap! state assoc-in [:cities-control :selected-city] "Los Angeles")
+    ;; add controls
+    (add-control! (:google-map @state) (crate/html
+                                        [:div
+                                         (city-control state)
+                                         ])
+                  js/google.maps.ControlPosition.LEFT_TOP)
+    ;; initialize the zones
+    (init-zones! state)))
 
 (defn ^:export get-zones
   []
