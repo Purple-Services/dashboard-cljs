@@ -35,6 +35,13 @@
                                 :selected? true}
                    :cancelled  {:color "#000000"
                                 :selected? true}}
+                  :cities
+                  {"Los Angeles"
+                   {:coords (js-obj "lat" 34.0714522
+                                    "lng" -118.40362)}
+                   "San Diego"
+                   {:coords (js-obj "lat" 32.715786
+                                    "lng" -117.158340)}}
                   :zones (array)}))
 
 (defn send-xhr
@@ -217,9 +224,6 @@
   (js/MapLabel.
    (js-obj "map" google-map
            "position" (js/google.maps.LatLng. lat
-                       ;; (+ lat
-                       ;;    (dlat-label
-                       ;;     (.getZoom google-map)))
                                               lng)
            "text" text
            "fontSize" 12
@@ -357,7 +361,6 @@
            (set-obj-prop-map! % prop nil))
         objs))
 
-
 ;; could this be refactored to use "every-pred" ?
 (defn courier-displayed?
   "Given the state, determine if a courier should be displayed or not"
@@ -413,11 +416,6 @@
          (get-in @state [:couriers-control
                          :color])
          (fn [] (open-obj-info-window state courier)))
-        ;; add a label to the courier
-        ;; (add-label-to-spatial-object!
-        ;;  courier
-        ;;  (:google-map @state)
-        ;;  (aget courier "name"))
         (add-label-to-courier!
          courier
          (:google-map @state)
@@ -828,7 +826,7 @@
                                       :class "orders-checkbox"
                                       :checked true}])
         control-text (crate/html
-                      [:div {:class "setCenterText"}
+                      [:div {:class "setCenterText map-control-font"}
                        checkbox status
                        (legend-symbol (get-in @state [:status
                                                       (keyword status)
@@ -895,7 +893,7 @@
     (crate/html [:div
                  [:div {:class "setCenterUI"
                         :title "Click to change dates"}
-                  [:div {:class "setCenterText"}
+                  [:div {:class "setCenterText map-control-font"}
                    "Orders"
                    [:br]
                    "From: "
@@ -913,7 +911,7 @@
                                       :class "couriers-checkbox"
                                       :checked true}])
         control-text (crate/html
-                      [:div {:class "setCenterText"}
+                      [:div {:class "setCenterText map-control-font"}
                        checkbox "Couriers"
                        [:br]
                        "Busy"
@@ -940,7 +938,6 @@
                             )))
     (crate/html [:div [:div {:class "setCenterUI" :title "Select couriers"}
                        control-text]])))
-
 
 (defn zones-display
   "A checkbox for controlling the display of zones"
@@ -1002,6 +999,28 @@
                      (zones-display state)
                      (zones-zips-display state)]]))
 
+(defn city-button
+  "Create a button for selecting city-name"
+  [state city-name]
+  (let [city-button (crate/html [:div {:class "map-control-font cities"}
+                                 city-name])]
+    (.addEventListener
+     city-button
+     "click"
+     #(do (.log js/console (str "I clicked "
+                                city-name))
+          (.setCenter (:google-map @state)
+                      (get-in @state [:cities city-name :coords]))))
+    city-button))
+
+(defn city-control
+  "A control for selecting which City to view"
+  [state]
+  (let [cities      (keys (:cities @state))]
+    (crate/html [:div [:div {:class "setCenterUI" :title "cities"}
+                       (crate/html
+                        [:div (map (partial city-button state) cities)])]])))
+
 (defn add-control!
   "Add control to g-map using position"
   [g-map control position]
@@ -1062,7 +1081,8 @@
            (js/google.maps.Map.
             (.getElementById js/document "map")
             (js-obj "center"
-                    (js-obj "lat" 34.0714522 "lng" -118.40362)
+                    ;;(js-obj "lat" 34.0714522 "lng" -118.40362)
+                    (get-in @state [:cities "Los Angeles" :coords])
                     "zoom" 12)))
     ;; listener for map zoom
     (.addListener (:google-map @state) "zoom_changed"
@@ -1083,7 +1103,7 @@
                                           [:div (couriers-control state)])
                                          (crate/html
                                           [:div (zones-control state)])
-                                         ])
+                                         (city-control state state)])
                   js/google.maps.ControlPosition.LEFT_TOP)
     ;; initialize the orders
     (init-orders! state (.format (js/moment) "YYYY-MM-DD"))
