@@ -1084,6 +1084,7 @@
             (js-obj "center"
                     (get-in @state [:cities "Los Angeles" :coords])
                     "zoom" 12)))
+    (swap! state assoc-in [:zones-control :zones-zips-display :selected?] false)
     ;; listener for map zoom
     (.addListener (:google-map @state) "zoom_changed"
                   #(do
