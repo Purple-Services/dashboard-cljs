@@ -43,8 +43,8 @@
                    {:coords (js-obj "lat" 34.0714522
                                     "lng" -118.40362)}
                    "San Diego"
-                   {:coords (js-obj "lat" 32.715786
-                                    "lng" -117.158340)}}
+                   {:coords (js-obj "lat" 32.91
+                                    "lng" -117.163146)}}
                   :zones (array)}))
 
 (defn send-xhr
@@ -213,11 +213,6 @@
   "Utility function for viewing map information in the browser"
   []
   (.log js/console (str "Map-Zoom:" (.getZoom (:google-map @state))
-                        " "
-                        "Font-size:" (-> (:couriers @state)
-                                         first
-                                         (aget "label")
-                                         (aget "fontSize"))
                         " "
                         "map-center:" (-> (.getCenter (:google-map @state))))))
 
