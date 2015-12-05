@@ -1,6 +1,8 @@
 (ns dashboard-cljs.gmaps
   (:require [crate.core :as crate]
             [dashboard-cljs.xhr :refer [xhrio-wrapper retrieve-url]]
+            [dashboard-cljs.utils :refer [unix-epoch->hrf cents->dollars
+                                          continous-update]]
             [goog.object]
             [cljsjs.moment]
             [cljsjs.pikaday.with-moment]
@@ -65,17 +67,6 @@
    sync-obj
    (fn [el key obj]
      (aset target-obj (str key) el))))
-
-(defn unix-epoch->hrf
-  "Convert a unix epoch (in seconds) to a human readable format"
-  [unix-epoch]
-  (-> (js/moment.unix unix-epoch)
-      (.format "MM/DD hh:mm A")))
-
-(defn cents->dollars
-  "Converts an integer value of cents to dollar string"
-  [cents]
-  (str "$" (-> cents (/ 100) (.toFixed 2))))
 
 ;; the base url to use for server calls
 (def base-server-url (-> (.getElementById js/document "base-url")
@@ -1031,14 +1022,6 @@
   [g-map control position]
   (.push  (aget g-map "controls" position)
           control))
-
-
-(defn continous-update
-  "Call f continously every n seconds"
-  [f n]
-  (js/setTimeout #(do (f)
-                      (continous-update f n))
-                 n))
 
 ;; this was ^:export'd
 (defn init-map-orders
