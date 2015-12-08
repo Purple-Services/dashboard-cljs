@@ -67,3 +67,11 @@ html, body {
 .city-selected {
     background-color: #EBEBEB;
 }
+
+.opacity-hover:hover {
+    opacity: 1.0 !important;
+}
+
+.edit-icon {
+    color: #2c3e50;
+}

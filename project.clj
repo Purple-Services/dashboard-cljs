@@ -5,6 +5,7 @@
                  [weasel "0.7.0" :exclusions [org.clojure/clojurescript]]
                  [org.clojure/clojurescript "1.7.170"]
                  [org.clojure/data.json "0.2.6" :classifier "aot"]
+                 [org.clojure/core.async "0.2.374"]
                  [cljsjs/google-maps "3.18-1"]
                  [cljsjs/moment "2.10.6-0"]
                  [cljsjs/pikaday "1.3.2-0"]
