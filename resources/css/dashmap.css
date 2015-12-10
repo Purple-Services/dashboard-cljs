@@ -75,3 +75,11 @@ html, body {
 .edit-icon {
     color: #2c3e50;
 }
+
+input[type="text"].error {
+    border: 2px solid red;
+}
+
+div.error {
+    color: red;
+}

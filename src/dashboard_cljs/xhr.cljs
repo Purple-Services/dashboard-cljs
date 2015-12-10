@@ -21,4 +21,4 @@
   data. Optionally, define a timeout in ms."
   [url method data f & [timeout]]
   (let [header (clj->js {"Content-Type" "application/json"})]
-    (send-xhr url f "POST" data header timeout)))
+    (send-xhr url f method data header timeout)))
