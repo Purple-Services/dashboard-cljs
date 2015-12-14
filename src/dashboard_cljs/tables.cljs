@@ -13,9 +13,9 @@
 (def base-url (-> (.getElementById js/document "base-url")
                   (.getAttribute "value")))
 
-(defn update-courier-server
-  "Update courier on server and put the response on chan."
-  [chan courier]
+(defn update-courier-server!
+  "Update courier on server and update the row-state error message."
+  [courier row-state]
   (do
     (.log js/console "update-courier-server courier:" (clj->js courier))
     (retrieve-url
@@ -23,11 +23,38 @@
      "POST"
      (js/JSON.stringify (clj->js courier))
      (partial xhrio-wrapper
-              #(let [response %]
-                 (put! chan
-                       {:topic (:id courier)
-                        :data (js->clj response :keywordize-keys true)}
-                       ))))))
+              #(let [response %
+                     clj-response (js->clj response :keywordize-keys true)
+                     ]
+                 ;; (put! chan
+                 ;;       {:topic (:id courier)
+                 ;;        :data (js->clj response :keywordize-keys true)}
+                 ;;       )
+                 (if (:success clj-response)
+                   (reset! row-state (assoc @row-state
+                                            :error? false
+                                            :editing? false
+                                            :error-message ""))
+                   (reset! row-state (assoc @row-state
+                                            :error? true
+                                            :editing? true
+                                            :error-message
+                                            (:message clj-response))))
+                 (.log js/console response))))))
+
+(defn remove-by-id
+  "Remove the element with id from state. Assumes all elements have an
+:id key with a unique value"
+  [state id]
+  (set (remove #(= id (:id %)) state)))
+
+(defn update-element! [state el]
+  "Update the el in state. el is assumed to have a :id key with a unique value"
+  (swap! state
+         (fn [old-state]
+           (map #(if (= (:id %) (:id el))
+                   el
+                   %) old-state))))
 
 (defn field-input-handler
   "Returns a handler that updates value in atom map,
@@ -42,9 +69,16 @@
 
 (defn editable-input [atom key]
   (if (:editing? @atom)
-    [:input {:type "text"
-             :value (get @atom key)
-             :on-change (field-input-handler atom key)}]
+    [:div
+     [:input {:type "text"
+              :value (get @atom key)
+              :on-change (field-input-handler atom key)
+              :class (when (:error? @atom)
+                       "error")}]
+     [:div {:class (when (:error? @atom)
+                     "error")}
+      (when (:error? @atom)
+        (:error-message @atom))]]
     [:p (get @atom key)]))
 
 (defn get-server-couriers
@@ -68,7 +102,10 @@
 
 (defn courier-row [courier]
   (let [row-state (r/atom {:editing? false
-                           :zones (:zones courier)})]
+                           :zones (:zones courier)
+                           :error? false
+                           :error-message ""
+                           })]
     (fn [courier]
       (when (not (:editing? @row-state))
         (swap! row-state assoc :zones (:zones courier)))
@@ -81,14 +118,18 @@
        [:td (if (:busy courier) "Yes" "No")]
        [:td (unix-epoch->hrf (:last_ping courier))]
        [:td (:lateness courier)]
-       [:td [editable-input row-state :zones]
-        ]
+       [:td [editable-input row-state :zones]]
        [:td [:button
              {:on-click
               (fn []
                 (when (:editing? @row-state)
-                  ;; do something to update the courier
-                  )
+                  ;; update the local couriers state
+                  (let [new-courier (assoc courier
+                                           :zones (:zones @row-state))]
+                    ;; update the courier locally
+                    (update-element! couriers new-courier)
+                    ;; update the courier on the server
+                    (update-courier-server! new-courier row-state)))
                 (swap! row-state update-in [:editing?] not))}
              (if (:editing? @row-state) "Save" "Edit")]]])))
 
