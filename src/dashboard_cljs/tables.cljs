@@ -3,6 +3,8 @@
   (:require [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.utils :refer [unix-epoch->hrf continous-update]]
             [cljs.core.async :refer [chan pub put! sub <! >!]]
+            [cljs.reader :refer [read-string]]
+            [clojure.set :refer [subset?]]
             [reagent.core :as r]))
 
 (def couriers (r/atom #{}))
@@ -12,6 +14,11 @@
 ;; the base url to use for server calls
 (def base-url (-> (.getElementById js/document "base-url")
                   (.getAttribute "value")))
+
+;; the current user permissions
+(def accessible-routes (-> (.getElementById js/document "accessible-routes")
+                           (.getAttribute "value")
+                           (read-string)))
 
 (defn remove-by-id
   "Remove the element with id from state. Assumes all elements have an
@@ -188,14 +195,22 @@
                   [:a {:class "fake-link" :target "_blank"
                        :href (str base-url "dash-map-couriers")}
                    "[view couriers on map]"]])
+
 (defn couriers-component
   []
   [:div {:id "couriers-component"}
    [couriers-header]
    [couriers-table]])
 
+;; a map of component names, the respective component and the required urls
+;; for that component
+(def comp-req-urls [{:required-routes #{"/dashboard/couriers"}
+                     :comp couriers-component}
+                    ])
 
 (defn init-tables []
-  (let [ ]
-    (r/render-component [couriers-component]
-                        (.-body js/document))))
+  (let []
+    (mapv #(when (subset? (:required-routes %) accessible-routes)
+            (r/render-component [(:comp %)]
+                                (.getElementById js/document "app")))
+         comp-req-urls)))
