@@ -451,7 +451,7 @@
   [date f & [timeout]]
   (retrieve-url
    (str base-server-url "orders-since-date")
-   "POST"
+   "GET"
    (js/JSON.stringify
     (clj->js {:date date}))
    f timeout))
@@ -516,7 +516,7 @@
      date ; note: an empty date will return ALL orders
      (partial
       xhrio-wrapper
-      #(let [orders (aget % "orders")]
+      #(let [orders %]
          (if (not (nil? orders))
            (do (mapv (partial sync-order! state) orders)
                ;; redraw the circles according to which ones are selected
@@ -530,7 +530,7 @@
    (.format (js/moment) "YYYY-MM-DD")
    (partial
     xhrio-wrapper
-    #(let [orders (aget % "orders")]
+    #(let [orders %]
        (if (not (nil? orders))
          (do (mapv (partial sync-order! state) orders)
              ;; redraw the circles according to which ones are selected
@@ -765,10 +765,10 @@
   [state]
   (retrieve-url
    (str base-server-url "zones")
-   "POST"
+   "GET"
    {}
    (partial xhrio-wrapper
-            #(let [zones (aget % "zones")]
+            #(let [zones %]
                (if (not (nil? zones))
                  (mapv (partial sync-zone! state) zones))))))
 
