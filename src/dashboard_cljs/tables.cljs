@@ -233,8 +233,7 @@
                                (filter
                                 #(contains?
                                   (-> (:zip_codes %) (s/split #",") set)
-                                  zip) @zones))))
-        ]
+                                  zip) @zones))))]
     (fn [courier]
       (when (and
              (not (:editing? @row-state))
@@ -301,7 +300,7 @@
     [:td]]])
 
 (defn couriers-table
-  []
+  [table-state]
   (fn []
     ;; crucial to use defonce here so that only ONE
     ;; call will be made!
@@ -311,7 +310,9 @@
     ;; but let's still get the state setup
     (defonce init-couriers
       (get-server-couriers couriers))
-    [:table {:id "couriers"}
+    [:table {:id "couriers"
+             :class (when (:showing-all? @table-state)
+                      "showing-all")}
      [couriers-table-header]
      [:tbody
       (map (fn [courier]
@@ -320,17 +321,25 @@
            @couriers)]]))
 
 (defn couriers-header
-  []
+  [table-state]
   [:h2 {:class "couriers"} "Couriers "
-                  [:a {:class "fake-link" :target "_blank"
-                       :href (str base-url "dash-map-couriers")}
-                   "[view couriers on map]"]])
+   [:span {:class "show-all"
+           :on-click #(swap! table-state update-in [:showing-all?] not)}
+    (if (:showing-all? @table-state)
+      "[hide disconnected]"
+      "[show all]")]
+   [:a {:class "fake-link" :target "_blank"
+        :href (str base-url "dash-map-couriers")}
+    " [view couriers on map]"]
+   ])
 
 (defn couriers-component
   []
-  [:div {:id "couriers-component"}
-   [couriers-header]
-   [couriers-table]])
+  (let [table-state (r/atom {:showing-all? false})]
+    (fn []
+      [:div {:id "couriers-component"}
+       [couriers-header table-state]
+       [couriers-table table-state]])))
 
 (defn order-row
   [order]
@@ -391,13 +400,14 @@
     [:td "Coupon"] [:td "Total Price"]]])
 
 (defn orders-table
-  []
+  [table-state]
   (fn []
     (defonce init-orders
       (get-server-orders orders ""))
     [:table {:id "orders"
-             :class "hide-extra"
-             }
+             :class (str "hide-extra part-of-orders "
+                         (when (:showing-all? @table-state)
+                           "showing-all"))}
      [orders-table-header]
      [:tbody
       (map (fn [order]
@@ -406,15 +416,24 @@
            @orders)]]))
 
 (defn orders-header
-  []
-  [:h2 {:id "orders-heading"}
-   "Orders"])
+  [table-state]
+  [:h2 {:id "orders-heading"} "Orders "
+   [:span {:class "show-all"
+           :on-click #(swap! table-state update-in [:showing-all?] not)}
+    (if (:showing-all? @table-state)
+      "[hide after 7]"
+      "[show all]")]
+   [:a {:class "fake-link" :target "_blank"
+        :href (str base-url "dash-map-orders")}
+    " [view orders on map]"]])
 
 (defn orders-component
   []
-  [:div {:id "orders-component"}
-   [orders-header]
-   [orders-table]])
+  (let [table-state (r/atom (:showing-all? false))]
+    (fn []
+      [:div {:id "orders-component"}
+       [orders-header table-state]
+       [orders-table table-state]])))
 
 (defn user-row [user]
   (fn [user]
@@ -441,7 +460,7 @@
     [:td "OS"] [:td "Version"] [:td "Joined"]]])
 
 (defn users-table
-  []
+  [table-state]
   (fn []
     ;; (defonce users-updater
     ;;   (continous-update #(get-))
@@ -449,7 +468,9 @@
     (defonce init-users
       (get-server-users users))
     [:table {:id "users"
-             :class "hide-extra"}
+             :class (str "hide-extra "
+                         (when (:showing-all? @table-state)
+                           "showing-all"))}
      [users-table-header]
      [:tbody
       (map (fn [user]
@@ -458,15 +479,23 @@
            @users)]]))
 
 (defn users-header
-  []
+  [table-state]
   [:h2 {:id "users-heading" }
-   "Users"])
+   "Users "
+   [:span {:class "show-all"
+           :on-click #(swap! table-state update-in [:showing-all?] not)
+           }
+    (if (:showing-all? @table-state)
+      "[hide after 7]"
+      "[show all]")]])
 
 (defn users-component
   []
-  [:div {:id "users-component"}
-   [users-header]
-   [users-table]])
+  (let [table-state (r/atom {:showing-all? false})]
+    (fn []
+      [:div {:id "users-component"}
+       [users-header table-state]
+       [users-table table-state]])))
 
 (defn coupon-row
   [coupon]
