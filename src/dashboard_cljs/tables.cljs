@@ -482,6 +482,7 @@
   [table-state]
   [:h2 {:id "users-heading" }
    "Users "
+   [:span {:class "count"} (str "(" (count @users) ") ")]
    [:span {:class "show-all"
            :on-click #(swap! table-state update-in [:showing-all?] not)
            }
