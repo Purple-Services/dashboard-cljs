@@ -30,7 +30,7 @@
 
 (defn remove-by-id
   "Remove the element with id from state. Assumes all elements have an
-:id key with a unique value"
+  :id key with a unique value"
   [state id]
   (set (remove #(= id (:id %)) state)))
 
@@ -47,7 +47,7 @@
   [courier row-state]
   (do
     (retrieve-url
-     (str base-url "couriers")
+     (str base-url "courier")
      "POST"
      (js/JSON.stringify (clj->js courier))
      (partial xhrio-wrapper
@@ -61,6 +61,33 @@
                                             :error-message ""))
                    ;; update the local state
                    (update-element! couriers courier))
+                 (when (not (:success clj-response))
+                   (reset! row-state (assoc @row-state
+                                            :error? true
+                                            :editing? true
+                                            :saving? false
+                                            :error-message
+                                            (:message clj-response)))))))))
+
+(defn update-zone-server!
+  "Update a zone on the server and update the row-state error message."
+  [zone row-state]
+  (do
+    (retrieve-url
+     (str base-url "zone")
+     "POST"
+     (js/JSON.stringify (clj->js zone))
+     (partial xhrio-wrapper
+              #(let [response %
+                     clj-response (js->clj response :keywordize-keys true)]
+                 (when (:success clj-response)
+                   (reset! row-state (assoc @row-state
+                                            :error? false
+                                            :editing? false
+                                            :saving? false
+                                            :error-message ""))
+                   ;; update the local state
+                   (update-element! zones zone))
                  (when (not (:success clj-response))
                    (reset! row-state (assoc @row-state
                                             :error? true
@@ -111,23 +138,29 @@
 
 (defn field-input-handler
   "Returns a handler that updates value in atom map,
-  under key, with value from on-change event"
-  [atom key]
+  under key, with value from on-change event. Optionally transforms
+  value with f"
+  [atom key & [f]]
   (fn [e]
     (swap! atom
            assoc key
            (-> e
                (aget "target")
-               (aget "value")))))
+               (aget "value")
+               (#(if f
+                   (f %)
+                   %))))))
 
-(defn editable-input [atom key]
+(defn editable-input [atom key & [f]]
+  "Change the val of key in atom to this form's input val. Input val will be
+transformed by f, if given"
   (if (or (:editing? @atom)
           (:saving? @atom))
     [:div
      [:input {:type "text"
               :disabled (:saving? @atom)
               :value (get @atom key)
-              :on-change (field-input-handler atom key)
+              :on-change (field-input-handler atom key f)
               :class (when (:error? @atom)
                        "error")}]
      [:div {:class (when (:error? @atom)
@@ -145,16 +178,16 @@
    (partial xhrio-wrapper
             #(reset!
               state
-              (set (mapv
-                    ;; convert json arrays to a string
-                    (fn [courier]
-                      (update-in courier [:zones]
-                                 (fn [zone]
-                                   (.join (clj->js (sort zone))))))
-                    (vec (reverse
-                          (sort-by :last_ping
-                                   (js->clj (aget % "couriers")
-                                            :keywordize-keys true))))))))))
+              (mapv
+               ;; convert json arrays to a string
+               (fn [courier]
+                 (update-in courier [:zones]
+                            (fn [zone]
+                              (.join (clj->js (sort zone))))))
+               (vec (reverse
+                     (sort-by :last_ping
+                              (js->clj (aget % "couriers")
+                                       :keywordize-keys true)))))))))
 
 (defn get-server-users
   [users-atom]
@@ -192,19 +225,18 @@
    (partial xhrio-wrapper
             #(reset!
               coupons-atom
-              (set
-               (->>
-                (js->clj % :keywordize-keys true)
-                ;; how many times was coupon used?
-                (map (fn [coupon] (assoc coupon :times_used
-                                         (-> (:used_by_license_plates coupon)
-                                             (s/split #",")
-                                             (->> (remove s/blank?))
-                                             count))))
-                ;; filter out coupons that are not expired
-                (filter (fn [coupon]
-                          (> (:expiration_time coupon)
-                             (quot (.now js/Date) 1000))))))))))
+              (->>
+               (js->clj % :keywordize-keys true)
+               ;; how many times was coupon used?
+               (map (fn [coupon] (assoc coupon :times_used
+                                        (-> (:used_by_license_plates coupon)
+                                            (s/split #",")
+                                            (->> (remove s/blank?))
+                                            count))))
+               ;; filter out coupons that are not expired
+               (filter (fn [coupon]
+                         (> (:expiration_time coupon)
+                            (quot (.now js/Date) 1000)))))))))
 
 (defn get-server-zones
   [zones-atom]
@@ -215,9 +247,13 @@
    (partial xhrio-wrapper
             #(reset!
               zones-atom
-              (set
-               (->>
-                (js->clj % :keywordize-keys true)))))))
+              (->>
+               (js->clj % :keywordize-keys true)
+               (map (fn [zone] (update-in
+                                zone
+                                [:service_time_bracket]
+                                read-string
+                                ))))))))
 
 (defn courier-row [courier]
   (let [row-state (r/atom {:editing? false
@@ -354,7 +390,7 @@
                   [:span {:class (when (:busy eta)
                                    "late")}
                    (:minutes eta)]])
-           (sort-by :minutes (:etas order)))]
+               (sort-by :minutes (:etas order)))]
      [:td (unix-epoch->hrf (:target_time_start order))]
      [:td (unix-epoch->hrf (:target_time_end order))]
      [:td (:customer_name order)]
@@ -516,11 +552,14 @@
     [:td "For First Order Only?"]]])
 
 (defn coupons-table
-  []
+  [table-state]
   (fn []
     (defonce init-coupons
       (get-server-coupons coupons))
-    [:table {:id "coupons"}
+    [:table {:id "coupons"
+             :class (str "hide-extra "
+                         (when (:showing-all? @table-state)
+                           "showing-all"))}
      [coupons-table-header]
      [:tbody
       (map (fn [coupon]
@@ -529,31 +568,96 @@
            @coupons)]]))
 
 (defn coupons-header
-  []
+  [table-state]
   [:h2 {:id "coupons-heading"}
-   "Coupons"])
+   "Coupons "
+   [:span {:class "show-all"
+           :on-click #(swap! table-state update-in [:showing-all?] not)}
+    (if (:showing-all? @table-state)
+      "[hide after 7]"
+      "[show all]")]])
 
 (defn coupons-component
   []
-  [:div {:id "coupons-component"}
-   [coupons-header]
-   [coupons-table]])
+  (let [table-state (r/atom {:showing-all? false})]
+    (fn []
+      [:div {:id "coupons-component"}
+       [coupons-header table-state]
+       [coupons-table table-state]])))
 
 (defn zone-row
   [zone]
-  (fn [zone]
-    (let [service_time_bracket (read-string (:service_time_bracket zone))]
-      [:tr
-       [:td (:id zone)]
-       [:td {:style {:background-color (:color zone)
-                     :color "white"}} (:name zone)]
-       [:td (:87 (:fuel_prices zone))]
-       [:td (:91 (:fuel_prices zone))]
-       [:td (:60 (:service_fees zone))]
-       [:td (:180 (:service_fees zone))]
-       [:td (first service_time_bracket)]
-       [:td (second service_time_bracket)]
-       [:td (:zip_codes zone)]])))
+  ;; this is initial state
+  (let [row-state (r/atom {:editing? false
+                           :saving? false
+                           :87 (:87 (:fuel_prices zone))
+                           :91 (:91 (:fuel_prices zone))
+                           :60 (:60 (:service_fees zone))
+                           :180 (:180 (:service_fees zone))
+                           :service-starts (first (:service_time_bracket zone))
+                           :service-ends   (second (:service_time_bracket zone))
+                           :error? false
+                           :error-message ""
+                           })]
+    (fn [zone]
+      (let [swap-state! #(swap!
+                          row-state assoc
+                          :87 (:87 (:fuel_prices zone))
+                          :91 (:91 (:fuel_prices zone))
+                          :60 (:60 (:service_fees zone))
+                          :180 (:180 (:service_fees zone))
+                          :service-starts (first (:service_time_bracket zone))
+                          :service-ends
+                          (second (:service_time_bracket zone)))]
+        (when (and
+               (not (:editing? @row-state))
+               (not (:saving? @row-state)))
+          (swap-state!))
+        [:tr
+         [:td (:id zone)]
+         [:td {:style {:background-color (:color zone)
+                       :color "white"}} (:name zone)]
+         [:td ;;(:87 (:fuel_prices zone))
+          [editable-input row-state :87 read-string]]
+         [:td ;;(:91 (:fuel_prices zone))
+          [editable-input row-state :91 read-string]]
+         [:td ;;(:60 (:service_fees zone))
+          [editable-input row-state :60 read-string]]
+         [:td ;;(:180 (:service_fees zone))
+          [editable-input row-state :180 read-string]]
+         [:td ;;(first service_time_bracket)
+          [editable-input row-state :service-starts read-string]]
+         [:td ;;(second service_time_bracket)
+          [editable-input row-state :service-ends read-string]]
+         [:td (:zip_codes zone)]
+         [:td [:button
+               {:disabled (:saving? @row-state)
+                :on-click
+                (fn []
+                  (when (:editing? @row-state)
+                    (let [new-zone (assoc zone
+                                          :fuel_prices
+                                          {:87 (:87 @row-state)
+                                           :91 (:91 @row-state)}
+                                          :service_fees
+                                          {:60  (:60 @row-state)
+                                           :180 (:180 @row-state)}
+                                          :service_time_bracket
+                                          [(:service-starts @row-state)
+                                           (:service-ends   @row-state)])]
+                      (swap! row-state assoc :saving? true)
+                      ;; update the zone on the server
+                      (update-zone-server! new-zone row-state)))
+                  (swap! row-state update-in [:editing?] not))}
+               (cond
+                 (:saving? @row-state)
+                 "Save"
+                 (:editing? @row-state)
+                 "Save"
+                 :else
+                 "Edit")]
+          (if (:saving? @row-state)
+            [:i {:class "fa fa-spinner fa-pulse"}])]]))))
 
 (defn zones-table-header
   []
@@ -561,7 +665,7 @@
    [:tr
     [:td "ID"] [:td "Name"] [:td "87 Price"] [:td "91 Price"] [:td "1 Hour Fee"]
     [:td "3 Hour Fee"] [:td "Service Starts"] [:td "Service Ends"]
-    [:td "Zip Codes"]]])
+    [:td "Zip Codes"] [:td]]])
 
 (defn zones-table
   []
