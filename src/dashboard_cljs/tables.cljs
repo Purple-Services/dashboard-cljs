@@ -10,6 +10,11 @@
             [clojure.walk :refer [stringify-keys]]
             [reagent.core :as r]))
 
+;; Note: Only the couriers table can use "continous-update"
+;; to constantly modify its rows and still be edited with proper error
+;; handling. All other tables will need modifications in order to do this
+;; properly.
+
 (def couriers (r/atom #{}))
 
 (def users (r/atom #{}))
@@ -24,15 +29,31 @@
 
 (def timeout-interval 1000)
 
+(def status->next-status {"unassigned"  "assigned"
+                          "assigned"    "accepted"
+                          "accepted"    "enroute"
+                          "enroute"     "servicing"
+                          "servicing"   "complete"
+                          "complete"    nil
+                          "cancelled"   nil})
+
 ;; the base url to use for server calls
 (def base-url (-> (.getElementById js/document "base-url")
                   (.getAttribute "value")))
+
+(def pub-chan (chan))
+(def notify-chan (pub pub-chan :topic))
 
 (defn remove-by-id
   "Remove the element with id from state. Assumes all elements have an
   :id key with a unique value"
   [state id]
   (set (remove #(= id (:id %)) state)))
+
+(defn get-by-id
+  "Get an element by its id from coll"
+  [coll id]
+  (first (filter #(= (:id %) id) coll)))
 
 (defn update-element! [state el]
   "Update the el in state. el is assumed to have a :id key with a unique value"
@@ -68,6 +89,120 @@
                                             :saving? false
                                             :error-message
                                             (:message clj-response)))))))))
+
+;; note: this will not sync the local state perfectly with the server
+(defn cancel-order-server!
+  "Cancel an order on the server and update the local order"
+  [order]
+  (retrieve-url
+   (str base-url "cancel-order")
+   "POST"
+   (js/JSON.stringify (clj->js {:user_id (:user_id order)
+                                :order_id (:id order)}))
+   (partial xhrio-wrapper
+            #(let [response %
+                   clj-response (js->clj response :keywordize-keys true)]
+               (when (:success clj-response)
+                 ;; update the local state
+                 (update-element! orders (assoc-in order
+                                                   [:status] "cancelled"))
+                 ;; alert the user
+                 (js/alert "Order Cancelled!"))
+               (when (not (:success clj-response))
+                 ;; just alert the user that soemthing went wrong,
+                 ;; this should be very rare
+                 (js/alert (str "Something went wrong. "
+                                "Order has NOT been cancelled!"))
+                 )))))
+
+(defn update-order-status!
+  "Update the status of an order on the server and update the local order"
+  [order]
+  (retrieve-url
+   (str base-url "update-status")
+   "POST"
+   (js/JSON.stringify (clj->js {:order_id (:id order)}))
+   (partial xhrio-wrapper
+            #(let [response %
+                   clj-response (js->clj response :keywordize-keys true)]
+               (when (:success clj-response)
+                 ;; update the local state
+                 (update-element! orders (assoc-in
+                                          order
+                                          [:status]
+                                          (status->next-status
+                                           (:status order)))))
+               (when (not (:success clj-response))
+                 ;; just alert the user that soemthing went wrong,
+                 ;; this should be very rare
+                 (js/alert (str "The order could not be advanced!\n "
+                                "Server Message: "
+                                (:message clj-response))))))))
+
+(defn change-order-assignment!
+  "Change the courier assignment for the order and update the local order"
+  [order]
+  (let [order-id (:id order)
+        courier-id (:courier_id order)
+        courier-name (:courier_name order)]
+    (retrieve-url
+     (str base-url "assign-order")
+     "POST"
+     (js/JSON.stringify (clj->js {:order_id order-id
+                                  :courier_id courier-id}))
+     (partial xhrio-wrapper
+              #(let [response %
+                     clj-response (js->clj response :keywordize-keys true)]
+                 (when (:success clj-response)
+                   ;; update the local state
+                   (update-element! orders (assoc order
+                                                  :courier_id
+                                                  courier-id
+                                                  :courier_name
+                                                  courier-name))
+                   (js/alert (str "This order has been assigned to "
+                                  courier-name)))
+                 (when (not (:success clj-response))
+                   ;; just alert the user that soemthing went wrong,
+                   ;; this should be very rare
+                   (js/alert (str "The order could not be reassigned!\n"
+                                  "Server Message: "
+                                  (:message clj-response)))))))))
+
+(defn send-push-to-all-active-users
+  "Send message to all active users"
+  [message]
+  (retrieve-url
+   (str base-url "send-push-to-all-active-users")
+   "POST"
+   (js/JSON.stringify (clj->js (:message message)))
+   (partial xhrio-wrapper
+            #(let [response (js->clj % :keywordize-keys true)]
+               (when (:success response)
+                 (js/alert (str "Sent!")))
+               (when (not (:success response))
+                 (js/alert (str "Something went wrong."
+                                " Push notifications may or may"
+                                " not have been sent. Wait until"
+                                " sure before trying again.")))))))
+
+(defn send-push-to-users
+  "Send message to all users in set"
+  [message users]
+  (retrieve-url
+   (str base-url "send-push-to-all-active-users")
+   "POST"
+   (js/JSON.stringify (clj->js {:message message
+                                :user-ids users}))
+   (partial xhrio-wrapper
+            #(let [response (js->clj % :keywordize-keys true)]
+               (when (:success response)
+                 (js/alert (str "Sent!")))
+               (when (not (:success response))
+                 (js/alert (str "Something went wrong."
+                                " Push notifications may or may"
+                                " not have been sent. Wait until"
+                                " sure before trying again.")))))))
 
 (defn update-zone-server!
   "Update a zone on the server and update the row-state error message."
@@ -301,8 +436,7 @@ transformed by f, if given"
                         (:lat courier)
                         ","
                         (:lng courier))}
-         "View On Map"
-         ]]
+         "View On Map"]]
        [:td [:button
              {:disabled (:saving? @row-state)
               :on-click
@@ -366,8 +500,7 @@ transformed by f, if given"
       "[show all]")]
    [:a {:class "fake-link" :target "_blank"
         :href (str base-url "dash-map-couriers")}
-    " [view couriers on map]"]
-   ])
+    " [view couriers on map]"]])
 
 (defn couriers-component
   []
@@ -379,57 +512,172 @@ transformed by f, if given"
 
 (defn order-row
   [order]
-  (fn [order]
-    [:tr
-     [:td {:class (when (:was-late order)
-                    "late")} (:status order)]
-     [:td (:courier_name order)]
-     [:td (map (fn [eta]
-                 ^{:key (:name eta)}
-                 [:p (str (:name eta) " - ")
-                  [:span {:class (when (:busy eta)
-                                   "late")}
-                   (:minutes eta)]])
-               (sort-by :minutes (:etas order)))]
-     [:td (unix-epoch->hrf (:target_time_start order))]
-     [:td (unix-epoch->hrf (:target_time_end order))]
-     [:td (:customer_name order)]
-     [:td (:customer_phone_number order)]
-     [:td {:style {:background-color (:zone-color order)
-                   :color "white"}
-           :class "address_street"
-           }
-      [:a {:href (str "https://maps.google.com/?q="
-                      (:lat order)
-                      ","
-                      (:lng order))
-           :target "_blank"}
-       (:address_street order)]]
-     [:td (:gallons order)]
-     [:td (:gas_type order)]
-     [:td (str (:color (:vehicle order))
-               " "
-               (:make (:vehicle order))
-               " "
-               (:model (:vehicle order)))]
-     [:td (:license_plate order)]
-     [:td (:coupon_code order)]
-     [:td {:class (if (and (or (s/blank? (:stripe_charge_id order))
-                               ;; Was paid field changed to a boolean?
-                               ;; currently is a 1 or 0 int, 'and'
-                               ;; always eval to false
-                               ;; (and (not (:paid order))
-                               ;;      (= (:status order) "complete"))
-                               )
-                           (not= 0 (:total_price order)))
-                    "late" ;; Payment failed!
-                    "not-late")}
-      (cents->dollars (:total_price order))]]))
+  (let [row-state (r/atom {:assign-save-disabled? true
+                           :courier_id (:courier_id order)
+                           :assign-display? false})]
+    (fn [order]
+      [:tr
+       ;; cancel order
+       [:td (when (not (or (= (:status order)
+                              "complete")
+                           (= (:status order)
+                              "cancelled")))
+              [:input {:type "submit"
+                       :value "Cancel Order"
+                       :on-click #(if (js/confirm
+                                       (str "Are you sure you want"
+                                            " to cancel this order?"
+                                            " (this cannot be undone) "
+                                            "(customer will be notified via"
+                                            " push notification)"))
+                                    (cancel-order-server! order))}])]
+       ;; order status
+       [:td {:class (when (:was-late order)
+                      "late")} (:status order) [:br]
+        (when-not (contains? #{"complete" "cancelled" "unassigned"}
+                             (:status order))
+          [:input
+           {:type "submit"
+            :on-click #(if (js/confirm
+                            (str "Are you sure you want to mark this "
+                                 "order as '"
+                                 (status->next-status (:status order))
+                                 "'?"
+                                 " (this cannot be undone)"
+                                 " (customer will be notified"
+                                 " via push notification)"))
+                         (update-order-status! order))
+            :value ({"accepted" "Start Route"
+                     "enroute" "Begin Servicing"
+                     "servicing" "Complete Order"}
+                    (:status order))}])]
+       ;; order assignment
+       [:td
+        [:div
+         {:style {:display (if (or (:assign-display? @row-state)
+                                   (= (:status order) "unassigned"))
+                             "block"
+                             "none")}}
+         [:select
+          {:on-change
+           #(let [selected-courier (-> %
+                                       (aget "target")
+                                       (aget "value"))]
+              (if (= selected-courier "Assign to Courier")
+                (swap! row-state assoc
+                       :assign-save-disabled? true
+                       :courier_id "Assign to Courier")
+                (swap! row-state assoc
+                       :assign-save-disabled? false
+                       :courier_id selected-courier)))
+           :value (:courier_id @row-state)}
+          [:option
+           "Assign to Courier"]
+          (map
+           (fn [courier]
+             ^{:key (:id courier)}
+             [:option
+              {:value (:id courier)}
+              (:name courier)])
+           ;; filter out the couriers to only those assigned
+           ;; to the zone
+           (filter #(contains? (-> (:zones %)
+                                   (s/split #",")
+                                   set)
+                               (str (:zone order)))
+                   @couriers))]
+         [:input {:type "submit"
+                  :value "Save"
+                  :disabled (:assign-save-disabled? @row-state)
+                  :on-click #(let [selected-courier-id (:courier_id @row-state)
+                                   selected-courier-name
+                                   (:name (get-by-id
+                                           @couriers
+                                           selected-courier-id))
+                                   new-order (assoc
+                                              order
+                                              :courier_id selected-courier-id
+                                              :courier_name
+                                              selected-courier-name)]
+                               (if (js/confirm
+                                    (str "Are you sure you want to assign this "
+                                         "order to "
+                                         selected-courier-name
+                                         "?"
+                                         " (this cannot be undone)"
+                                         " (courier(s) will be notified"
+                                         " via push notification)"))
+                                 (change-order-assignment!
+                                  (if (= (:status order)
+                                         "unassigned")
+                                    (assoc new-order :status "accepted")
+                                    order)))
+                               (swap! row-state assoc :assign-display? false))}]
+         ]
+        [:div {:style {:display (if (:assign-display? @row-state)
+                                  "none"
+                                  "block"
+                                  )}
+               :on-double-click #(swap! row-state assoc :assign-display? true)
+               } (:courier_name order)]]
+       ;; order ETA
+       [:td (map (fn [eta]
+                   ^{:key (:name eta)}
+                   [:p (str (:name eta) " - ")
+                    [:span {:class (when (:busy eta)
+                                     "late")}
+                     (:minutes eta)]])
+                 (sort-by :minutes (:etas order)))]
+       ;; order placed
+       [:td (unix-epoch->hrf (:target_time_start order))]
+       ;; order deadline
+       [:td (unix-epoch->hrf (:target_time_end order))]
+       ;; order customer
+       [:td (:customer_name order)]
+       ;; customer phone number
+       [:td (:customer_phone_number order)]
+       ;; order street address
+       [:td {:style {:background-color (:zone-color order)
+                     :color "white"}
+             :class "address_street"}
+        [:a {:href (str "https://maps.google.com/?q="
+                        (:lat order)
+                        ","
+                        (:lng order))
+             :target "_blank"}
+         (:address_street order)]]
+       ;; order gallons
+       [:td (:gallons order)]
+       ;; order gas type
+       [:td (:gas_type order)]
+       ;; order vehicle description
+       [:td (str (:color (:vehicle order))
+                 " "
+                 (:make (:vehicle order))
+                 " "
+                 (:model (:vehicle order)))]
+       ;; order license plate
+       [:td (:license_plate order)]
+       ;; coupon code
+       [:td (:coupon_code order)]
+       ;; total price
+       [:td {:class (if (and (or (s/blank? (:stripe_charge_id order))
+                                 ;; Was paid field changed to a boolean?
+                                 ;; currently is a 1 or 0 int, 'and'
+                                 ;; always eval to false
+                                 ;; (and (not (:paid order))
+                                 ;;      (= (:status order) "complete"))
+                                 )
+                             (not= 0 (:total_price order)))
+                      "late" ;; Payment failed!
+                      "not-late")}
+        (cents->dollars (:total_price order))]])))
 
 (defn orders-table-header
   []
   [:thead
    [:tr
+    [:td]
     [:td "Status"] [:td "Courier"] [:td "ETAs (mins)"] [:td "Order Placed"]
     [:td "Deadline"] [:td "Customer"] [:td "Phone"] [:td "Street"]
     [:td "Gallons"] [:td "Octane"] [:td "Vehicle"] [:td "Plate #"]
@@ -459,6 +707,10 @@ transformed by f, if given"
     (if (:showing-all? @table-state)
       "[hide after 7]"
       "[show all]")]
+   [:a {:class "fake-link"
+        :target "_blank"
+        :href (str base-url "declined")}
+    " [view all declined payments]"]
    [:a {:class "fake-link" :target "_blank"
         :href (str base-url "dash-map-orders")}
     " [view orders on map]"]])
@@ -471,22 +723,49 @@ transformed by f, if given"
        [orders-header table-state]
        [orders-table table-state]])))
 
-(defn user-row [user]
-  (fn [user]
-    [:tr
-     [:td {:class "name"} (:name user)]
-     [:td {:class "email"} (:email user)]
-     [:td {:class "phone_number"} (:phone_number user)]
-     [:td {:class "has_added_card"} (if (s/blank? (:stripe_default_card user))
-                                      "No"
-                                      "Yes")]
-     [:td {:class "push_set_up"} (if (s/blank? (:arn_endpoint user))
-                                   "No"
-                                   "Yes")]
-     [:td {:class "os"} (:os user)]
-     [:td {:class "app_version"} (:app_version user)]
-     [:td {:class "timestamp_created"}
-      (unix-epoch->hrf (:timestamp_created user))]]))
+(defn user-row [table-state user]
+  (let [row-state (r/atom {:checked? false})
+        messages (sub notify-chan (:id user) (chan))
+        this     (r/current-component)]
+    (go-loop [m (<! messages)]
+      (swap! row-state assoc :checked? false)
+      (recur (<! messages)))
+    (fn [table-state user]
+      [:tr
+       [:td {:class "name"} (:name user)]
+       [:td {:class "email"} (:email user)]
+       [:td {:class "phone_number"} (:phone_number user)]
+       [:td {:class "has_added_card"} (if (s/blank? (:stripe_default_card user))
+                                        "No"
+                                        "Yes")]
+       [:td {:class "push_set_up"}
+        (if (s/blank? (:arn_endpoint user))
+          [:div "No"]
+          [:div "Yes "
+           [:input {:type "checkbox"
+                    :on-change #(let [checked? (-> %
+                                                   (aget "target")
+                                                   (aget "checked"))]
+                                  (if checked?
+                                    ;; add current user id
+                                    (swap! table-state assoc
+                                           :push-selected-users
+                                           (conj (:push-selected-users
+                                                  @table-state) (:id user)))
+                                    ;; remove current user id
+                                    (swap! table-state assoc
+                                           :push-selected-users
+                                           (disj (:push-selected-users
+                                                  @table-state) (:id user))))
+                                  (swap! row-state assoc
+                                         :checked? (not
+                                                    (:checked? @row-state))))
+                    :checked (:checked? @row-state)
+                    }]])]
+       [:td {:class "os"} (:os user)]
+       [:td {:class "app_version"} (:app_version user)]
+       [:td {:class "timestamp_created"}
+        (unix-epoch->hrf (:timestamp_created user))]])))
 
 (defn users-table-header
   []
@@ -511,12 +790,12 @@ transformed by f, if given"
      [:tbody
       (map (fn [user]
              ^{:key (:id user)}
-             [user-row user])
+             [user-row table-state user])
            @users)]]))
 
 (defn users-header
   [table-state]
-  [:h2 {:id "users-heading" }
+  [:h2 {:id "users-heading"}
    "Users "
    [:span {:class "count"} (str "(" (count @users) ") ")]
    [:span {:class "show-all"
@@ -524,11 +803,49 @@ transformed by f, if given"
            }
     (if (:showing-all? @table-state)
       "[hide after 7]"
-      "[show all]")]])
+      "[show all]")]
+   [:span {:class "fake-link"
+           :on-click
+           #(let [message (js/prompt (str "Push notification message"
+                                          " to send to all active users:"))]
+              (if (not (s/blank? message))
+                (if (js/confirm
+                     (str "!!! Are you sure you want to send this message"
+                          " to all active users?: "
+                          message))
+                  (send-push-to-all-active-users message))))}
+    " [send push notification to all active users]"]
+   [:span {:class "fake-link"
+           :on-click
+           #(let [selected-users     (:push-selected-users @table-state)
+                  message (js/prompt (str "Push notification message"
+                                          " to send to all selected users"
+                                          " (" (count selected-users)
+                                          "):"
+                                          ))]
+              (when (and (not (s/blank? message))
+                         (not (empty? selected-users)))
+                (when (js/confirm
+                       (str "!!! Are you sure you want to send this message"
+                            " to all selected users?: "
+                            message))
+                  ;; send out the message
+                  (send-push-to-users message selected-users)
+                  ;; tell the rows with checkmarks to uncheck them
+                  (mapv (fn [user]
+                          (put! pub-chan {:topic user
+                                          :data "force-update"}))
+                        selected-users)
+                  ;; clear out the current push-selected-users
+                  (swap! table-state assoc :push-selected-users (set nil))
+                  )))}
+    " [send push to selected users]"]
+   ])
 
 (defn users-component
   []
-  (let [table-state (r/atom {:showing-all? false})]
+  (let [table-state (r/atom {:showing-all? false
+                             :push-selected-users (set nil)})]
     (fn []
       [:div {:id "users-component"}
        [users-header table-state]
@@ -617,17 +934,17 @@ transformed by f, if given"
          [:td (:id zone)]
          [:td {:style {:background-color (:color zone)
                        :color "white"}} (:name zone)]
-         [:td ;;(:87 (:fuel_prices zone))
+         [:td
           [editable-input row-state :87 read-string]]
-         [:td ;;(:91 (:fuel_prices zone))
+         [:td
           [editable-input row-state :91 read-string]]
-         [:td ;;(:60 (:service_fees zone))
+         [:td
           [editable-input row-state :60 read-string]]
-         [:td ;;(:180 (:service_fees zone))
+         [:td
           [editable-input row-state :180 read-string]]
-         [:td ;;(first service_time_bracket)
+         [:td
           [editable-input row-state :service-starts read-string]]
-         [:td ;;(second service_time_bracket)
+         [:td
           [editable-input row-state :service-ends read-string]]
          [:td (:zip_codes zone)]
          [:td [:button

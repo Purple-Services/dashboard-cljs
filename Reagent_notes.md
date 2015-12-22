@@ -56,3 +56,48 @@ ex:
                   )
                 (swap! row-state update-in [:editing?] not))}
              (if (:editing? @row-state) "Save" "Edit")]]])))
+
+## core.async go-loop
+
+The rendering fn of a component is called many times. Therefore, if a go-loop
+is included inside of this fn, it will be re-created each time the component
+is rendered. The consequence of this is explored below.
+
+Consider the following component snippet:
+
+```clojure
+(defn user-row [table-state user]
+  (let [row-state (r/atom {:checked? false})
+        messages (sub notify-chan (:id user) (chan))
+        this     (r/current-component)]
+    (go-loop [m (<! messages)]
+      (swap! row-state assoc :checked? false)
+      (.log js/log (clj->js m))
+      (recur (<! messages)))
+    (fn [table-state user] ...)))
+```
+
+The body of the let statement contains both the render function
+and the go-loop for the component. A message that is sent to notify-chan
+on the (:id user) topic will only be logged to the console once.
+
+However, in this code:
+
+```clojure
+(defn user-row [table-state user]
+  (let [row-state (r/atom {:checked? false})]
+    (fn [table-state user]
+      (let [messages (sub notify-chan (:id user) (chan))
+            this     (r/current-component)]
+        (go-loop [m (<! messages)]
+          (swap! row-state assoc :checked? false)
+          (.log js/log (clj->js m))
+          (recur (<! messages))))
+      ...)))
+```
+
+The go-loop is within the rendering function itself. Each time the component
+is rendered, another go-loop will be called. Thus, a message sent to notify-chan
+on the (:id user) topic will be logged to the console as many times as the
+component has been rendered! Over the lifetime of the app instance, this can
+result in many, many messages being sent (erroneously!).
