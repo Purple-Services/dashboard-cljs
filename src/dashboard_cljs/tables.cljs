@@ -207,29 +207,28 @@
 (defn update-zone-server!
   "Update a zone on the server and update the row-state error message."
   [zone row-state]
-  (do
-    (retrieve-url
-     (str base-url "zone")
-     "POST"
-     (js/JSON.stringify (clj->js zone))
-     (partial xhrio-wrapper
-              #(let [response %
-                     clj-response (js->clj response :keywordize-keys true)]
-                 (when (:success clj-response)
-                   (reset! row-state (assoc @row-state
-                                            :error? false
-                                            :editing? false
-                                            :saving? false
-                                            :error-message ""))
-                   ;; update the local state
-                   (update-element! zones zone))
-                 (when (not (:success clj-response))
-                   (reset! row-state (assoc @row-state
-                                            :error? true
-                                            :editing? true
-                                            :saving? false
-                                            :error-message
-                                            (:message clj-response)))))))))
+  (retrieve-url
+   (str base-url "zone")
+   "POST"
+   (js/JSON.stringify (clj->js zone))
+   (partial xhrio-wrapper
+            #(let [response %
+                   clj-response (js->clj response :keywordize-keys true)]
+               (when (:success clj-response)
+                 (reset! row-state (assoc @row-state
+                                          :error? false
+                                          :editing? false
+                                          :saving? false
+                                          :error-message ""))
+                 ;; update the local state
+                 (update-element! zones zone))
+               (when (not (:success clj-response))
+                 (reset! row-state (assoc @row-state
+                                          :error? true
+                                          :editing? true
+                                          :saving? false
+                                          :error-message
+                                          (:message clj-response))))))))
 
 (defn postal-code-for-lat-lng
   "Obtain the postal code associated with lat, lng and call f on the result"
@@ -271,6 +270,18 @@
                      ]
                  (f zip-code))))))
 
+(defn get-status-stats-csv
+  [stats-state]
+  (retrieve-url
+   (str base-url "status-stats-csv")
+   "GET"
+   {}
+   (partial xhrio-wrapper
+            #(let [clj-response (js->clj % :keywordize-keys true)]
+               (reset! stats-state
+                       (assoc @stats-state
+                              :processing? (:processing clj-response)
+                              :timestamp  (:timestamp clj-response)))))))
 (defn field-input-handler
   "Returns a handler that updates value in atom map,
   under key, with value from on-change event. Optionally transforms
@@ -472,6 +483,8 @@ transformed by f, if given"
 (defn couriers-table
   [table-state]
   (fn []
+    ;; maybe a defonce isn't needed, instead
+    ;; should be put above this fn!!
     ;; crucial to use defonce here so that only ONE
     ;; call will be made!
     ;; (defonce courier-updater
@@ -1007,6 +1020,31 @@ transformed by f, if given"
   [:div {:id "zones-component"}
    [zones-header]
    [zones-table]])
+
+
+(defn stats-component
+  []
+  (let [stats-state (r/atom {:processing? true
+                             :timestamp ""})]
+    (get-status-stats-csv stats-state)
+    (fn []
+      [:div {:class "stats"} "stats.csv "
+       [:span {:class "fake-link"
+               :on-click
+               #(do
+                  (retrieve-url
+                   (str base-url "generate-stats-csv") "GET" {} (fn []))
+                  (js/alert (str "stats.csv generation initiated."
+                                 " Please refresh the page in a minute or so,"
+                                 " then try to download the CSV file.."))
+                  (get-status-stats-csv stats-state))}
+        " [initiate a refresh]"]
+       (when (not (:processing? @stats-state))
+         [:a {:class "fake-link"
+              :href (str base-url "download-stats-csv")}
+          (str " [download " (unix-epoch->hrf
+                              (:timestamp @stats-state)) "]")])])))
+
 ;; a map of component names, the respective component and the required urls
 ;; for that component
 (def comp-req-urls [{:comp couriers-component
@@ -1024,6 +1062,10 @@ transformed by f, if given"
                     {:comp zones-component
                      :comp-name "zones-component"
                      :required-routes #{"/dashboard/zones"}}
+                    {:comp stats-component
+                     :comp-name "stats-component"
+                     :required-routes #{"/dashboard/generate-stats-csv"
+                                        "/dashboard/download-stats-csv"}}
                     ])
 
 (defn app
