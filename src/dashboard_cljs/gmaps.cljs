@@ -451,7 +451,7 @@
   [date f & [timeout]]
   (retrieve-url
    (str base-server-url "orders-since-date")
-   "GET"
+   "POST"
    (js/JSON.stringify
     (clj->js {:date date}))
    f timeout))

@@ -8,7 +8,9 @@
             [clojure.set :refer [subset?]]
             [clojure.string :as s]
             [clojure.walk :refer [stringify-keys]]
-            [reagent.core :as r]))
+            [reagent.core :as r]
+            [cljsjs.moment]
+            ))
 
 ;; Note: Only the couriers table can use "continous-update"
 ;; to constantly modify its rows and still be edited with proper error
@@ -66,29 +68,28 @@
 (defn update-courier-server!
   "Update courier on server and update the row-state error message."
   [courier row-state]
-  (do
-    (retrieve-url
-     (str base-url "courier")
-     "POST"
-     (js/JSON.stringify (clj->js courier))
-     (partial xhrio-wrapper
-              #(let [response %
-                     clj-response (js->clj response :keywordize-keys true)]
-                 (when (:success clj-response)
-                   (reset! row-state (assoc @row-state
-                                            :error? false
-                                            :editing? false
-                                            :saving? false
-                                            :error-message ""))
-                   ;; update the local state
-                   (update-element! couriers courier))
-                 (when (not (:success clj-response))
-                   (reset! row-state (assoc @row-state
-                                            :error? true
-                                            :editing? true
-                                            :saving? false
-                                            :error-message
-                                            (:message clj-response)))))))))
+  (retrieve-url
+   (str base-url "courier")
+   "POST"
+   (js/JSON.stringify (clj->js courier))
+   (partial xhrio-wrapper
+            #(let [response %
+                   clj-response (js->clj response :keywordize-keys true)]
+               (when (:success clj-response)
+                 (reset! row-state (assoc @row-state
+                                          :error? false
+                                          :editing? false
+                                          :saving? false
+                                          :error-message ""))
+                 ;; update the local state
+                 (update-element! couriers courier))
+               (when (not (:success clj-response))
+                 (reset! row-state (assoc @row-state
+                                          :error? true
+                                          :editing? true
+                                          :saving? false
+                                          :error-message
+                                          (:message clj-response))))))))
 
 ;; note: this will not sync the local state perfectly with the server
 (defn cancel-order-server!
@@ -319,7 +320,7 @@ transformed by f, if given"
   [state]
   (retrieve-url
    (str base-url "couriers")
-   "GET"
+   "POST"
    {}
    (partial xhrio-wrapper
             #(reset!
@@ -352,7 +353,7 @@ transformed by f, if given"
   [orders-atom date]
   (retrieve-url
    (str base-url "orders-since-date")
-   "GET"
+   "POST"
    (js/JSON.stringify
     (clj->js {:date date}))
    (partial xhrio-wrapper
@@ -700,7 +701,9 @@ transformed by f, if given"
   [table-state]
   (fn []
     (defonce init-orders
-      (get-server-orders orders ""))
+      (get-server-orders orders (-> (js/moment)
+                                    (.subtract 7 "days")
+                                    (.format "YYYY-MM-DD"))))
     [:table {:id "orders"
              :class (str "hide-extra part-of-orders "
                          (when (:showing-all? @table-state)
@@ -790,9 +793,6 @@ transformed by f, if given"
 (defn users-table
   [table-state]
   (fn []
-    ;; (defonce users-updater
-    ;;   (continous-update #(get-))
-    ;;   )
     (defonce init-users
       (get-server-users users))
     [:table {:id "users"
@@ -808,52 +808,61 @@ transformed by f, if given"
 
 (defn users-header
   [table-state]
-  [:h2 {:id "users-heading"}
-   "Users "
-   [:span {:class "count"} (str "(" (count @users) ") ")]
-   [:span {:class "show-all"
-           :on-click #(swap! table-state update-in [:showing-all?] not)
-           }
-    (if (:showing-all? @table-state)
-      "[hide after 7]"
-      "[show all]")]
-   [:span {:class "fake-link"
-           :on-click
-           #(let [message (js/prompt (str "Push notification message"
-                                          " to send to all active users:"))]
-              (if (not (s/blank? message))
-                (if (js/confirm
-                     (str "!!! Are you sure you want to send this message"
-                          " to all active users?: "
-                          message))
-                  (send-push-to-all-active-users message))))}
-    " [send push notification to all active users]"]
-   [:span {:class "fake-link"
-           :on-click
-           #(let [selected-users     (:push-selected-users @table-state)
-                  message (js/prompt (str "Push notification message"
-                                          " to send to all selected users"
-                                          " (" (count selected-users)
-                                          "):"
-                                          ))]
-              (when (and (not (s/blank? message))
-                         (not (empty? selected-users)))
-                (when (js/confirm
-                       (str "!!! Are you sure you want to send this message"
-                            " to all selected users?: "
-                            message))
-                  ;; send out the message
-                  (send-push-to-users message selected-users)
-                  ;; tell the rows with checkmarks to uncheck them
-                  (mapv (fn [user]
-                          (put! pub-chan {:topic user
-                                          :data "force-update"}))
-                        selected-users)
-                  ;; clear out the current push-selected-users
-                  (swap! table-state assoc :push-selected-users (set nil))
-                  )))}
-    " [send push to selected users]"]
-   ])
+  (let [users-count (r/atom "")]
+    (retrieve-url
+     (str base-url "users-count")
+     "GET"
+     {}
+     (partial xhrio-wrapper
+              #(let [clj-response (js->clj % :keywordize-keys true)]
+                 (.log js/console "clj-response" clj-response)
+                 (reset! users-count (:total (first clj-response))))))
+    (fn [table-state]
+      [:h2 {:id "users-heading"}
+       "Users "
+       [:span {:class "count"} (str "(" @users-count ") ")]
+       [:span {:class "show-all"
+               :on-click #(swap! table-state update-in [:showing-all?] not)
+               }
+        (if (:showing-all? @table-state)
+          "[hide after 7]"
+          "[show all]")]
+       [:span {:class "fake-link"
+               :on-click
+               #(let [message (js/prompt (str "Push notification message"
+                                              " to send to all active users:"))]
+                  (if (not (s/blank? message))
+                    (if (js/confirm
+                         (str "!!! Are you sure you want to send this message"
+                              " to all active users?: "
+                              message))
+                      (send-push-to-all-active-users message))))}
+        " [send push notification to all active users]"]
+       [:span {:class "fake-link"
+               :on-click
+               #(let [selected-users     (:push-selected-users @table-state)
+                      message (js/prompt (str "Push notification message"
+                                              " to send to all selected users"
+                                              " (" (count selected-users)
+                                              "):"
+                                              ))]
+                  (when (and (not (s/blank? message))
+                             (not (empty? selected-users)))
+                    (when (js/confirm
+                           (str "!!! Are you sure you want to send this message"
+                                " to all selected users?: "
+                                message))
+                      ;; send out the message
+                      (send-push-to-users message selected-users)
+                      ;; tell the rows with checkmarks to uncheck them
+                      (mapv (fn [user]
+                              (put! pub-chan {:topic user
+                                              :data "force-update"}))
+                            selected-users)
+                      ;; clear out the current push-selected-users
+                      (swap! table-state assoc :push-selected-users (set nil))
+                      )))}
+        " [send push to selected users]"]])))
 
 (defn users-component
   []
