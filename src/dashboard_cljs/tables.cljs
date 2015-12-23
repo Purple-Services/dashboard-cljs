@@ -1075,6 +1075,10 @@ transformed by f, if given"
                               (read-string))]
     (fn []
       [:div
+       [:div "Last Updated: " (unix-epoch->hrf (/ (.now js/Date)
+                                                  1000))
+        [:a {:href (str base-url "logout")
+             :class "fake-link"} " Logout"]]
        (map #(when (subset? (:required-routes %) accessible-routes)
                ^{:key (:comp-name %)} [(:comp %)])
             comp-req-urls)])))
