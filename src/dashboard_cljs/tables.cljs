@@ -635,10 +635,10 @@ transformed by f, if given"
                :on-double-click #(swap! row-state assoc :assign-display? true)
                } (:courier_name order)]]
        ;; order ETA
-       [:td (map (fn [eta]
+       [:td {:class "etas"} (map (fn [eta]
                    ^{:key (:name eta)}
                    [:p (str (:name eta) " - ")
-                    [:span {:class (when (:busy eta)
+                    [:strong {:class (when (:busy eta)
                                      "late")}
                      (:minutes eta)]])
                  (sort-by :minutes (:etas order)))]
