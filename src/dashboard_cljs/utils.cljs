@@ -29,3 +29,16 @@
   (js/setTimeout #(do (f)
                       (continous-update f n))
                  n))
+
+
+
+(def base-url (-> (.getElementById js/document "base-url")
+                  (.getAttribute "value")))
+
+;; widely published fn,
+;; see:
+;; https://dzone.com/articles/clojure-apply-function-each
+;;http://blog.jayfields.com/2011/08/clojure-apply-function-to-each-value-of.html
+(defn update-values [m f & args]
+  "Update all values in map with f and args"
+  (reduce (fn [r [k v]] (assoc r k (apply f v args))) {} m))

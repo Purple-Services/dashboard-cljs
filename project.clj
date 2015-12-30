@@ -10,7 +10,7 @@
                  [cljsjs/moment "2.10.6-0"]
                  [cljsjs/pikaday "1.3.2-0"]
                  [crate "0.2.5"]
-                 [reagent "0.5.1"]
+                 [reagent "0.6.0-alpha"]
                  ]
   :jvm-opts ^:replace ["-Xmx1g" "-server"]
   :plugins [[lein-npm "0.6.1"]]

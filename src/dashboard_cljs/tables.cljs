@@ -815,7 +815,6 @@ transformed by f, if given"
      {}
      (partial xhrio-wrapper
               #(let [clj-response (js->clj % :keywordize-keys true)]
-                 (.log js/console "clj-response" clj-response)
                  (reset! users-count (:total (first clj-response))))))
     (fn [table-state]
       [:h2 {:id "users-heading"}

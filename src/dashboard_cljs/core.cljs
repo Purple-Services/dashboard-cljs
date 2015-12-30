@@ -2,6 +2,7 @@
   (:require [dashboard-cljs.gmaps :as gmaps]
             [dashboard-cljs.login :as login]
             [dashboard-cljs.tables :as tables]
+            [dashboard-cljs.landing :as landing]
             [weasel.repl :as repl]))
 
 (defn ^:export get-map-info
@@ -26,7 +27,7 @@
 
 (defn ^:export init-app
   []
-  (tables/init-tables))
+  (landing/init-landing))
 
 (when-not (repl/alive?)
   (repl/connect "ws://127.0.0.1:9001"))

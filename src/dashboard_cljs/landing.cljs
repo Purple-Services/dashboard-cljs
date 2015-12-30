@@ -1,0 +1,107 @@
+(ns dashboard-cljs.landing
+  (:require [reagent.core :as r]
+            [dashboard-cljs.utils :refer [base-url update-values]]
+            [dashboard-cljs.tables :refer [users-component orders-component]]
+            ))
+
+(defn top-navbar-comp []
+  (fn []
+    [:div
+     [:div {:class "navbar-header"}
+      [:button {:type "button"
+                :class "navbar-toggle"
+                :data-toggle "collapse"
+                :data-target "navbar-ex1-collapse"}
+       [:span {:class "sr-only"} "Toggle Navigation"]
+       [:span {:class "icon-bar"}]
+       [:span {:class "icon-bar"}]
+       [:span {:class "icon-bar"}]]
+      [:a {:class "navbar-brand" :href "index.html"}
+       [:img {:src "http://purpledelivery.com/images/purple_logoWh.png"
+              :alt "PURPLE"
+              :class "purple-logo"}]]]
+     [:ul {:class "nav navbar-right top-nav"}
+        [:li {:class "dropdown"}
+         [:a {:href (str base-url "logout")} "Logout"]]]
+     ]))
+
+(defn Tab [props child]
+  "Tab component inserts child into its anchor element. props is a map of the
+following form:
+{:toggle (reagent/atom map) ; required
+ :toggle-key keyword        ; required
+ :default? true             ; optional
+}
+
+The anchor elements action when clicked is to set the val associated with
+:toggle-key to true, while setting all other vals of :toggle to false. It will
+also mark the current anchor as active."
+  (when (:default? props)
+    (swap! (:toggle props) assoc (:toggle-key props) true))
+  (fn []
+    [:li [:a {:on-click
+              #(do
+                 (.preventDefault %)
+                 (swap! (:toggle props) update-values (fn [el] false))
+                 (swap! (:toggle props) assoc (:toggle-key props) true))
+              :href "#"
+              :class
+              (str (when ((:toggle-key props) @(:toggle props)) "active"))
+              } child]]))
+
+(defn side-navbar-comp [tab-content-toggle]
+  (fn []
+    [:div {:class "collapse navbar-collapse navbar-ex1-collapse"}
+     [:ul {:class "nav navbar-nav side-nav side-nav-color"}
+      [Tab {:default? true
+            :toggle-key :dashboard-view
+            :toggle tab-content-toggle}
+       [:div [:i {:class "fa fa-fw fa-dashboard"}] "Dashboard"]]
+      [Tab {:toggle-key :users-view
+            :toggle tab-content-toggle}
+       [:div [:i {:class "fa fa-fw fa-users"}] "Users"]]]]))
+
+(defn TabContent [props content]
+  "TabContent component, presumably controlled by a Tab component. The :toggle
+val in props is a reagent atom. When the val of :toggle is true, the content is 
+active and thus viewable. Otherwise, when the val of :toggle is false, the 
+content is not displayed."
+  (fn []
+    [:div {:class (str "tab-pane "
+                       (when @(:toggle props) "active"))}
+     content]))
+
+
+;; based on https://github.com/IronSummitMedia/startbootstrap-sb-admin
+(defn app
+  []
+  (let [tab-content-toggle (r/atom {:dashboard-view false
+                                    :users-view false
+                                    })]
+    (fn []
+      [:div {:id "wrapper"}
+       [:nav {:class "navbar navbar-inverse navbar-fixed-top nav-bar-color"
+              :role "navigation"}
+        [top-navbar-comp]
+        [side-navbar-comp tab-content-toggle]]
+       [:div {:id "page-wrapper"
+              :class "page-wrapper-color"}
+        [:div {:class "container-fluid tab-content"}
+         ;;[dashboard-view (r/cursor tab-content-toggle [:dashboard-view])]
+         [TabContent
+          {:toggle (r/cursor tab-content-toggle [:dashboard-view])}
+          [:div {:class "row"}
+           [:div {:class "col-lg-12"}
+            [:h2 "Dashboard Content"]]]]
+         [TabContent
+          {:toggle (r/cursor tab-content-toggle [:users-view])}
+          [:div {:class "row"}
+           [:div {:class "col-lg-12"}
+            [users-component]]]]
+         ]]]
+      )))
+
+(defn init-landing
+  []
+  (r/render-component [app] (.getElementById js/document "app")))
+

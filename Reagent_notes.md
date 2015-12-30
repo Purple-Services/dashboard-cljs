@@ -101,3 +101,58 @@ is rendered, another go-loop will be called. Thus, a message sent to notify-chan
 on the (:id user) topic will be logged to the console as many times as the
 component has been rendered! Over the lifetime of the app instance, this can
 result in many, many messages being sent (erroneously!).
+
+
+# Using prexisting React component
+
+Components can be used from other libraries. Here is an example using the
+react bootstrap library provided through cljsjs.
+
+Include library in the dependencies of project.clj:
+```clojure
+[cljsjs/react-bootstrap "0.27.3-0"
+                  :exclusions [org.webjars.bower/jquery
+                  cljsjs/react-dom]]
+```
+## Caveat
+The exlcusions are due to the fact that cljsjs/react-dom wants to use an older
+versions of react and reagent is providing a newer versions.
+
+require react-bootstrap
+```clojure
+(:require [cljsjs.react-bootstrap])
+```
+This process would be more involved if the library was a foreign lib.
+
+The Tab navigation component will be used. First, define the Tabs
+and Tab component from the library
+
+```clojure
+(def Tabs (r/adapt-react-class js/ReactBootstrap.Tabs))
+(def Tab (r/adapt-react-class js/ReactBootstrap.Tab))
+```
+
+Now create a component using these sub-components:
+
+```clojure
+(defn tab-nav-comp []
+  (fn []
+    [Tabs {:position "left"
+           :standalone true
+           :tabWidth 3
+           }
+     [Tab {:eventKey "1"
+           :title "Users"
+           :tabClassName "custom-tab"} [users-component]]
+     [Tab {:eventKey "2"
+           :title "Orders"} [orders-component]]
+     [Tab {:eventKey "3"
+           :title "Tab 3"} "Tab 3 content"]]))
+```
+
+The props MUST be defined (the map {} given as the first argument). This
+will not work
+
+```clojure
+[Tab [users-component]]
+```
