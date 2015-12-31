@@ -4,14 +4,17 @@
             [dashboard-cljs.tables :refer [users-component orders-component]]
             ))
 
-(defn top-navbar-comp []
+(defn top-navbar-comp [props]
+  "Props contains:
+{:side-bar-toggle (reagent/atom boolean)}"
   (fn []
     [:div
      [:div {:class "navbar-header"}
       [:button {:type "button"
                 :class "navbar-toggle"
-                :data-toggle "collapse"
-                :data-target "navbar-ex1-collapse"}
+                :on-click #(do (.preventDefault %)
+                               (swap! (:side-bar-toggle props) not))
+                }
        [:span {:class "sr-only"} "Toggle Navigation"]
        [:span {:class "icon-bar"}]
        [:span {:class "icon-bar"}]
@@ -30,7 +33,8 @@
 following form:
 {:toggle (reagent/atom map) ; required
  :toggle-key keyword        ; required
- :default? true             ; optional
+ :side-bar-toggle boolean   ; required, used to show/hide sidebar
+ :default? boolean          ; optional
 }
 
 The anchor elements action when clicked is to set the val associated with
@@ -43,22 +47,30 @@ also mark the current anchor as active."
               #(do
                  (.preventDefault %)
                  (swap! (:toggle props) update-values (fn [el] false))
-                 (swap! (:toggle props) assoc (:toggle-key props) true))
+                 (swap! (:toggle props) assoc (:toggle-key props) true)
+                 (reset! (:side-bar-toggle props) false))
               :href "#"
               :class
               (str (when ((:toggle-key props) @(:toggle props)) "active"))
               } child]]))
 
-(defn side-navbar-comp [tab-content-toggle]
+(defn side-navbar-comp [props]
+  "Props contains:
+{:tab-content-toggle (reagent/atom map)
+ :side-bar-toggle    (reagent/atom boolean)}
+"
   (fn []
-    [:div {:class "collapse navbar-collapse navbar-ex1-collapse"}
+    [:div {:class (str "collapse navbar-collapse navbar-ex1-collapse "
+                       (when @(:side-bar-toggle props) "in"))}
      [:ul {:class "nav navbar-nav side-nav side-nav-color"}
       [Tab {:default? true
             :toggle-key :dashboard-view
-            :toggle tab-content-toggle}
+            :toggle (:tab-content-toggle props)
+            :side-bar-toggle (:side-bar-toggle props)}
        [:div [:i {:class "fa fa-fw fa-dashboard"}] "Dashboard"]]
       [Tab {:toggle-key :users-view
-            :toggle tab-content-toggle}
+            :toggle (:tab-content-toggle props)
+            :side-bar-toggle (:side-bar-toggle props)}
        [:div [:i {:class "fa fa-fw fa-users"}] "Users"]]]]))
 
 (defn TabContent [props content]
@@ -76,14 +88,15 @@ content is not displayed."
 (defn app
   []
   (let [tab-content-toggle (r/atom {:dashboard-view false
-                                    :users-view false
-                                    })]
+                                    :users-view false})
+        side-bar-toggle (r/atom false)]
     (fn []
       [:div {:id "wrapper"}
        [:nav {:class "navbar navbar-inverse navbar-fixed-top nav-bar-color"
               :role "navigation"}
-        [top-navbar-comp]
-        [side-navbar-comp tab-content-toggle]]
+        [top-navbar-comp {:side-bar-toggle side-bar-toggle}]
+        [side-navbar-comp {:tab-content-toggle tab-content-toggle
+                           :side-bar-toggle side-bar-toggle}]]
        [:div {:id "page-wrapper"
               :class "page-wrapper-color"}
         [:div {:class "container-fluid tab-content"}
