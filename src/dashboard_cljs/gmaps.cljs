@@ -2,7 +2,7 @@
   (:require [crate.core :as crate]
             [dashboard-cljs.xhr :refer [xhrio-wrapper retrieve-url]]
             [dashboard-cljs.utils :refer [unix-epoch->hrf cents->dollars
-                                          continous-update]]
+                                          continuous-update]]
             [goog.object]
             [cljsjs.moment]
             [cljsjs.pikaday.with-moment]
@@ -1057,8 +1057,8 @@
     ;; initalize the zones
     (init-zones! state)
     ;; poll the server and update orders
-    (continous-update #(do (sync-orders! state))
-                      (* 10 60 1000))))
+    (continuous-update #(do (sync-orders! state))
+                       (* 10 60 1000))))
 
 ;; this was ^:export'd
 (defn init-map-couriers
@@ -1103,10 +1103,9 @@
     ;; initialize the zones
     (init-zones! state)
     ;; poll the server and update the orders and couriers
-    (continous-update #(do (sync-couriers! state)
-                           (sync-orders! state)
-                           (sync-zones! state)
-                           )
+    (continuous-update #(do (sync-couriers! state)
+                            (sync-orders! state)
+                            (sync-zones! state))
                       (:timeout-interval @state))))
 
 ;; this was ^:export'd

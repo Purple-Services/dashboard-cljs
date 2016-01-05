@@ -3,6 +3,7 @@
             [dashboard-cljs.login :as login]
             [dashboard-cljs.tables :as tables]
             [dashboard-cljs.landing :as landing]
+            [dashboard-cljs.datastore :as datastore]
             [weasel.repl :as repl]))
 
 (defn ^:export get-map-info
@@ -25,9 +26,16 @@
   []
   (login/login))
 
+
 (defn ^:export init-app
   []
+  (tables/init-tables))
+
+(defn ^:export init-new-dash
+  []
   (landing/init-landing))
+
+(datastore/init-datastore)
 
 (when-not (repl/alive?)
   (repl/connect "ws://127.0.0.1:9001"))

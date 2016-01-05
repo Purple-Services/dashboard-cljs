@@ -1,8 +1,9 @@
 (ns dashboard-cljs.tables
   (:require-macros [cljs.core.async.macros :refer [go go-loop]])
   (:require [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
-            [dashboard-cljs.utils :refer [unix-epoch->hrf continous-update
-                                          cents->dollars unix-epoch->fuller]]
+            [dashboard-cljs.utils :refer [unix-epoch->hrf continuous-update
+                                          cents->dollars unix-epoch->fuller
+                                          get-by-id]]
             [cljs.core.async :refer [chan pub put! sub <! >!]]
             [cljs.reader :refer [read-string]]
             [clojure.set :refer [subset?]]
@@ -12,7 +13,7 @@
             [cljsjs.moment]
             ))
 
-;; Note: Only the couriers table can use "continous-update"
+;; Note: Only the couriers table can use "continuous-update"
 ;; to constantly modify its rows and still be edited with proper error
 ;; handling. All other tables will need modifications in order to do this
 ;; properly.
@@ -51,11 +52,6 @@
   :id key with a unique value"
   [state id]
   (set (remove #(= id (:id %)) state)))
-
-(defn get-by-id
-  "Get an element by its id from coll"
-  [coll id]
-  (first (filter #(= (:id %) id) coll)))
 
 (defn update-element! [state el]
   "Update the el in state. el is assumed to have a :id key with a unique value"
@@ -489,7 +485,7 @@ transformed by f, if given"
     ;; crucial to use defonce here so that only ONE
     ;; call will be made!
     ;; (defonce courier-updater
-    ;;   (continous-update #(get-server-couriers couriers)
+    ;;   (continuous-update #(get-server-couriers couriers)
     ;;                     timeout-interval))
     ;; but let's still get the state setup
     (defonce init-couriers

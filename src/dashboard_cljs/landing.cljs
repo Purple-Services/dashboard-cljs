@@ -1,7 +1,11 @@
 (ns dashboard-cljs.landing
   (:require [reagent.core :as r]
+            [clojure.string :as s]
+            [cljsjs.moment]
             [dashboard-cljs.utils :refer [base-url update-values]]
             [dashboard-cljs.tables :refer [users-component orders-component]]
+            [dashboard-cljs.components :refer [count-panel]]
+            [dashboard-cljs.datastore :as datastore]
             ))
 
 (defn top-navbar-comp [props]
@@ -67,7 +71,7 @@ also mark the current anchor as active."
             :toggle-key :dashboard-view
             :toggle (:tab-content-toggle props)
             :side-bar-toggle (:side-bar-toggle props)}
-       [:div [:i {:class "fa fa-fw fa-dashboard"}] "Dashboard"]]
+       [:div [:i {:class "fa fa-home fa-fw"}] "Home"]]
       [Tab {:toggle-key :users-view
             :toggle (:tab-content-toggle props)
             :side-bar-toggle (:side-bar-toggle props)}
@@ -78,7 +82,7 @@ also mark the current anchor as active."
 val in props is a reagent atom. When the val of :toggle is true, the content is 
 active and thus viewable. Otherwise, when the val of :toggle is false, the 
 content is not displayed."
-  (fn []
+  (fn [props content]
     [:div {:class (str "tab-pane "
                        (when @(:toggle props) "active"))}
      content]))
@@ -100,12 +104,32 @@ content is not displayed."
        [:div {:id "page-wrapper"
               :class "page-wrapper-color"}
         [:div {:class "container-fluid tab-content"}
-         ;;[dashboard-view (r/cursor tab-content-toggle [:dashboard-view])]
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:dashboard-view])}
           [:div {:class "row"}
-           [:div {:class "col-lg-12"}
-            [:h2 "Dashboard Content"]]]]
+           ;; todays order count panel
+           (let [new-orders (fn [orders]
+                              (let [today-begin (-> (js/moment)
+                                                    (.startOf "day")
+                                                    (.unix))
+                                    complete-time (fn [order]
+                                                    (-> (str "kludgeFix 1|"
+                                                             (:event_log order))
+                                                        (s/split #"\||\s")
+                                                        (->> (apply hash-map))
+                                                        (get "complete")))]
+                                (->> orders
+                                     (filter #(= (:status %) "complete"))
+                                     (map
+                                      #(assoc % :time-completed
+                                              (complete-time %)))
+                                     (filter #(>= (:time-completed %)
+                                                  today-begin)))))]
+             [count-panel {:data (new-orders @datastore/orders)
+                           :description "completed orders today!"
+                           :panel-class "panel-primary"
+                           :icon-class  "fa-shopping-cart"
+                           }])]]
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:users-view])}
           [:div {:class "row"}

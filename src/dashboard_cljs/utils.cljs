@@ -23,11 +23,11 @@
   [cents]
   (str "$" (-> cents (/ 100) (.toFixed 2))))
 
-(defn continous-update
+(defn continuous-update
   "Call f continously every n seconds"
   [f n]
   (js/setTimeout #(do (f)
-                      (continous-update f n))
+                      (continuous-update f n))
                  n))
 
 
@@ -42,3 +42,8 @@
 (defn update-values [m f & args]
   "Update all values in map with f and args"
   (reduce (fn [r [k v]] (assoc r k (apply f v args))) {} m))
+
+(defn get-by-id
+  "Get an element by its id from coll"
+  [coll id]
+  (first (filter #(= (:id %) id) coll)))
