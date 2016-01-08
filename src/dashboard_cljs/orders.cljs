@@ -162,7 +162,7 @@
       [:h5 [:span {:class "info-window-label"} "Courier: "]
        ;; courier assigned (if any)
        (when (not @editing?)
-         [:span (str (:courier_name order) " ")])
+         [:span (str (:courier_name @order) " ")])
        ;; assign courier button
        (when (not @editing?)
          [:button {:type "button"
@@ -188,26 +188,53 @@
                       (retrieve-url
                        (str base-url "assign-order")
                        "POST"
-                       (js/JSON.stringify (clj->js {:order_id (:id order)
+                       (js/JSON.stringify (clj->js {:order_id (:id @order)
                                                     :courier_id @selected-courier}))
                        (partial xhrio-wrapper
                                 (fn [response]
                                   (when (:success (js->clj response :keywordize-keys true))
-                                    (let [updated-order (assoc
-                                                         order
-                                                         :courier_id @selected-courier
-                                                         :courier_name
-                                                         (:name
-                                                          (first (filter (fn [courier]
-                                                                           (= @selected-courier
-                                                                              (:id courier))) couriers)))
-                                                         )]
+                                    (let [order-status (if (= (:status @order)
+                                                              "unassigned")
+                                                         "accepted"
+                                                         (:status @order))
+
+                                          updated-order  (assoc
+                                                          @order
+                                                          :courier_id @selected-courier
+                                                          :courier_name
+                                                          (:name
+                                                           (first (filter (fn [courier]
+                                                                            (= @selected-courier
+                                                                               (:id courier))) couriers)))
+                                                          :status order-status)
+                                          ]
+                                      (reset! order updated-order)
                                       (put! datastore/modify-data-chan
                                             {:topic "orders"
                                              :data
                                              #{updated-order}}))
-                                    )))
-                       ))
+                                    ))))
+                      ;; (let [order-status (if (= (:status @order)
+                      ;;                           "unassigned")
+                      ;;                      "accepted"
+                      ;;                      (:status @order))
+
+                      ;;       updated-order  (assoc
+                      ;;                       @order
+                      ;;                       :courier_id @selected-courier
+                      ;;                       :courier_name
+                      ;;                       (:name
+                      ;;                        (first (filter (fn [courier]
+                      ;;                                         (= @selected-courier
+                      ;;                                            (:id courier))) couriers)))
+                      ;;                       :status order-status)
+                      ;;       ]
+                      ;;   (reset! order updated-order)
+                      ;;   (put! datastore/modify-data-chan
+                      ;;         {:topic "orders"
+                      ;;          :data
+                      ;;          #{updated-order}}))
+                      )
                    }
           "Save assignment"
           ])
@@ -256,39 +283,42 @@
   "Display detailed and editable fields for an order"
   [current-order]
   (fn [current-order]
-    (let [order @current-order
-          editing-assignment? (r/atom false)
+    (let [editing-assignment? (r/atom false)
           editing-status?     (r/atom false)
           couriers
           ;; filter out the couriers to only those assigned
           ;; to the zone
           (sort-by :name (filter #(contains? (set (:zones %))
-                                             (:zone order))
+                                             (:zone @current-order))
                                  @datastore/couriers))
-          assigned-courier (:id (first (filter #(= (:courier_name order)
-                                                   (:name % )) couriers)))
-          selected-status (r/atom (:status order))
+          assigned-courier (if (not (nil? (:courier_name @current-order)))
+                             ;; there is a courier currently assigned
+                             (:id (first (filter #(= (:courier_name @current-order)
+                                                     (:name % )) couriers)))
+                             ;; no courier, assign the first one
+                             (:id (first couriers)))
+          selected-status (r/atom (:status @current-order))
           ]
       [:div {:class "panel-body"}
        [:h3 "Order Details"]
        [:div 
         [:h5 [:span {:class "info-window-label"} "Username: "]
-         (:customer_name order)]
+         (:customer_name @current-order)]
         [:h5 [:span {:class "info-window-label"} "Phone: "]
-         (:customer_phone_number order)]
+         (:customer_phone_number @current-order)]
         [:h5 [:span {:class "info-window-label"} "Email: "]
          "email@placeholder.com"]
         [:h5 [:span {:class "info-window-label"} "Address: "]
-         (:address_street order)]
+         (:address_street @current-order)]
         [:h5 [:span {:class "info-window-label"} "Special Instructions: "]
          "Special instructions placeholder"]
         [order-courier-comp {:editing? editing-assignment?
                              :assigned-courier assigned-courier
                              :couriers couriers
-                             :order order}]
+                             :order current-order}]
         
         [status-comp {:editing? editing-status?
-                      :status (:status order)
+                      :status (:status @current-order)
                       :selected-status selected-status}]]])))
 
 (defn orders-panel
