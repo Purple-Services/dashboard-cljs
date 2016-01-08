@@ -18,18 +18,19 @@
 
 (defn set-ids
   "Given a set, return a set of just the vals for key :id"
-  [xrel] (set (map :id xrel)))
+  [xrel]
+  (set (map :id xrel)))
 
 (defn get-by-ids
-  [ids s1]
   "Given a set of ids, return the subset of s1 :id vals that are contained
-in ids"
+  in ids"
+  [ids s1]
   (filter #(contains? ids (:id %)) s1))
 
 (defn sync-sets
   "Given a set s1 and s2 of maps where each map has a unique val for its :id
-keyword, return a new set with maps from s1 updated with s2. 
-'updated' is defined as the union of: 
+  keyword, return a new set with maps from s1 updated with s2.
+  'updated' is defined as the union of:
 
   stable set - maps in s1 whose :id's vals are not in s2
   mod set    - maps whose :id's vals are shared between s1 and s2,
@@ -88,24 +89,54 @@ keyword, return a new set with maps from s1 updated with s2.
 (def read-data-chan (pub modify-data-chan :topic))
 
 (def orders (r/atom #{}))
+(def couriers (r/atom #{}))
 
 (defn init-datastore
   []
   ;; keep data synced with the data channel
   (sync-state! orders (sub read-data-chan "orders" (chan)))
+  ;; initialize orders
+  (retrieve-url
+   (str base-url "orders-since-date")
+   "POST"
+   (js/JSON.stringify
+    (clj->js
+     ;; just retrieve the last 20 days worth of orders
+     {:date (-> (js/moment)
+                (.subtract 30 "days")
+                (.format "YYYY-MM-DD"))}))
+   (partial xhrio-wrapper
+            (fn [response]
+              (put! modify-data-chan
+                    {:topic "orders"
+                     :data (js->clj response :keywordize-keys true)}))))
   ;; periodically check server for updates in orders
-  (continuous-update 
-   #(retrieve-url
-     (str base-url "orders-since-date")
-     "POST"
-     (js/JSON.stringify
-      (clj->js
-       {:date (-> (js/moment)
-                  (.subtract 20 "days")
-                  (.format "YYYY-MM-DD"))}))
-     (partial xhrio-wrapper
-              (fn [response]
-                (put! modify-data-chan
-                      {:topic "orders"
-                       :data (js->clj response :keywordize-keys true)}))))
-   1000))
+  ;; (continuous-update
+  ;;  #(retrieve-url
+  ;;    (str base-url "orders-since-date")
+  ;;    "POST"
+  ;;    (js/JSON.stringify
+  ;;     (clj->js
+  ;;      {:date (-> (js/moment)
+  ;;                 (.subtract 20 "days")
+  ;;                 (.format "YYYY-MM-DD"))}))
+  ;;    (partial xhrio-wrapper
+  ;;             (fn [response]
+  ;;               (put! modify-data-chan
+  ;;                     {:topic "orders"
+  ;;                      :data (js->clj response :keywordize-keys true)}))))
+  ;;  10000)
+
+  ;; couriers data channel
+  (sync-state! couriers (sub read-data-chan "couriers" (chan)))
+  ;; initialize couriers
+  (retrieve-url
+   (str base-url "couriers")
+   "POST"
+   {}
+   (partial xhrio-wrapper
+            (fn [response]
+              (put! modify-data-chan
+                    {:topic "couriers"
+                     :data (:couriers (js->clj response :keywordize-keys
+                                               true))})))))
