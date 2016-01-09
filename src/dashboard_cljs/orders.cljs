@@ -150,13 +150,12 @@
   {
   :editing?         ; ratom, is the field currently being edited?
   :assigned-courier ; id of the courier who is currently assigned to the order
-  :selected-courier ; ratom, id of the currently selected courier
   :couriers         ; set of courier maps
-  :order            ; currently selected order
+  :order            ; ratom, currently selected order
   }
   "
   [props]
-  (fn [{:keys [editing? assigned-courier selected-courier couriers order]}
+  (fn [{:keys [editing? assigned-courier couriers order]}
        props]
     (let [selected-courier (r/atom assigned-courier)]
       [:h5 [:span {:class "info-window-label"} "Courier: "]
@@ -168,9 +167,9 @@
          [:button {:type "button"
                    :class "btn btn-xs btn-default"
                    :on-click #(reset! editing? true)}
-          (if assigned-courier
-            "Reassign Courier"
+          (if (nil? (:courier_name @order))
             "Assign Courier"
+            "Reassign Courier"
             )])
        ;; courier select
        (when @editing?
@@ -245,8 +244,9 @@
   "Component for the status field of an order
   props is:
   {
-  :editing? ; ratom, is the field currently being edited?
-  :status   ; string, the status of the order
+  :editing?        ; ratom, is the field currently being edited?
+  :status          ; string, the status of the order
+  :order           ; ratom, currently selected order
   }"
   [props]
   (let [status->next-status {"unassigned"  "assigned"
@@ -257,16 +257,58 @@
                              "complete"    nil
                              "cancelled"   nil}]
     
-    (fn [{:keys [editing? status]} props]
+    (fn [{:keys [editing? status order]}
+         props]
       [:h5 [:span {:class "info-window-label"} "Status: "]
        (str status " ")
+       ;; advance order button
+       (when-not (contains? #{"complete" "cancelled" "unassigned"}
+                            status)
+         [:button {:type "button"
+                   :class "btn btn-xs btn-default"
+                   :on-click #(retrieve-url
+                               (str base-url "update-status")
+                               "POST"
+                               (js/JSON.stringify (clj->js {:order_id (:id @order)}))
+                               (partial xhrio-wrapper
+                                        (fn [response]
+                                          (when (:success (js->clj response :keywordize-keys true))
+                                            (let [updated-order
+                                                  (assoc
+                                                   @order
+                                                   :status (status->next-status status))]
+                                              (reset! order updated-order)
+                                              (put! datastore/modify-data-chan
+                                                    {:topic "orders"
+                                                     :data #{updated-order}}))))))}
+          ({"accepted" "Start Route"
+            "enroute" "Begin Servicing"
+            "servicing" "Complete Order"}
+           status)])
+       " "
+       ;; cancel button
        (when
            (and (not @editing?)
                 (not (contains? #{"complete" "cancelled"}
                                 status)))
          [:button {:type "button"
                    :class "btn btn-xs btn-default btn-danger"
-                   :on-click #(.log js/console "cancel button hit")}
+                   :on-click #(do (retrieve-url
+                                   (str base-url "cancel-order")
+                                   "POST"
+                                   (js/JSON.stringify (clj->js {:user_id (:user_id @order)
+                                                                :order_id (:id @order)}))
+                                   (partial xhrio-wrapper
+                                            (fn [response]
+                                              (when (:success (js->clj response :keywordize-keys true))
+                                                (let [updated-order
+                                                      (assoc
+                                                       @order
+                                                       :status "cancelled")]
+                                                  (reset! order updated-order)
+                                                  (put! datastore/modify-data-chan
+                                                        {:topic "orders"
+                                                         :data #{updated-order}})))))))}
           "Cancel Order"])])))
 
 (defn order-cancel
@@ -297,7 +339,7 @@
                                                      (:name % )) couriers)))
                              ;; no courier, assign the first one
                              (:id (first couriers)))
-          selected-status (r/atom (:status @current-order))
+          order-status (:status @current-order)
           ]
       [:div {:class "panel-body"}
        [:h3 "Order Details"]
@@ -318,8 +360,8 @@
                              :order current-order}]
         
         [status-comp {:editing? editing-status?
-                      :status (:status @current-order)
-                      :selected-status selected-status}]]])))
+                      :status order-status
+                      :order current-order}]]])))
 
 (defn orders-panel
   "Display a table of selectable orders with an indivdual order panel
