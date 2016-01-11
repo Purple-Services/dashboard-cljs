@@ -23,15 +23,31 @@
 (defn login-form
   []
   (let [submit-button (crate/html
-                       [:input {:id "login" :type "submit" :value "Login"}])
+                       [:button {:id "login"
+                                 :type "submit"
+                                 :class "btn btn-default"
+                                 } "Login"])
         login-form (crate/html
                     [:div {:id "login-form"}
-                     [:div "Email Address: " [:input
-                                              {:id "email" :type "text"}]]
-                     [:div "Password: " [:input
-                                         {:id "password" :type "password"}]]
+                     [:div {:class "form-group"}
+                      [:label {:for "email-address"}
+                       "Email Address"]
+                      [:input
+                          {:id "email"
+                           :type "text"
+                           :class "form-control"
+                           :placeholder "Email"}]]
+                     [:div {:class "form-group"}
+                      [:label {:for "password"} "Password"]
+                      [:input
+                       {:id "password"
+                        :type "password"
+                        :class "form-control"
+                        :placeholder "Password"}]]
                      submit-button
-                     [:div {:id "error-message"}]])]
+                     [:div {:class "has-error"}
+                      [:div {:id "error-message"
+                             :class "control-label"}]]])]
     (.addEventListener
      submit-button
      "click"
@@ -50,4 +66,11 @@
 (defn login
   []
   (let [login-div (.getElementById js/document "login")]
-    (.appendChild login-div (login-form))))
+    (.appendChild login-div
+                  (crate/html
+                   [:div {:class "container-fluid"}
+                    [:div {:class "row"}
+                     [:div {:class "col-lg-6"}
+                      [:div {:class "panel panel-default"}
+                       [:div {:class "panel-body"}
+                        (login-form)]]]]]))))

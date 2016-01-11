@@ -33,9 +33,8 @@
 
 (defn ^:export init-new-dash
   []
-  (landing/init-landing))
-
-(datastore/init-datastore)
+  (landing/init-landing)
+  (datastore/init-datastore))
 
 (when-not (repl/alive?)
   (repl/connect "ws://127.0.0.1:9001"))
