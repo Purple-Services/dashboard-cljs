@@ -3,7 +3,6 @@
             [clojure.string :as s]
             [cljsjs.moment]
             [dashboard-cljs.utils :refer [base-url update-values]]
-            [dashboard-cljs.tables :refer [users-component orders-component]]
             [dashboard-cljs.components :refer [count-panel]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.orders :as orders]
@@ -137,8 +136,9 @@
                                                       (.startOf "day")
                                                       (.unix))
                                       complete-time (fn [order]
-                                                      (-> (str "kludgeFix 1|"
-                                                               (:event_log order))
+                                                      (-> (str
+                                                           "kludgeFix 1|"
+                                                           (:event_log order))
                                                           (s/split #"\||\s")
                                                           (->> (apply hash-map))
                                                           (get "complete")))]
@@ -158,12 +158,11 @@
           {:toggle (r/cursor tab-content-toggle [:users-view])}
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
-            [users-component]]]]
+            [:h2 "Users tables go here"]
+            ]]]
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:orders-view])}
-          [:div [:div {:class "row"}
-                 [:div {:class "col-lg-12"}
-                  [:h2 "Orders"]]]
+          [:div
            [:div {:class "row"}
             [:div {:class "col-lg-12"}
              [orders/orders-panel @datastore/orders]

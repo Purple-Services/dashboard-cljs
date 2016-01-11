@@ -1,5 +1,6 @@
 (ns dashboard-cljs.orders
   (:require [cljs.core.async :refer [put!]]
+            [clojure.string :as s]
             [reagent.core :as r]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->hrf base-url]]
@@ -144,6 +145,51 @@
          (:name courier)])
       couriers)]))
 
+(defn ErrorComp
+  [error-message]
+  (fn [error-messsage]
+    [:div {:class "alert alert-danger"
+           :role "alert"}
+     [:span {:class "sr-only"} "Error:"]
+     error-message]))
+
+(defn assign-courier
+  [editing? order selected-courier couriers error]
+  (retrieve-url
+   (str base-url "assign-order")
+   "POST"
+   (js/JSON.stringify (clj->js {:order_id (:id @order)
+                                :courier_id @selected-courier}))
+   (partial xhrio-wrapper
+            (fn [r]
+              (let [response (js->clj r :keywordize-keys true)]
+                (when (:success response)
+                  (let [order-status (if (= (:status @order)
+                                            "unassigned")
+                                       "accepted"
+                                       (:status @order))
+
+                        updated-order  (assoc
+                                        @order
+                                        :courier_id @selected-courier
+                                        :courier_name
+                                        (:name
+                                         (first (filter (fn [courier]
+                                                          (= @selected-courier
+                                                             (:id courier)))
+                                                        couriers)))
+                                        :status order-status)]
+                    (reset! order updated-order)
+                    (reset! editing? false)
+                    (reset! error "")
+                    (put! datastore/modify-data-chan
+                          {:topic "orders"
+                           :data
+                           #{updated-order}})))
+                (when (not (:success response))
+                  (reset! error (:message response))
+                  ))))))
+
 (defn order-courier-comp
   "Component for the courier filed of an order panel
   props is:
@@ -155,90 +201,100 @@
   }
   "
   [props]
-  (fn [{:keys [editing? assigned-courier couriers order]}
-       props]
-    (let [selected-courier (r/atom assigned-courier)]
-      [:h5 [:span {:class "info-window-label"} "Courier: "]
-       ;; courier assigned (if any)
-       (when (not @editing?)
-         [:span (str (:courier_name @order) " ")])
-       ;; assign courier button
-       (when (not @editing?)
-         [:button {:type "button"
-                   :class "btn btn-xs btn-default"
-                   :on-click #(reset! editing? true)}
-          (if (nil? (:courier_name @order))
-            "Assign Courier"
-            "Reassign Courier"
-            )])
-       ;; courier select
-       (when @editing?
-         [order-courier-select {:selected-courier
-                                selected-courier
-                                :couriers couriers}])
-       ;; save assignment
-       " "
-       (when (and @editing?)
-         [:button {:type "button"
-                   :class "btn btn-xs btn-default"
-                   :on-click
-                   #(do
-                      (reset! editing? false)
-                      (retrieve-url
-                       (str base-url "assign-order")
-                       "POST"
-                       (js/JSON.stringify (clj->js {:order_id (:id @order)
-                                                    :courier_id @selected-courier}))
-                       (partial xhrio-wrapper
-                                (fn [response]
-                                  (when (:success (js->clj response :keywordize-keys true))
-                                    (let [order-status (if (= (:status @order)
-                                                              "unassigned")
-                                                         "accepted"
-                                                         (:status @order))
+  (let [error-message (r/atom "")]
+    (fn [{:keys [editing? assigned-courier couriers order]}
+         props]
+      (let [selected-courier (r/atom assigned-courier)]
+        [:h5 [:span {:class "info-window-label"} "Courier: "]
+         ;; courier assigned (if any)
+         (when (not @editing?)
+           [:span (str (:courier_name @order) " ")])
+         ;; assign courier button
+         (when (not @editing?)
+           [:button {:type "button"
+                     :class "btn btn-xs btn-default"
+                     :on-click #(reset! editing? true)}
+            (if (nil? (:courier_name @order))
+              "Assign Courier"
+              "Reassign Courier"
+              )])
+         ;; courier select
+         (when @editing?
+           [order-courier-select {:selected-courier
+                                  selected-courier
+                                  :couriers couriers}])
+         ;; save assignment
+         " "
+         (when (and @editing?)
+           [:button {:type "button"
+                     :class "btn btn-xs btn-default"
+                     :on-click
+                     #(assign-courier editing? order selected-courier couriers
+                                      error-message)
+                     }
+            "Save assignment"
+            ])
+         (when (not (s/blank? @error-message))
+           [ErrorComp (str "Courier could not be assigned! Reason: "
+                           @error-message
+                           "\n"
+                           "Try saving the assignment again"
+                           )])
+         ]))))
 
-                                          updated-order  (assoc
-                                                          @order
-                                                          :courier_id @selected-courier
-                                                          :courier_name
-                                                          (:name
-                                                           (first (filter (fn [courier]
-                                                                            (= @selected-courier
-                                                                               (:id courier))) couriers)))
-                                                          :status order-status)
-                                          ]
-                                      (reset! order updated-order)
-                                      (put! datastore/modify-data-chan
-                                            {:topic "orders"
-                                             :data
-                                             #{updated-order}}))
-                                    ))))
-                      ;; (let [order-status (if (= (:status @order)
-                      ;;                           "unassigned")
-                      ;;                      "accepted"
-                      ;;                      (:status @order))
 
-                      ;;       updated-order  (assoc
-                      ;;                       @order
-                      ;;                       :courier_id @selected-courier
-                      ;;                       :courier_name
-                      ;;                       (:name
-                      ;;                        (first (filter (fn [courier]
-                      ;;                                         (= @selected-courier
-                      ;;                                            (:id courier))) couriers)))
-                      ;;                       :status order-status)
-                      ;;       ]
-                      ;;   (reset! order updated-order)
-                      ;;   (put! datastore/modify-data-chan
-                      ;;         {:topic "orders"
-                      ;;          :data
-                      ;;          #{updated-order}}))
-                      )
-                   }
-          "Save assignment"
-          ])
-       
-       ])))
+(defn update-status
+  [order status error-message]
+  (retrieve-url
+   (str base-url "update-status")
+   "POST"
+   (js/JSON.stringify (clj->js {:order_id (:id @order)}))
+   (partial xhrio-wrapper
+            (fn [r]
+              (let [response (js->clj r :keywordize-keys true)
+                    status->next-status {"unassigned"  "assigned"
+                                         "assigned"    "accepted"
+                                         "accepted"    "enroute"
+                                         "enroute"     "servicing"
+                                         "servicing"   "complete"
+                                         "complete"    nil
+                                         "cancelled"   nil}]
+                (when (:success response)
+                  (let [updated-order
+                        (assoc
+                         @order
+                         :status (status->next-status status))]
+                    (reset! order updated-order)
+                    (reset! error-message "")
+                    (put! datastore/modify-data-chan
+                          {:topic "orders"
+                           :data #{updated-order}})))
+                (when (not (:success response))
+                  (reset! error-message (:message response))))))))
+
+(defn cancel-order
+  [order error-message]
+  (retrieve-url
+   (str base-url "cancel-order")
+   "POST"
+   (js/JSON.stringify (clj->js {:user_id (:user_id @order)
+                                :order_id (:id @order)}))
+   (partial xhrio-wrapper
+            (fn [r]
+              (let [response (js->clj r :keywordize-keys true)]
+                (when (:success response)
+                  (let [updated-order
+                        (assoc
+                         @order
+                         :status "cancelled")]
+                    (reset! order updated-order)
+                    (reset! error-message "")
+                    (put! datastore/modify-data-chan
+                          {:topic "orders"
+                           :data #{updated-order}})))
+                (when (not (:success response))
+                  (reset! error-message (:message response))
+                  ))))))
 
 (defn status-comp
   "Component for the status field of an order
@@ -249,14 +305,7 @@
   :order           ; ratom, currently selected order
   }"
   [props]
-  (let [status->next-status {"unassigned"  "assigned"
-                             "assigned"    "accepted"
-                             "accepted"    "enroute"
-                             "enroute"     "servicing"
-                             "servicing"   "complete"
-                             "complete"    nil
-                             "cancelled"   nil}]
-    
+  (let [error-message (r/atom "")]
     (fn [{:keys [editing? status order]}
          props]
       [:h5 [:span {:class "info-window-label"} "Status: "]
@@ -266,21 +315,7 @@
                             status)
          [:button {:type "button"
                    :class "btn btn-xs btn-default"
-                   :on-click #(retrieve-url
-                               (str base-url "update-status")
-                               "POST"
-                               (js/JSON.stringify (clj->js {:order_id (:id @order)}))
-                               (partial xhrio-wrapper
-                                        (fn [response]
-                                          (when (:success (js->clj response :keywordize-keys true))
-                                            (let [updated-order
-                                                  (assoc
-                                                   @order
-                                                   :status (status->next-status status))]
-                                              (reset! order updated-order)
-                                              (put! datastore/modify-data-chan
-                                                    {:topic "orders"
-                                                     :data #{updated-order}}))))))}
+                   :on-click #(update-status order status error-message)}
           ({"accepted" "Start Route"
             "enroute" "Begin Servicing"
             "servicing" "Complete Order"}
@@ -293,26 +328,19 @@
                                 status)))
          [:button {:type "button"
                    :class "btn btn-xs btn-default btn-danger"
-                   :on-click #(do (retrieve-url
-                                   (str base-url "cancel-order")
-                                   "POST"
-                                   (js/JSON.stringify (clj->js {:user_id (:user_id @order)
-                                                                :order_id (:id @order)}))
-                                   (partial xhrio-wrapper
-                                            (fn [response]
-                                              (when (:success (js->clj response :keywordize-keys true))
-                                                (let [updated-order
-                                                      (assoc
-                                                       @order
-                                                       :status "cancelled")]
-                                                  (reset! order updated-order)
-                                                  (put! datastore/modify-data-chan
-                                                        {:topic "orders"
-                                                         :data #{updated-order}})))))))}
-          "Cancel Order"])])))
+                   :on-click #(cancel-order order error-message)}
+          "Cancel Order"])
+       (when (not (s/blank? @error-message))
+         [ErrorComp (str "Order status could be not be changed! Reason: "
+                         @error-message)])
+       ])))
 
 (defn order-cancel
-  "fill in when edited"
+  "props is:
+  {
+  :editing? ; r/atom, boolean
+  :order    ; order
+  }"
   [props]
   (fn [{:keys [editing? order]} props]
     (when editing?
@@ -335,7 +363,8 @@
                                  @datastore/couriers))
           assigned-courier (if (not (nil? (:courier_name @current-order)))
                              ;; there is a courier currently assigned
-                             (:id (first (filter #(= (:courier_name @current-order)
+                             (:id (first (filter #(= (:courier_name
+                                                      @current-order)
                                                      (:name % )) couriers)))
                              ;; no courier, assign the first one
                              (:id (first couriers)))
@@ -352,8 +381,9 @@
          "email@placeholder.com"]
         [:h5 [:span {:class "info-window-label"} "Address: "]
          (:address_street @current-order)]
-        [:h5 [:span {:class "info-window-label"} "Special Instructions: "]
-         "Special instructions placeholder"]
+        (when (not (s/blank? (:special_instructions @current-order)))
+          [:h5 [:span {:class "info-window-label"} "Special Instructions: "]
+           (:special_instructions @current-order)])
         [order-courier-comp {:editing? editing-assignment?
                              :assigned-courier assigned-courier
                              :couriers couriers
