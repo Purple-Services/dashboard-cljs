@@ -1,9 +1,11 @@
 (ns dashboard-cljs.orders
   (:require [cljs.core.async :refer [put!]]
+            [cljsjs.moment]
             [clojure.string :as s]
             [reagent.core :as r]
             [dashboard-cljs.datastore :as datastore]
-            [dashboard-cljs.utils :refer [unix-epoch->hrf base-url]]
+            [dashboard-cljs.utils :refer [unix-epoch->hrf base-url
+                                          cents->dollars]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             ))
 
@@ -73,16 +75,29 @@
                           (:id @current-order))
                    "active")
           :on-click #(reset! current-order order)}
+     ;; order status
      [:td (:status order)]
+     ;; courier assigned
      [:td (:courier_name order)]
+     ;; order placed
      [:td (unix-epoch->hrf
            (:target_time_start order))]
-     [:td (- (:target_time_end order)
-             (:target_time_start order))]
+     ;; delivery time
+     [:td (str (.diff (js/moment.unix (:target_time_end order))
+                      (js/moment.unix (:target_time_start order))
+                      "hours")
+               " Hr")]
+     ;; username
      [:td (:customer_name order)]
+     ;; phone #
      [:td (:customer_phone_number order)]
-     [:td "customer@purple.com"]
-     [:td (:address_street order)]]))
+     ;; email #
+     [:td (:email order)]
+     ;; stree address
+     [:td
+      [:i {:class "fa fa-circle"
+           :style {:color (:zone-color @current-order)}}]
+      (:address_street order)]]))
 
 
 (defn order-table-header
@@ -372,18 +387,50 @@
           ]
       [:div {:class "panel-body"}
        [:h3 "Order Details"]
-       [:div 
+       [:div
+        [:h5 [:span {:class "info-window-label"} "Total Price: "]
+         (cents->dollars (:total_price @current-order))
+         " "
+         ;; declined payment?
+         (if (and (= (:status @current-order)
+                     "complete")
+                  (not= 0 (:total_price @current-order))
+                  (or (s/blank? (:stripe_charge_id @current-order))
+                      (not (:paid @current-order))))
+           [:span {:class "text-danger"} "Payment declined!"])]
+        [:h5 [:span {:class "info-window-label"} "Order Placed: "]
+         (unix-epoch->hrf (:target_time_start @current-order))]
+        [:h5 [:span {:class "info-window-label"} "Delivery Time: "]
+         (str (.diff (js/moment.unix (:target_time_end @current-order))
+                     (js/moment.unix (:target_time_start @current-order))
+                     "hours")
+              " Hr")]
+        (when (not (s/blank? (:special_instructions @current-order)))
+          [:h5 [:span {:class "info-window-label"} "Special Instructions: "]
+           (:special_instructions @current-order)])
         [:h5 [:span {:class "info-window-label"} "Username: "]
          (:customer_name @current-order)]
         [:h5 [:span {:class "info-window-label"} "Phone: "]
          (:customer_phone_number @current-order)]
         [:h5 [:span {:class "info-window-label"} "Email: "]
-         "email@placeholder.com"]
-        [:h5 [:span {:class "info-window-label"} "Address: "]
+         (:email @current-order)
+         ]
+        [:h5
+         [:span {:class "info-window-label"} "Address: "]
+         [:i {:class "fa fa-circle"
+              :style {:color (:zone-color @current-order)}}]
+         " "
          (:address_street @current-order)]
-        (when (not (s/blank? (:special_instructions @current-order)))
-          [:h5 [:span {:class "info-window-label"} "Special Instructions: "]
-           (:special_instructions @current-order)])
+        (when (:etas @current-order)
+          [:h5
+           [:span {:class "info-window-label"} "ETAs: "]
+           (map (fn [eta]
+                  ^{:key (:name eta)}
+                  [:p (str (:name eta) " - ")
+                   [:strong {:class (when (:busy eta)
+                                      "text-danger")}
+                    (:minutes eta)]])
+                (sort-by :minutes (:etas @current-order)))])
         [order-courier-comp {:editing? editing-assignment?
                              :assigned-courier assigned-courier
                              :couriers couriers
@@ -393,6 +440,30 @@
                       :status order-status
                       :order current-order}]]])))
 
+(defn orders-filter
+  [selected-filter]
+  ;;(let [selected (r/atom "show-all")])
+  (fn [selected-filter]
+    [:div {:class "btn-group"
+           :role "group"
+           :aria-label "order"}
+     [:button {:type "button"
+               :class
+               (str "btn btn-default "
+                    (when (= @selected-filter
+                             "show-all")
+                      "active"))
+               :on-click #(reset! selected-filter "show-all")}
+      "Show All"]
+     [:button {:type "button"
+               :class
+               (str "btn btn-default "
+                    (when (= @selected-filter
+                             "declined")
+                      "active"))
+               :on-click #(reset! selected-filter "declined")}
+      "Declined Payments"]]))
+
 (defn orders-panel
   "Display a table of selectable orders with an indivdual order panel
   for the selected order"
@@ -400,18 +471,29 @@
   (let [current-order (r/atom nil)
         sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
-        ]
+        selected-filter (r/atom "show-all")]
     (fn [orders]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
+            filter-fn (cond (= @selected-filter
+                               "declined")
+                            (fn [order]
+                              (and (not (:paid order))
+                                   (= (:status order) "complete")
+                                   (> (:total_price order))))
+                            :else (fn [order] true))
 
-            sorted-orders (sort-fn orders)]
+            sorted-orders (->> orders
+                               sort-fn
+                               (filter filter-fn))]
         (when (nil? @current-order)
           (reset! current-order (first sorted-orders)))
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
-          [order-panel current-order]]
+          [order-panel current-order]
+          [:h3 "Orders"]
+          [orders-filter selected-filter]]
          [:div {:class "table-responsive"}
           [StaticTable
            {:table-header [order-table-header {:sort-keyword sort-keyword

@@ -1,7 +1,6 @@
 (ns dashboard-cljs.utils
   (:require [cljsjs.moment]))
 
-
 (defn unix-epoch->fmt
   "Convert a unix epoch (in seconds) to fmt"
   [unix-epoch fmt]
@@ -14,7 +13,7 @@
   (unix-epoch->fmt unix-epoch "M/D h:mm A"))
 
 (defn unix-epoch->fuller
-  "Convert a unix epoch (in seconds"
+  "Convert a unix epoch (in seconds)"
   [unix-epoch]
   (unix-epoch->fmt unix-epoch "M/D/YYYY h:mm A"))
 
