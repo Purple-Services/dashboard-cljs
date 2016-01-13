@@ -374,6 +374,7 @@
       [:div {:class "panel-body"}
        [:h3 "Order Details"]
        [:div
+        ;; order price
         [:h5 [:span {:class "info-window-label"} "Total Price: "]
          (cents->dollars (:total_price @current-order))
          " "
@@ -384,35 +385,57 @@
                   (or (s/blank? (:stripe_charge_id @current-order))
                       (not (:paid @current-order))))
            [:span {:class "text-danger"} "Payment declined!"])]
+        ;; coupon code
         (when (not (s/blank? (:coupon_code @current-order)))
           [:h5 [:span {:class "info-window-label"} "Coupon: "]
            (:coupon_code @current-order)])
+        ;; gallons and type
         [:h5 [:span {:class "info-window-label"} "Gallons: "]
          (str (:gallons @current-order) " (" (:gas_type @current-order)
               " Octane)")]
+        ;; time order was placed
         [:h5 [:span {:class "info-window-label"} "Order Placed: "]
          (unix-epoch->hrf (:target_time_start @current-order))]
+        ;; delivery time
         [:h5 [:span {:class "info-window-label"} "Delivery Time: "]
          (str (.diff (js/moment.unix (:target_time_end @current-order))
                      (js/moment.unix (:target_time_start @current-order))
                      "hours")
               " Hr")]
+        ;; special instructions field
         (when (not (s/blank? (:special_instructions @current-order)))
           [:h5 [:span {:class "info-window-label"} "Special Instructions: "]
            (:special_instructions @current-order)])
+        ;;  name
         [:h5 [:span {:class "info-window-label"} "Customer: "]
          (:customer_name @current-order)]
+        ;;  phone number
         [:h5 [:span {:class "info-window-label"} "Phone: "]
          (:customer_phone_number @current-order)]
+        ;;  email
         [:h5 [:span {:class "info-window-label"} "Email: "]
-         (:email @current-order)
-         ]
+         (:email @current-order)]
+        ;; rating
+        (let [number-rating (:number_rating @current-order)]
+          (when number-rating
+            [:h5 [:span {:class "info-window-label"} "Rating: "]
+             (for [x (range number-rating)]
+               ^{:key x} [:i {:class "fa fa-star fa-lg"}])
+             (for [x (range (- 5 number-rating))]
+               ^{:key x} [:i {:class "fa fa-star-o fa-lg"}])
+             ]))
+        ;; review
+        (when (not (s/blank? (:text_rating @current-order)))
+          [:h5 [:span {:class "info-window-label"} "Review: "]
+           (:text_rating @current-order)])
+        ;; delivery address
         [:h5
          [:span {:class "info-window-label"} "Address: "]
          [:i {:class "fa fa-circle"
               :style {:color (:zone-color @current-order)}}]
          " "
          (:address_street @current-order)]
+        ;; vehicle description
         [:h5
          [:span {:class "info-window-label"} "Vehicle: "]
          (str (:color (:vehicle @current-order))
@@ -420,8 +443,10 @@
               (:make (:vehicle @current-order))
               " "
               (:model (:vehicle @current-order)))]
+        ;; license plate
         [:h5 {:class "info-window-label"} "License Plate: "
          (:license_plate @current-order)]
+        ;; ETAs
         (when (:etas @current-order)
           [:h5
            [:span {:class "info-window-label"} "ETAs: "]
@@ -432,11 +457,12 @@
                                       "text-danger")}
                     (:minutes eta)]])
                 (sort-by :minutes (:etas @current-order)))])
+        ;; assigned courier display and editing
         [order-courier-comp {:editing? editing-assignment?
                              :assigned-courier assigned-courier
                              :couriers couriers
                              :order current-order}]
-        
+        ;; status and editing
         [status-comp {:editing? editing-status?
                       :status order-status
                       :order current-order}]]])))
