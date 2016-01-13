@@ -5,16 +5,24 @@
             [reagent.core :as r]
             [cljsjs.moment]
             [dashboard-cljs.utils :refer [base-url continuous-update get-by-id]]
-            [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
-            ))
+            [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]))
 
-;; data flow
+;; This namespace contains the global state of the app and the fn's associated
+;; with managing this data.
+
+;; There are a few large sets of data, stored in an r/atom, upon which the app
+;; is built around. These include sets such as users and couriers. The data in
+;; these sets is managed by sync-state!
+;;
+;; data flow for large sets
 ;;
 ;; reagent atoms are used to read data
 ;; r/atom -> components
 ;;
 ;; core.async channels are used to modify data
-;; r/atom <- sync-state <- chan <- component, fn's, etc.
+;; r/atom <- sync-state! <- chan <- component, fn's, etc.
+;;
+;; Currently, the chan used to modify these sets is 'modify-data-chan'
 
 (defn set-ids
   "Given a set, return a set of just the vals for key :id"
@@ -89,54 +97,72 @@
 (def read-data-chan (pub modify-data-chan :topic))
 
 (def orders (r/atom #{}))
+(def most-recent-order (r/atom {}))
+(def last-acknowledged-order (r/atom {}))
+
 (def couriers (r/atom #{}))
 
 (defn init-datastore
+  "Initialize the datastore for the app. Should be called once when launching
+  the app."
   []
-  ;; keep data synced with the data channel
-  (sync-state! orders (sub read-data-chan "orders" (chan)))
-  ;; initialize orders
-  (retrieve-url
-   (str base-url "orders-since-date")
-   "POST"
-   (js/JSON.stringify
-    (clj->js
-     ;; just retrieve the last 20 days worth of orders
-     {:date (-> (js/moment)
-                (.subtract 30 "days")
-                (.format "YYYY-MM-DD"))}))
-   (partial xhrio-wrapper
-            (fn [response]
-              (put! modify-data-chan
-                    {:topic "orders"
-                     :data (js->clj response :keywordize-keys true)}))))
-  ;; periodically check server for updates in orders
-  ;; (continuous-update
-  ;;  #(retrieve-url
-  ;;    (str base-url "orders-since-date")
-  ;;    "POST"
-  ;;    (js/JSON.stringify
-  ;;     (clj->js
-  ;;      {:date (-> (js/moment)
-  ;;                 (.subtract 20 "days")
-  ;;                 (.format "YYYY-MM-DD"))}))
-  ;;    (partial xhrio-wrapper
-  ;;             (fn [response]
-  ;;               (put! modify-data-chan
-  ;;                     {:topic "orders"
-  ;;                      :data (js->clj response :keywordize-keys true)}))))
-  ;;  10000)
+  (let [orders-response-fn (fn [response & [initializing?]]
+                             (let [orders (js->clj response
+                                                   :keywordize-keys true)]
+                               (when (> (count orders)
+                                        0)
+                                 ;; update the orders atom
+                                 (put! modify-data-chan
+                                       {:topic "orders"
+                                        :data orders})
+                                 ;; update the most recent order atom
+                                 (reset! most-recent-order
+                                         (last (sort-by
+                                                :target_time_start orders)))
+                                 ;; initialize the last-acknowledged-order atom
+                                 (when initializing?
+                                   (reset! last-acknowledged-order
+                                           (last (sort-by
+                                                  :target_time_start orders))))
 
-  ;; couriers data channel
-  (sync-state! couriers (sub read-data-chan "couriers" (chan)))
-  ;; initialize couriers
-  (retrieve-url
-   (str base-url "couriers")
-   "POST"
-   {}
-   (partial xhrio-wrapper
-            (fn [response]
-              (put! modify-data-chan
-                    {:topic "couriers"
-                     :data (:couriers (js->clj response :keywordize-keys
-                                               true))})))))
+                                 )))]
+    ;; keep data synced with the data channel
+    (sync-state! orders (sub read-data-chan "orders" (chan)))
+    ;; initialize orders
+    (retrieve-url
+     (str base-url "orders-since-date")
+     "POST"
+     (js/JSON.stringify
+      (clj->js
+       ;; just retrieve the last 20 days worth of orders
+       {:date (-> (js/moment)
+                  (.subtract 30 "days")
+                  (.format "YYYY-MM-DD"))}))
+     (partial xhrio-wrapper
+              #(orders-response-fn % true)))
+    ;; periodically check server for updates in orders
+    (continuous-update
+     #(when (:target_time_start @most-recent-order)
+        (retrieve-url
+         (str base-url "orders-since-date")
+         "POST"
+         (js/JSON.stringify
+          (clj->js
+           {:date (:target_time_start @most-recent-order)
+            :unix-epoch? true}))
+         (partial xhrio-wrapper
+                  orders-response-fn)))
+     10000)
+    ;; couriers data channel
+    (sync-state! couriers (sub read-data-chan "couriers" (chan)))
+    ;; initialize couriers
+    (retrieve-url
+     (str base-url "couriers")
+     "POST"
+     {}
+     (partial xhrio-wrapper
+              (fn [response]
+                (put! modify-data-chan
+                      {:topic "couriers"
+                       :data (:couriers (js->clj response :keywordize-keys
+                                                 true))}))))))

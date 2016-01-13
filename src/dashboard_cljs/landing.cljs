@@ -52,7 +52,7 @@
   [props child]
   (when (:default? props)
     (swap! (:toggle props) assoc (:toggle-key props) true))
-  (fn []
+  (fn [props child]
     [:li [:a {:on-click
               #(do
                  (.preventDefault %)
@@ -63,6 +63,22 @@
               :class
               (str (when ((:toggle-key props) @(:toggle props)) "active"))
               } child]]))
+
+
+(defn TabContent
+  "TabContent component, presumably controlled by a Tab component.
+  props is:
+  {
+  :toggle ; reagent atom, boolean
+  }
+  val in props is a reagent atom. When the val of :toggle is true, the content
+  is active and thus viewable. Otherwise, when the val of :toggle is false, the
+  content is not displayed."
+  [props content]
+  (fn [props content]
+    [:div {:class (str "tab-pane "
+                       (when @(:toggle props) "active"))}
+     content]))
 
 (defn side-navbar-comp
   "Props contains:
@@ -90,23 +106,21 @@
             :toggle-key :orders-view
             :toggle (:tab-content-toggle props)
             :side-bar-toggle (:side-bar-toggle props)}
-       [:div [:i {:class "fa fa-fw fa-shopping-cart"}] "Orders"]]]]))
-
-(defn TabContent
-  "TabContent component, presumably controlled by a Tab component.
-  props is:
-  {
-  :toggle ; reagent atom, boolean
-  }
-  val in props is a reagent atom. When the val of :toggle is true, the content
-  is active and thus viewable. Otherwise, when the val of :toggle is false, the
-  content is not displayed."
-  [props content]
-  (fn [props content]
-    [:div {:class (str "tab-pane "
-                       (when @(:toggle props) "active"))}
-     content]))
-
+       [:div
+        (when (not (= @datastore/most-recent-order
+                      @datastore/last-acknowledged-order))
+          [:span {:class "fa-stack"}
+           [:i {:class "fa fa-circle fa-stack-2x text-danger"}]
+           [:i {:class "fa fa-stack-1x fa-inverse"}
+            (- (count @datastore/orders)
+               (count (filter
+                       #(<= (:target_time_start %)
+                            (:target_time_start
+                             @datastore/last-acknowledged-order))
+                       @datastore/orders)))]])
+        [:i {:class "fa fa-fw fa-shopping-cart"}]
+        "Orders"
+        ]]]]))
 
 ;; based on https://github.com/IronSummitMedia/startbootstrap-sb-admin
 (defn app
@@ -125,6 +139,7 @@
        [:div {:id "page-wrapper"
               :class "page-wrapper-color"}
         [:div {:class "container-fluid tab-content"}
+         ;; landing page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:dashboard-view])}
           [:div
@@ -154,21 +169,20 @@
                              :panel-class "panel-primary"
                              :icon-class  "fa-shopping-cart"
                              }])]]]]
+         ;; users panel
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:users-view])}
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
             [:h2 "Users tables go here"]
             ]]]
+         ;; orders panel
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:orders-view])}
           [:div
            [:div {:class "row"}
             [:div {:class "col-lg-12"}
-             [orders/orders-panel @datastore/orders]
-             ]]]
-          ]
-         ]]]
+             [orders/orders-panel @datastore/orders]]]]]]]]
       )))
 
 (defn init-landing

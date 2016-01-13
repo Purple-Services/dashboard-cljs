@@ -350,20 +350,6 @@
                          @error-message)])
        ])))
 
-(defn order-cancel
-  "props is:
-  {
-  :editing? ; r/atom, boolean
-  :order    ; order
-  }"
-  [props]
-  (fn [{:keys [editing? order]} props]
-    (when editing?
-      [:button {:type "button"
-                :class "btn btn-sm btn-default btn-danger"
-                :on-click #(.log js/console "cancel order")
-                }])))
-
 (defn order-panel
   "Display detailed and editable fields for an order"
   [current-order]
@@ -398,6 +384,12 @@
                   (or (s/blank? (:stripe_charge_id @current-order))
                       (not (:paid @current-order))))
            [:span {:class "text-danger"} "Payment declined!"])]
+        (when (not (s/blank? (:coupon_code @current-order)))
+          [:h5 [:span {:class "info-window-label"} "Coupon: "]
+           (:coupon_code @current-order)])
+        [:h5 [:span {:class "info-window-label"} "Gallons: "]
+         (str (:gallons @current-order) " (" (:gas_type @current-order)
+              " Octane)")]
         [:h5 [:span {:class "info-window-label"} "Order Placed: "]
          (unix-epoch->hrf (:target_time_start @current-order))]
         [:h5 [:span {:class "info-window-label"} "Delivery Time: "]
@@ -408,7 +400,7 @@
         (when (not (s/blank? (:special_instructions @current-order)))
           [:h5 [:span {:class "info-window-label"} "Special Instructions: "]
            (:special_instructions @current-order)])
-        [:h5 [:span {:class "info-window-label"} "Username: "]
+        [:h5 [:span {:class "info-window-label"} "Customer: "]
          (:customer_name @current-order)]
         [:h5 [:span {:class "info-window-label"} "Phone: "]
          (:customer_phone_number @current-order)]
@@ -421,6 +413,15 @@
               :style {:color (:zone-color @current-order)}}]
          " "
          (:address_street @current-order)]
+        [:h5
+         [:span {:class "info-window-label"} "Vehicle: "]
+         (str (:color (:vehicle @current-order))
+              " "
+              (:make (:vehicle @current-order))
+              " "
+              (:model (:vehicle @current-order)))]
+        [:h5 {:class "info-window-label"} "License Plate: "
+         (:license_plate @current-order)]
         (when (:etas @current-order)
           [:h5
            [:span {:class "info-window-label"} "ETAs: "]
@@ -446,7 +447,7 @@
   (fn [selected-filter]
     [:div {:class "btn-group"
            :role "group"
-           :aria-label "order"}
+           :aria-label "filter group"}
      [:button {:type "button"
                :class
                (str "btn btn-default "
@@ -463,6 +464,64 @@
                       "active"))
                :on-click #(reset! selected-filter "declined")}
       "Declined Payments"]]))
+
+(defn refresh-button
+  []
+  (let [saving? (r/atom false)]
+    (fn []
+      [:button
+       {:type "button"
+        :class "btn btn-default"
+        :on-click
+        #(when (not @saving?)
+           (reset! saving? true)
+           (retrieve-url
+            (str base-url "orders-since-date")
+            "POST"
+            (js/JSON.stringify
+             (clj->js
+              ;; just retrieve the last 20 days worth of orders
+              {:date (-> (js/moment)
+                         (.subtract 30 "days")
+                         (.format "YYYY-MM-DD"))}))
+            (partial xhrio-wrapper
+                     (fn [response]
+                       (let [orders (js->clj response
+                                             :keywordize-keys true)]
+                         (when (> (count orders)
+                                  0)
+                           ;; update the orders atom
+                           (put! datastore/modify-data-chan
+                                 {:topic "orders"
+                                  :data orders})
+                           ;; update the most recent order atom
+                           (reset! datastore/most-recent-order
+                                   (last (sort-by
+                                          :target_time_start orders)))
+                           ;; update the most last-acknowledged-order atom
+                           (reset! datastore/last-acknowledged-order
+                                   @datastore/most-recent-order)
+                           (reset! saving? false)))))
+            ))}
+       [:i {:class (str "fa fa-lg fa-refresh "
+                        (when @saving?
+                          "fa-pulse"))}]])))
+
+(defn new-orders-button
+  []
+  (fn []
+    (let [new-orders (- (count @datastore/orders)
+                        (count (filter
+                                #(<= (:target_time_start %)
+                                     (:target_time_start
+                                      @datastore/last-acknowledged-order))
+                                @datastore/orders)))]
+      [:button {:type "button"
+                :class "btn btn-default"
+                :on-click
+                #(reset! datastore/last-acknowledged-order
+                         @datastore/most-recent-order)}
+       (str "View " new-orders " New Orders")])))
 
 (defn orders-panel
   "Display a table of selectable orders with an indivdual order panel
@@ -483,8 +542,11 @@
                                    (= (:status order) "complete")
                                    (> (:total_price order))))
                             :else (fn [order] true))
-
-            sorted-orders (->> orders
+            displayed-orders (filter #(<= (:target_time_start %)
+                                          (:target_time_start
+                                           @datastore/last-acknowledged-order))
+                                     orders)
+            sorted-orders (->> displayed-orders
                                sort-fn
                                (filter filter-fn))]
         (when (nil? @current-order)
@@ -493,7 +555,17 @@
          [:div {:class "panel-body"}
           [order-panel current-order]
           [:h3 "Orders"]
-          [orders-filter selected-filter]]
+          [:div {:class "btn-toolbar"
+                 :role "toolbar"
+                 :aria-label "Toolbar with button groups"}
+           [orders-filter selected-filter]
+           [:div {:class "btn-group"
+                  :role "group"
+                  :aria-label "refresh group"}
+            (when (not (= @datastore/most-recent-order
+                          @datastore/last-acknowledged-order))
+              [new-orders-button])
+            [refresh-button]]]]
          [:div {:class "table-responsive"}
           [StaticTable
            {:table-header [order-table-header {:sort-keyword sort-keyword
