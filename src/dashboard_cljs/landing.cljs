@@ -97,11 +97,13 @@
       [Tab {:toggle-key :dashboard-view
             :toggle (:tab-content-toggle props)
             :side-bar-toggle (:side-bar-toggle props)}
-       [:div [:i {:class "fa fa-home fa-fw"}] "Home"]]
+       [:div ;;[:i {:class "fa fa-home fa-fw"}]
+        "Home"]]
       [Tab {:toggle-key :users-view
             :toggle (:tab-content-toggle props)
             :side-bar-toggle (:side-bar-toggle props)}
-       [:div [:i {:class "fa fa-fw fa-users"}] "Users"]]
+       [:div ;;[:i {:class "fa fa-fw fa-users"}]
+        "Users"]]
       [Tab {:default? true
             :toggle-key :orders-view
             :toggle (:tab-content-toggle props)
@@ -118,9 +120,8 @@
                             (:target_time_start
                              @datastore/last-acknowledged-order))
                        @datastore/orders)))]])
-        [:i {:class "fa fa-fw fa-shopping-cart"}]
-        "Orders"
-        ]]]]))
+        ;;[:i {:class "fa fa-fw fa-shopping-cart"}]
+        "Orders"]]]]))
 
 ;; based on https://github.com/IronSummitMedia/startbootstrap-sb-admin
 (defn app

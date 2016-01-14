@@ -350,6 +350,36 @@
                          @error-message)])
        ])))
 
+(defn get-etas-button
+  "Given an order atom, refresh it with values from the server"
+  [order]
+  (let [retrieving? (r/atom false)]
+    (fn [order]
+      (let [get-etas (fn [order]
+                       (retrieve-url
+                        (str base-url "order")
+                        "POST"
+                        (js/JSON.stringify
+                         (clj->js
+                          {:id (:id @order)}))
+                          (partial xhrio-wrapper
+                                   (fn [r]
+                                     (let [response (js->clj r :keywordize-keys
+                                                             true)
+                                           new-order (first response)]
+                                       (reset! retrieving? false)
+                                       (when new-order
+                                         (reset! order new-order)))))))]
+        [:button {:type "button"
+                  :class "btn btn-default btn-xs"
+                  :on-click #(when (not @retrieving?)
+                               (reset! retrieving? true)
+                               (get-etas order))}
+         (if @retrieving?
+           [:i {:class "fa fa-lg fa-refresh fa-pulse "}]
+           "Get ETAs")]
+        ))))
+
 (defn order-panel
   "Display detailed and editable fields for an order"
   [current-order]
@@ -371,6 +401,7 @@
                              (:id (first couriers)))
           order-status (:status @current-order)
           ]
+      ;; populate the current order with additional information
       [:div {:class "panel-body"}
        [:h3 "Order Details"]
        [:div
@@ -447,16 +478,20 @@
         [:h5 {:class "info-window-label"} "License Plate: "
          (:license_plate @current-order)]
         ;; ETAs
-        (when (:etas @current-order)
+        (when (contains? #{"unassigned" "assigned" "accepted" "enroute"}
+                         (:status @current-order))
           [:h5
            [:span {:class "info-window-label"} "ETAs: "]
-           (map (fn [eta]
-                  ^{:key (:name eta)}
-                  [:p (str (:name eta) " - ")
-                   [:strong {:class (when (:busy eta)
-                                      "text-danger")}
-                    (:minutes eta)]])
-                (sort-by :minutes (:etas @current-order)))])
+           ;; get etas button
+           [get-etas-button current-order]
+           (when (:etas @current-order)
+             (map (fn [eta]
+                    ^{:key (:name eta)}
+                    [:p (str (:name eta) " - ")
+                     [:strong {:class (when (:busy eta)
+                                        "text-danger")}
+                      (:minutes eta)]])
+                  (sort-by :minutes (:etas @current-order))))])
         ;; assigned courier display and editing
         [order-courier-comp {:editing? editing-assignment?
                              :assigned-courier assigned-courier
