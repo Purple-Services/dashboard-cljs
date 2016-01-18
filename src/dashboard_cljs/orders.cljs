@@ -5,7 +5,7 @@
             [reagent.core :as r]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->hrf base-url
-                                          cents->dollars]]
+                                          cents->dollars json-string->clj]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps]]
             ))
@@ -259,8 +259,27 @@
          ]))))
 
 
+(defn refresh-order!
+  "Given an order, retrieve its information from the server. Call
+  order-fn on the resulting new-order if there is one."
+  [order order-fn]
+  (retrieve-url
+   (str base-url "order")
+   "POST"
+   (js/JSON.stringify
+    (clj->js
+     {:id (:id @order)}))
+   (partial xhrio-wrapper
+            (fn [r]
+              (let [response (js->clj r :keywordize-keys
+                                      true)
+                    new-order (first response)]
+                (when new-order
+                  (order-fn new-order)
+                  ))))))
+
 (defn update-status
-  [order status error-message]
+  [order status error-message retrieving?]
   (retrieve-url
    (str base-url "update-status")
    "POST"
@@ -276,17 +295,22 @@
                                          "complete"    nil
                                          "cancelled"   nil}]
                 (when (:success response)
-                  (let [updated-order
-                        (assoc
-                         @order
-                         :status (status->next-status status))]
-                    (reset! order updated-order)
-                    (reset! error-message "")
-                    (put! datastore/modify-data-chan
-                          {:topic "orders"
-                           :data #{updated-order}})))
+                  (refresh-order! order
+                                  (fn [new-order]
+                                    ;; reset the order
+                                    (reset! order new-order)
+                                    ;; reset the order in the table
+                                    (put! datastore/modify-data-chan
+                                          {:topic "orders"
+                                           :data #{new-order}})
+                                    ;; no longer retrieving
+                                    (reset! retrieving? false)
+                                    )))
                 (when (not (:success response))
-                  (reset! error-message (:message response))))))))
+                  ;; give an error message
+                  (reset! error-message (:message response))
+                  ;; no longer retrieving
+                  (reset! retrieving? false)))))))
 
 (defn cancel-order
   [order error-message]
@@ -321,7 +345,8 @@
   :order           ; ratom, currently selected order
   }"
   [props]
-  (let [error-message (r/atom "")]
+  (let [error-message (r/atom "")
+        retrieving? (r/atom false)]
     (fn [{:keys [editing? status order]}
          props]
       [:h5 [:span {:class "info-window-label"} "Status: "]
@@ -331,11 +356,16 @@
                             status)
          [:button {:type "button"
                    :class "btn btn-xs btn-default"
-                   :on-click #(update-status order status error-message)}
-          ({"accepted" "Start Route"
-            "enroute" "Begin Servicing"
-            "servicing" "Complete Order"}
-           status)])
+                   :on-click #(when (not @retrieving?)
+                                (reset! retrieving? true)
+                                (update-status order status error-message
+                                               retrieving?))}
+          (if (not @retrieving?)
+            ({"accepted" "Start Route"
+              "enroute" "Begin Servicing"
+              "servicing" "Complete Order"}
+             status)
+            [:i {:class "fa fa-spinner fa-pulse"}])])
        " "
        ;; cancel button
        (when
@@ -363,14 +393,14 @@
                         (js/JSON.stringify
                          (clj->js
                           {:id (:id @order)}))
-                          (partial xhrio-wrapper
-                                   (fn [r]
-                                     (let [response (js->clj r :keywordize-keys
-                                                             true)
-                                           new-order (first response)]
-                                       (reset! retrieving? false)
-                                       (when new-order
-                                         (reset! order new-order)))))))]
+                        (partial xhrio-wrapper
+                                 (fn [r]
+                                   (let [response (js->clj r :keywordize-keys
+                                                           true)
+                                         new-order (first response)]
+                                     (reset! retrieving? false)
+                                     (when new-order
+                                       (reset! order new-order)))))))]
         [:button {:type "button"
                   :class "btn btn-default btn-xs"
                   :on-click #(when (not @retrieving?)
@@ -413,7 +443,7 @@
                                             :lng (:lng @current-order)
                                             }
                                            :map (second (get-cached-gmaps :test))
-                                            }))))
+                                           }))))
         ;; populate the current order with additional information
         [:div {:class "panel-body"}
          [:h3 "Order Details"]
@@ -437,6 +467,16 @@
                     (or (s/blank? (:stripe_charge_id @current-order))
                         (not (:paid @current-order))))
              [:span {:class "text-danger"} "Payment declined!"])]
+          ;; payment info
+          (let [payment-info (json-string->clj (:payment_info @current-order))]
+            (when (not (nil? payment-info))
+              [:h5 [:span {:class "info-window-label"} "Payment Info: "]
+               (:brand payment-info)
+               " "
+               (:last4 payment-info)
+               " "
+               (:exp_month payment-info) "/" (:exp_year payment-info)
+               ]))
           ;; coupon code
           (when (not (s/blank? (:coupon_code @current-order)))
             [:h5 [:span {:class "info-window-label"} "Coupon: "]
@@ -499,6 +539,8 @@
           [:h5 {:class "info-window-label"} "License Plate: "
            (:license_plate @current-order)]
           ;; ETAs
+          ;; note: the server only populates ETA values when the orders
+          ;; are: "unassigned" "assigned" "accepted" "enroute"
           (when (contains? #{"unassigned" "assigned" "accepted" "enroute"}
                            (:status @current-order))
             [:h5

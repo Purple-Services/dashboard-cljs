@@ -34,6 +34,11 @@
 (def base-url (-> (.getElementById js/document "base-url")
                   (.getAttribute "value")))
 
+(defn json-string->clj
+  "Convert a JSON string to a clj object"
+  [s]
+  (js->clj (JSON.parse s) :keywordize-keys true))
+
 ;; widely published fn,
 ;; see:
 ;; https://dzone.com/articles/clojure-apply-function-each
