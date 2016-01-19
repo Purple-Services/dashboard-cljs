@@ -3,7 +3,7 @@
             [clojure.string :as s]
             [cljsjs.moment]
             [dashboard-cljs.utils :refer [base-url update-values]]
-            [dashboard-cljs.components :refer [count-panel]]
+            [dashboard-cljs.components :refer [CountPanel]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.orders :as orders]
             [dashboard-cljs.utils :refer [unix-epoch->hrf]]
@@ -191,7 +191,7 @@
                                                 (complete-time %)))
                                        (filter #(>= (:time-completed %)
                                                     today-begin)))))]
-               [count-panel {:data (new-orders @datastore/orders)
+               [CountPanel {:data (new-orders @datastore/orders)
                              :description "completed orders today!"
                              :panel-class "panel-primary"
                              :icon-class  "fa-shopping-cart"
