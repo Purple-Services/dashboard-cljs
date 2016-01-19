@@ -14,7 +14,7 @@
 ;; We store references to Google Maps objects
 ;; and DOM nodes they are rendered to because there is
 ;; memory leak in API, which causes serious damage with React
-;; See more: https://code.google.com/p/gmaps-api-issues/issues/detail?id=3803
+;; See: https://code.google.com/p/gmaps-api-issues/issues/detail?id=3803
 (defonce instances (atom {}))
 
 (defn create-cached-gmaps
@@ -49,8 +49,8 @@
                      (.log js/console "Updating, component props:" (r/props this))
                      (let [{center :center} (r/props this)
                            latlng (create-latlng center)]
-                       (.panTo gmaps-obj latlng)))]
-
+                       ;;(.panTo gmaps-obj latlng)
+                       (.setCenter gmaps-obj latlng)))]
     (r/create-class
       {:display-name "gmaps-inner-stateful"
 

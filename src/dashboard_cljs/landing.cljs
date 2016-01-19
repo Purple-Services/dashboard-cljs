@@ -7,6 +7,7 @@
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.orders :as orders]
             [dashboard-cljs.utils :refer [unix-epoch->hrf]]
+            [dashboard-cljs.googlemaps :refer [get-cached-gmaps]]
             ))
 
 (defn top-navbar-comp
@@ -58,7 +59,24 @@
                  (.preventDefault %)
                  (swap! (:toggle props) update-values (fn [el] false))
                  (swap! (:toggle props) assoc (:toggle-key props) true)
-                 (reset! (:side-bar-toggle props) false))
+                 (reset! (:side-bar-toggle props) false)
+                 ;; reset the google map
+                 ;; there is a problem with google maps rendering when divs are
+                 ;; not visible on page
+                 ;; see: http://stackoverflow.com/questions/10197128/google-maps-api-v3-not-rendering-competely-on-tabbed-page-using-twitters-bootst?lq=1
+                 ;; http://stackoverflow.com/questions/1428178/problems-with-google-maps-api-v3-jquery-ui-tabs?rq=1
+                 ;; a call to a function is too fast, must be delayed slightly
+                 (js/setTimeout (fn []
+                                  ;; when google maps does a resize, it
+                                  ;; changes its center ever so-slightly
+                                  ;; therefore, the current center is cached
+                                  ;; see: http://stackoverflow.com/questions/8558226/recenter-a-google-map-after-container-changed-width
+                                  (let [gmap (second (get-cached-gmaps :test))
+                                        center (.getCenter gmap)]
+                                    (js/google.maps.event.trigger gmap
+                                                                  "resize")
+                                    (.setCenter gmap center)))
+                                300))
               :href "#"
               :class
               (str (when ((:toggle-key props) @(:toggle props)) "active"))
@@ -99,12 +117,19 @@
             :side-bar-toggle (:side-bar-toggle props)}
        [:div ;;[:i {:class "fa fa-home fa-fw"}]
         "Home"]]
-      [Tab {:toggle-key :users-view
+      [Tab {:default? true
+            :toggle-key :couriers-view
+            :toggle (:tab-content-toggle props)
+            :side-bar-toggle (:side-bar-toggle props)}
+       [:div
+        "Couriers"]]
+      [Tab {
+            :toggle-key :users-view
             :toggle (:tab-content-toggle props)
             :side-bar-toggle (:side-bar-toggle props)}
        [:div ;;[:i {:class "fa fa-fw fa-users"}]
         "Users"]]
-      [Tab {:default? true
+      [Tab {:default? false
             :toggle-key :orders-view
             :toggle (:tab-content-toggle props)
             :side-bar-toggle (:side-bar-toggle props)}
@@ -127,6 +152,7 @@
 (defn app
   []
   (let [tab-content-toggle (r/atom {:dashboard-view false
+                                    :couriers-view false
                                     :users-view false
                                     :orders-view false})
         side-bar-toggle (r/atom false)]
@@ -170,14 +196,20 @@
                              :panel-class "panel-primary"
                              :icon-class  "fa-shopping-cart"
                              }])]]]]
-         ;; users panel
+         ;; couriers page
+         [TabContent
+          {:toggle (r/cursor tab-content-toggle [:couriers-view])}
+          [:div {:class "row"}
+           [:div {:class "col-lg-12"}
+            "Couriers table will go here"]]]
+         ;; users page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:users-view])}
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
             [:h2 "Users tables go here"]
             ]]]
-         ;; orders panel
+         ;; orders page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:orders-view])}
           [:div
