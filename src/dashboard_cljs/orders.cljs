@@ -3,7 +3,8 @@
             [cljsjs.moment]
             [clojure.string :as s]
             [reagent.core :as r]
-            [dashboard-cljs.components :refer [StaticTable TableHeadSortable]]
+            [dashboard-cljs.components :refer [StaticTable TableHeadSortable
+                                               RefreshButton ErrorComp]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->hrf base-url
                                           cents->dollars json-string->clj]]
@@ -50,10 +51,10 @@
      [:td (:customer_phone_number order)]
      ;; email #
      [:td (:email order)]
-     ;; stree address
+     ;; street address
      [:td
       [:i {:class "fa fa-circle"
-           :style {:color (:zone-color @current-order)}}]
+           :style {:color (:zone-color order)}}]
       (:address_street order)]]))
 
 
@@ -116,14 +117,6 @@
          {:value (:id courier)}
          (:name courier)])
       couriers)]))
-
-(defn ErrorComp
-  [error-message]
-  (fn [error-messsage]
-    [:div {:class "alert alert-danger"
-           :role "alert"}
-     [:span {:class "sr-only"} "Error:"]
-     error-message]))
 
 (defn assign-courier
   [editing? order selected-courier couriers error]
@@ -398,7 +391,7 @@
                                            {:lat (:lat @current-order)
                                             :lng (:lng @current-order)
                                             }
-                                           :map (second (get-cached-gmaps :test))
+                                           :map (second (get-cached-gmaps :orders))
                                            }))))
         ;; populate the current order with additional information
         [:div {:class "panel-body"}
@@ -406,7 +399,7 @@
          ;; google map
          [:div {:class "row"}
           [:div {:class "col-xs-9"}
-           [gmap {:id :test
+           [gmap {:id :orders
                   :style {:height 300
                           :width 300}
                   :center {:lat (:lat @current-order)
@@ -545,48 +538,6 @@
                :on-click #(reset! selected-filter "declined")}
       "Declined Payments"]]))
 
-(defn refresh-button
-  []
-  (let [saving? (r/atom false)]
-    (fn []
-      [:button
-       {:type "button"
-        :class "btn btn-default"
-        :on-click
-        #(when (not @saving?)
-           (reset! saving? true)
-           (retrieve-url
-            (str base-url "orders-since-date")
-            "POST"
-            (js/JSON.stringify
-             (clj->js
-              ;; just retrieve the last 20 days worth of orders
-              {:date (-> (js/moment)
-                         (.subtract 30 "days")
-                         (.format "YYYY-MM-DD"))}))
-            (partial xhrio-wrapper
-                     (fn [response]
-                       (let [orders (js->clj response
-                                             :keywordize-keys true)]
-                         (when (> (count orders)
-                                  0)
-                           ;; update the orders atom
-                           (put! datastore/modify-data-chan
-                                 {:topic "orders"
-                                  :data orders})
-                           ;; update the most recent order atom
-                           (reset! datastore/most-recent-order
-                                   (last (sort-by
-                                          :target_time_start orders)))
-                           ;; update the most last-acknowledged-order atom
-                           (reset! datastore/last-acknowledged-order
-                                   @datastore/most-recent-order)
-                           (reset! saving? false)))))
-            ))}
-       [:i {:class (str "fa fa-lg fa-refresh "
-                        (when @saving?
-                          "fa-pulse"))}]])))
-
 (defn new-orders-button
   []
   (fn []
@@ -628,7 +579,40 @@
                                      orders)
             sorted-orders (->> displayed-orders
                                sort-fn
-                               (filter filter-fn))]
+                               (filter filter-fn))
+            refresh-fn (fn [saving?]
+                         (reset! saving? true)
+                         (retrieve-url
+                          (str base-url "orders-since-date")
+                          "POST"
+                          (js/JSON.stringify
+                           (clj->js
+                            ;; just retrieve the last 20 days worth of orders
+                            {:date (-> (js/moment)
+                                       (.subtract 30 "days")
+                                       (.format "YYYY-MM-DD"))}))
+                          (partial
+                           xhrio-wrapper
+                           (fn [response]
+                             (let [orders (js->clj
+                                           response
+                                           :keywordize-keys true)]
+                               (when (> (count orders)
+                                        0)
+                                 ;; update the orders atom
+                                 (put! datastore/modify-data-chan
+                                       {:topic "orders"
+                                        :data orders})
+                                 ;; update the most recent order atom
+                                 (reset! datastore/most-recent-order
+                                         (last
+                                          (sort-by
+                                           :target_time_start orders)))
+                                 ;; update the most
+                                 ;; last-acknowledged-order atom
+                                 (reset! datastore/last-acknowledged-order
+                                         @datastore/most-recent-order)
+                                 (reset! saving? false)))))))]
         (when (nil? @current-order)
           (reset! current-order (first sorted-orders)))
         [:div {:class "panel panel-default"}
@@ -645,7 +629,9 @@
             (when (not (= @datastore/most-recent-order
                           @datastore/last-acknowledged-order))
               [new-orders-button])
-            [refresh-button]]]]
+            [RefreshButton {:refresh-fn
+                            refresh-fn}]
+            ]]]
          [:div {:class "table-responsive"}
           [StaticTable
            {:table-header [order-table-header {:sort-keyword sort-keyword

@@ -74,3 +74,50 @@
                         (if @(:sort-reversed? props)
                           "fa-angle-down"
                           "fa-angle-up"))}])]))
+(defn RefreshButton
+  "props is:
+  {
+  :refresh-fn ; fn, called when the refresh button is pressed
+              ; is a function of refreshing? which is essentially
+              ; just the status of the button
+  }"
+  [props]
+  (let [refreshing? (r/atom false)]
+    (fn [props]
+      [:button
+       {:type "button"
+        :class "btn btn-default"
+        :on-click
+        #(when (not @refreshing?)
+           ((:refresh-fn props) refreshing?))}
+       [:i {:class (str "fa fa-lg fa-refresh "
+                        (when @refreshing?
+                          "fa-pulse"))}]])))
+
+(defn KeyVal
+  "Display key and val"
+  [key val]
+  (fn [key val]
+    [:h5 [:span {:class "info-window-label"}
+          (str key ": ")]
+     val]))
+
+(defn StarRating
+  "Given n, display the star rating. The value of n is assumed to be within
+  the range of 0-5"
+  [n]
+  (fn [n]
+    [:div
+     (for [x (range n)]
+       ^{:key x} [:i {:class "fa fa-star fa-lg"}])
+     (for [x (range (- 5 n))]
+       ^{:key x} [:i {:class "fa fa-star-o fa-lg"}])]))
+
+(defn ErrorComp
+  "Given an error message, display it in an alert box"
+  [error-message]
+  (fn [error-messsage]
+    [:div {:class "alert alert-danger"
+           :role "alert"}
+     [:span {:class "sr-only"} "Error:"]
+     error-message]))

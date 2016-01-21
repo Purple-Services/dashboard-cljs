@@ -96,11 +96,16 @@
 (def modify-data-chan (chan))
 (def read-data-chan (pub modify-data-chan :topic))
 
+;; orders
 (def orders (r/atom #{}))
 (def most-recent-order (r/atom {}))
 (def last-acknowledged-order (r/atom {}))
 
+;; couriers
 (def couriers (r/atom #{}))
+
+;; users
+(def users (r/atom #{}))
 
 (defn init-datastore
   "Initialize the datastore for the app. Should be called once when launching
@@ -165,4 +170,17 @@
                 (put! modify-data-chan
                       {:topic "couriers"
                        :data (:couriers (js->clj response :keywordize-keys
-                                                 true))}))))))
+                                                 true))}))))
+    ;; users data channel
+    (sync-state! users (sub read-data-chan "users" (chan)))
+    ;; initialize users
+    (retrieve-url
+     (str base-url "users")
+     "GET"
+     {}
+     (partial xhrio-wrapper
+              (fn [response]
+                (put! modify-data-chan
+                      {:topic "users"
+                       :data (js->clj response :keywordize-keys
+                                      true)}))))))

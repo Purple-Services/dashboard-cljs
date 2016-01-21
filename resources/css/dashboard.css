@@ -53,3 +53,11 @@ tbody > tr.active > td {
     cursor: pointer;
     text-decoration: none;
 }
+
+.courier-active {
+    color: #00ff00;
+}
+
+.courier-inactive {
+    color: #ff0000;
+}

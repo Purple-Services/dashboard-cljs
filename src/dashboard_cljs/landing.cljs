@@ -6,6 +6,8 @@
             [dashboard-cljs.components :refer [CountPanel]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.orders :as orders]
+            [dashboard-cljs.couriers :as couriers]
+            [dashboard-cljs.users :as users]
             [dashboard-cljs.utils :refer [unix-epoch->hrf]]
             [dashboard-cljs.googlemaps :refer [get-cached-gmaps]]
             ))
@@ -71,12 +73,21 @@
                                   ;; changes its center ever so-slightly
                                   ;; therefore, the current center is cached
                                   ;; see: http://stackoverflow.com/questions/8558226/recenter-a-google-map-after-container-changed-width
-                                  (let [gmap (second (get-cached-gmaps :test))
+                                  (let [gmap (second (get-cached-gmaps :orders))
                                         center (.getCenter gmap)]
                                     (js/google.maps.event.trigger gmap
                                                                   "resize")
                                     (.setCenter gmap center)))
-                                300))
+                                300)
+                 (js/setTimeout (fn []
+                                  (let [gmap (second (get-cached-gmaps :couriers))
+                                        center (.getCenter gmap)]
+                                    (js/google.maps.event.trigger gmap
+                                                                  "resize")
+                                    (.setCenter gmap center)))
+                                300)
+
+                 )
               :href "#"
               :class
               (str (when ((:toggle-key props) @(:toggle props)) "active"))
@@ -201,13 +212,14 @@
           {:toggle (r/cursor tab-content-toggle [:couriers-view])}
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
-            "Couriers table will go here"]]]
+            [couriers/couriers-panel @datastore/couriers]]]]
          ;; users page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:users-view])}
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
-            [:h2 "Users tables go here"]
+            ;;[:h2 "Users tables go here"]
+            [users/users-panel @datastore/users]
             ]]]
          ;; orders page
          [TabContent
