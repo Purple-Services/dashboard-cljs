@@ -383,8 +383,7 @@
                             {:sort-keyword sort-keyword
                              :sort-reversed? sort-reversed?}]
              :table-row (courier-orders-row)}
-            sorted-orders]]]]
-        ))))
+            sorted-orders]]]]))))
 
 (defn couriers-panel
   "Display a table of selectable couriers with an indivdual courier panel
