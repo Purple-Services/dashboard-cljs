@@ -20,8 +20,7 @@
    3 "Seattle"})
 
 (defn courier-row
-  "A table row for an courier in a table. current-courier is the one currently 
-  being viewed"
+  "A table row for an courier in a table. current-courier is an r/atom."
   [current-courier]
   (fn [courier]
     [:tr {:class (when (= (:id courier)
@@ -137,25 +136,15 @@
           [StarRating number-rating]))]]))
 
 
-;; (defn EditableText
-;;   "props is:
-;;   {
-;;   :editing?        ; r/atom bool, is the field being edited
-;;   :retrieving?     ; r/atom bool, is the field being retrieved?
-;;   :error-message   ; r/atom bool, the current error message
-;;   :current-input   ; r/atom string, the input in the field
-;;   }"
-;;   [props]
-;;   (fn [{:keys editing? retrieving? error-message current-input}]
-    
-;;     ))
-
 (defn save-button
   "props is:
-  {}"
+  {
+  :editing?    ; ratom boolean, is the field currently being edited?
+  :retrieving? ; ratom boolean, is the data being retrieved?
+  :on-click    ; fn, button on-click fn
+  }"
   [props]
   (fn [{:keys [editing? retrieving? on-click]}]
-    ;;(.log js/console "save-button editing?: " (clj->js @editing?))
     ;; save/edit button
     [:button {:type "button"
               :class "btn btn-xs btn-default"
@@ -170,7 +159,11 @@
 
 (defn text-input
   "props is:
-  {}"
+  {
+  :error?        ; boolean, is there an error for the field?
+  :default-value ; str, defaultValue for field
+  :on-change     ; fn, fn for handling on-change events
+  }"
   [props]
   (fn [{:keys [error? default-value on-change]}]
     [:input {:type "text"
@@ -184,21 +177,21 @@
   "Component to edit a courier's assigned zones
   props is:
   {
-  :editing?         ; ratom, is the field currently being edited?
-  :zones            ; zones the courier is currently assigned to
+  :editing?         ; ratom boolean, is the field currently being edited?
+  :input-value      ; ratom str, the current input-value
+  :error-message    ; ratom str, error message, if any, associated with input
   :courier          ; ratom, currently selected courier
   }
   "
   [props]
-  (let [;;editing? (r/atom false)
-        ;;error-message (r/atom "")
-        retrieve-courier (fn [editing? retrieving? courier]
+  (let [retrieve-courier (fn [editing? retrieving? courier]
                          (retrieve-url
                           (str base-url "courier/" (:id @courier))
                           "GET"
                           {}
                           (partial xhrio-wrapper
-                                   #(let [response (js->clj % :keywordize-keys true)]
+                                   #(let [response (js->clj % :keywordize-keys
+                                                            true)]
                                       ;; no longer retrieving
                                       (reset! retrieving? false)
                                       ;; the response is valid
@@ -208,8 +201,7 @@
                                               {:topic "couriers"
                                                :data response})
                                         ;; update the courier
-                                        (reset! courier (first response))
-                                        )
+                                        (reset! courier (first response)))
                                       ;; there was an error
                                       (when (:success response))))))
         update-courier (fn [editing? retrieving? error-message retrieve-courier
@@ -260,8 +252,7 @@
                                  (let [input-val (-> e
                                                      (aget "target")
                                                      (aget "value"))]
-                                   (reset! input-value input-val))))
-        ]
+                                   (reset! input-value input-val))))]
     (fn [{:keys [editing?
                  input-value
                  error-message
@@ -297,7 +288,8 @@
 
 
 (defn courier-panel
-  "Display detailed and editable fields for an courier"
+  "Display detailed and editable fields for an courier. current-courier is an
+  r/atom"
   [current-courier]
   (let [google-marker (atom nil)
         sort-keyword (r/atom :target_time_start)
@@ -324,7 +316,6 @@
                               (:courier_id order)))))
             sorted-orders (->> orders
                                sort-fn)]
-        ;;(.log js/console "courier-panel rendered")
         ;; create and insert courier marker
         (when (:lat @current-courier)
           (when @google-marker
@@ -396,8 +387,8 @@
         ))))
 
 (defn couriers-panel
-  "Display a table of selectable coureirs with an indivdual courier panel
-  for the selected courier"
+  "Display a table of selectable couriers with an indivdual courier panel
+  for the selected courier. couriers is set of couriers"
   [couriers]
   (let [current-courier (r/atom nil)
         sort-keyword (r/atom :timestamp_created)
