@@ -18,9 +18,9 @@
   []
   (gmaps/init-map-couriers))
 
-(defn ^:export init-map-coverage-map
-  []
-  (gmaps/init-map-coverage-map))
+;; (defn ^:export init-map-coverage-map
+;;   []
+;;   (gmaps/init-map-coverage-map))
 
 (defn ^:export login
   []

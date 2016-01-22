@@ -1,4 +1,4 @@
-(ns dashboard-cljs.core
+(ns dashboard-cljs.gmaps
   (:require [crate.core :as crate]
             [goog.net.XhrIo :as xhr]
             [goog.object]

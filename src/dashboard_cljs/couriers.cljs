@@ -44,17 +44,17 @@
      [:td (unix-epoch->fmt (:timestamp_created courier) "M/D/YYYY")]
      ;; status
      [:td
-      (let [active? (:active courier)]
+      (let [connected? (:connected courier)]
         [:div
          [:i {:class
               (str "fa fa-circle "
-                   (if active?
+                   (if connected?
                      "courier-active"
                      "courier-inactive"
                      ))}]
-         (if active?
-           " Active"
-           " Inactive")])]]))
+         (if connected?
+           " Connected"
+           " Disconnected")])]]))
 
 (defn courier-table-header
   "props is:
@@ -80,7 +80,7 @@
        (conj props {:keyword :timestamp_created})
        "Joined"] 
       [TableHeadSortable
-       (conj props {:keyword :active})
+       (conj props {:keyword :connected})
        "Status"]]]))
 
 (defn courier-orders-header
@@ -192,8 +192,6 @@
                           (partial xhrio-wrapper
                                    #(let [response (js->clj % :keywordize-keys
                                                             true)]
-                                      ;; no longer retrieving
-                                      (reset! retrieving? false)
                                       ;; the response is valid
                                       (when (not (empty? response))
                                         ;; update the datastore
@@ -201,7 +199,11 @@
                                               {:topic "couriers"
                                                :data response})
                                         ;; update the courier
-                                        (reset! courier (first response)))
+                                        (reset! courier (first response))
+                                        ;; no longer retrieving
+                                        (reset! retrieving? false)
+                                        ;; no longer editing
+                                        (reset! editing? false))
                                       ;; there was an error
                                       (when (:success response))))))
         update-courier (fn [editing? retrieving? error-message retrieve-courier
@@ -217,7 +219,7 @@
                                                             true)]
                                       (when (:success response)
                                         ;; no longer editing courier
-                                        (reset! editing? false)
+                                        ;;(reset! editing? false)
                                         (retrieve-courier editing? retrieving?
                                                           courier))
                                       (when (not (:success response))
