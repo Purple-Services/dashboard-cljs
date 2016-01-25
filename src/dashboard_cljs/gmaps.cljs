@@ -18,10 +18,8 @@
                   {:zones-display {:selected? true}
                    :zones-zips-display {:selected? true}}
                   :google-map nil
-                  :from-date (-> (js/moment)
-                                 (.subtract 30 "days")
-                                 (.format "YYYY-MM-DD"))
-                  :to-date   (.format (js/moment) "YYYY-MM-DD")
+                  :from-date nil
+                  :to-date nil
                   :status
                   {:unassigned {:color "#ff0000"
                                 :selected? true}
@@ -335,10 +333,9 @@
 (defn order-displayed?
   "Given the state, determine if an order should be displayed or not"
   [state order]
-  (let [from-date (.parse js/Date (:from-date @state))
-        order-date (aget order "timestamp_created")
-        to-date (+ (.parse js/Date (:to-date @state))
-                   (* 24 60 60 1000)) ; need to add 24 hours so day is included
+  (let [from-date (:from-date @state)
+        order-date (aget order "target_time_start")
+        to-date (:to-date @state)
         status  (aget order "status")
         status-selected? (get-in @state [:status (keyword status) :selected?])]
     (and
@@ -879,19 +876,31 @@
                               "format" "YYYY-MM-DD"
                               "onSelect"
                               %2))
-        from-input (date-picker-input (:from-date @state))
+        from-input (date-picker-input
+                    (->
+                     (.unix js/moment (:from-date @state))
+                     (.format "YYYY-MM-DD")))
         from-date-picker (date-picker from-input
                                       #(do
                                          (swap! state assoc :from-date
-                                                from-input.value)
+                                                (-> (js/moment
+                                                     from-input.value
+                                                     "YYYY-MM-DD")
+                                                    (.unix)))
                                          (display-selected-props!
                                           state (:orders @state)
                                           "circle"
                                           (partial order-displayed? state))))
-        to-input (date-picker-input (:to-date @state))
+        to-input (date-picker-input
+                  (-> (.unix js/moment (:to-date @state))
+                      (.format "YYYY-MM-DD")))
         to-date-picker (date-picker
                         to-input #(do
-                                    (swap! state assoc :to-date to-input.value)
+                                    (swap! state assoc :to-date
+                                           (-> (js/moment to-input.value
+                                                          "YYYY-MM-DD")
+                                               (.endOf "day")
+                                               (.unix)))
                                     (display-selected-props!
                                      state (:orders @state)
                                      "circle"
@@ -1053,6 +1062,21 @@
             (js-obj "center"
                     (js-obj "lat" 34.0714522 "lng" -118.40362)
                     "zoom" 12) ))
+     ;; set from-date as startOf today, 30 days ago
+    (swap! state
+           assoc
+           :from-date
+           (-> (js/moment)
+               (.startOf "day")
+               (.subtract 30 "days")
+               (.unix)))
+    ;; set to-date as endOf today
+    (swap! state
+           assoc
+           :to-date
+           (-> (js/moment)
+               (.endOf "day")
+               (.unix)))
     ;; add listener for when the map is zoomed
     (.addListener (:google-map @state) "zoom_changed"
                   #(mapv (partial scale-spatial-object-circle-radius!
@@ -1070,7 +1094,7 @@
                                          ])
                   js/google.maps.ControlPosition.LEFT_TOP)
     ;; initialize the orders
-    (init-orders! state "")
+    (init-orders! state (:from-date @state))
     ;; initalize the zones
     (init-zones! state)
     ;; poll the server and update orders
@@ -1089,6 +1113,20 @@
             (js-obj "center"
                     (get-in @state [:cities "Los Angeles" :coords])
                     "zoom" 12)))
+    ;; set from-date as startOf today
+    (swap! state
+           assoc
+           :from-date
+           (-> (js/moment)
+               (.startOf "day")
+               (.unix)))
+    ;; set to-date as endOf today
+    (swap! state
+           assoc
+           :to-date
+           (-> (js/moment)
+               (.endOf "day")
+               (.unix)))
     (swap! state assoc-in [:zones-control :zones-zips-display :selected?] false)
     ;; listener for map zoom
     (.addListener (:google-map @state) "zoom_changed"
@@ -1113,10 +1151,8 @@
                                          ])
                   js/google.maps.ControlPosition.LEFT_TOP)
     ;; initialize the orders
-    (init-orders! state ;;(.format (js/moment) "YYYY-MM-DD")
-                  (-> (js/moment)
-                      (.startOf "day")
-                      (.unix)))
+    (init-orders! state
+                  (:from-date @state))
     ;; initialize the couriers
     (init-couriers! state)
     ;; initialize the zones
