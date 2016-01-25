@@ -29,10 +29,14 @@
                       (continuous-update f n))
                  n))
 
-
-
 (def base-url (-> (.getElementById js/document "base-url")
                   (.getAttribute "value")))
+
+(def markets
+  {0 "Los Angeles"
+   1 "San Diego"
+   2 "Orange County"
+   3 "Seattle"})
 
 (defn json-string->clj
   "Convert a JSON string to a clj object"

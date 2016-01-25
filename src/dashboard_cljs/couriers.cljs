@@ -8,16 +8,10 @@
                                                RefreshButton KeyVal StarRating
                                                ErrorComp]]
             [dashboard-cljs.datastore :as datastore]
-            [dashboard-cljs.utils :refer [unix-epoch->fmt base-url]]
+            [dashboard-cljs.utils :refer [unix-epoch->fmt base-url markets]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [get-cached-gmaps gmap]]
             ))
-
-(def markets
-  {0 "Los Angeles"
-   1 "San Diego"
-   2 "Orange County"
-   3 "Seattle"})
 
 (defn courier-row
   "A table row for an courier in a table. current-courier is an r/atom."
@@ -369,13 +363,15 @@
            ]]
          ;; Table of orders for current courier
          [:div {:class "row"}
-          [:button {:type "button"
-                    :class "btn btn-sm btn-default"
-                    :on-click #(swap! show-orders? not)
-                    }
-           (if @show-orders?
-             "Hide Orders"
-             "Show Orders")]
+          (when (> (count sorted-orders)
+                   0)
+            [:button {:type "button"
+                      :class "btn btn-sm btn-default"
+                      :on-click #(swap! show-orders? not)
+                      }
+             (if @show-orders?
+               "Hide Orders"
+               "Show Orders")])
           [:div {:class "table-responsive"
                  :style (if @show-orders?
                           {}

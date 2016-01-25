@@ -301,7 +301,9 @@
       [:h5 [:span {:class "info-window-label"} "Status: "]
        (str status " ")
        ;; advance order button
-       (when-not (contains? #{"complete" "cancelled" "unassigned"}
+       ;; note: assigned should not be a status the server uses,
+       ;; see web-service/orders.clj
+       (when-not (contains? #{"complete" "cancelled" "unassigned" "assigned"}
                             status)
          [:button {:type "button"
                    :class "btn btn-xs btn-default"

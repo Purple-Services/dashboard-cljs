@@ -128,13 +128,13 @@
             :side-bar-toggle (:side-bar-toggle props)}
        [:div ;;[:i {:class "fa fa-home fa-fw"}]
         "Home"]]
-      [Tab {:default? true
+      [Tab {:default? false
             :toggle-key :couriers-view
             :toggle (:tab-content-toggle props)
             :side-bar-toggle (:side-bar-toggle props)}
        [:div
         "Couriers"]]
-      [Tab {
+      [Tab {:default? true
             :toggle-key :users-view
             :toggle (:tab-content-toggle props)
             :side-bar-toggle (:side-bar-toggle props)}
@@ -218,9 +218,8 @@
           {:toggle (r/cursor tab-content-toggle [:users-view])}
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
-            ;;[:h2 "Users tables go here"]
-            [users/users-panel @datastore/users]
-            ]]]
+            [users/user-push-notification]
+            [users/users-panel @datastore/users]]]]
          ;; orders page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:orders-view])}
