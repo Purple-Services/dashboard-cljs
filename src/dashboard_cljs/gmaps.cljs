@@ -23,6 +23,8 @@
                   :status
                   {:unassigned {:color "#ff0000"
                                 :selected? true}
+                   :assigned   {:color "#ffc0cb"
+                                :selected? true}
                    :accepted   {:color "#808080"
                                 :selected? true}
                    :enroute    {:color "#ffdd00"
@@ -858,6 +860,7 @@
                  :title "Select order status"}
                 (map #(order-status-checkbox state %)
                      '("unassigned"
+                       "assigned"
                        "accepted"
                        "enroute"
                        "servicing"
