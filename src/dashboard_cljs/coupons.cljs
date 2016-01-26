@@ -1,6 +1,8 @@
 (ns dashboard-cljs.coupons
   (:require [reagent.core :as r]
+            [crate.core :as crate]
             [cljs.core.async :refer [put!]]
+            [cljsjs.pikaday.with-moment]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt markets
@@ -9,7 +11,86 @@
                                                RefreshButton]]
             [clojure.string :as s]))
 
-(def state (r/atom {:current-coupon nil}))
+(def state (r/atom {:current-coupon nil
+                    :new-coupon
+                    {:exp-date nil}}))
+
+(defn exp-date-picker
+  []
+  (let [exp-date (r/cursor state [:new-coupon :exp-date])]
+    (r/create-class
+     {:component-did-mount
+      (fn [this]
+        ;; reset the current-date
+        (reset! exp-date (-> (js/moment)
+                             (.startOf "day")
+                             (.unix)))
+        (.log js/console @exp-date)
+        (js/Pikaday.
+         (clj->js {:field (r/dom-node this)
+                   :format "M/D/YYYY"
+                   :onSelect (fn [input]
+                               (.log js/console "input.value: " input)
+                               (reset! exp-date
+                                       (-> (js/moment input))))
+                   })))
+      :reagent-render
+      (fn []
+        [:input {:type "text"
+                 :class "form-control date-picker"
+                 :placeholder "Choose Date"
+                 :defaultValue (-> @exp-date (js/moment) (.format "M/D/YYYY"))
+                 }])})))
+
+(defn new-coupon-form
+  []
+  (fn []
+    [:form {:class "form-horizontal"}
+     ;; promo code
+     [:div {:class "form-group"}
+      [:label {:for "promo code"
+               :class "col-sm-2 control-label"}
+       "Promo Code"]
+      [:div {:class "col-sm-10"}
+       [:input {:type "text"
+                :class "form-control"
+                :placeholder "Promo Code"}]]]
+     ;; amount
+     [:div {:class "form-group"}
+      [:label {:for "amount"
+               :class "col-sm-2 control-label"}
+       "Amount"]
+      [:div {:class "col-sm-10"}
+       [:div {:class "input-group"}
+        [:div {:class "input-group-addon"}
+         "$"]
+        [:input {:type "text"
+                 :class "form-control"
+                 :placeholder "Amount"}]]]]
+     ;; exp date
+     [:div {:class "form-group"}
+      [:label {:for "amount"
+               :class "col-sm-2 control-label"}
+       "Expiration Date"]
+      [:div {:class "col-sm-10"}
+       [:div {:class "input-group"}
+        [exp-date-picker]]]]
+     ;; first time only?
+     [:div {:class "form-group"}
+      [:label {:for "first time only?"
+               :class "col-sm-2 control-label"}
+       "First Time Only?"]
+      [:div {:class "col-sm-10"}
+       [:div {:class "input-group"}
+        [:input {:type "checkbox" }]]]]]))
+
+(defn new-coupon-panel
+  []
+  (fn []
+    [:div {:class "panel panel-default"}
+     [:div {:class "panel-body"}
+      [:h3 "Create Promo Code"]
+      [new-coupon-form]]]))
 
 (defn coupon-table-header
   "props is:
@@ -50,8 +131,7 @@
      ;; amount
      [:td (cents->dollars (.abs js/Math (:value coupon)))]
      ;; start date
-     ;; !!!NEEDS TO BE CONVERTED!
-     [:td (:timestamp_created coupon)]
+     [:td (unix-epoch->fmt (:timestamp_created coupon) "M/D/YYYY")]
      ;; expiration date
      [:td (unix-epoch->fmt (:expiration_time coupon) "M/D/YYYY")]
      ;; first order only?

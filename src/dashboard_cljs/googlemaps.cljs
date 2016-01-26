@@ -46,7 +46,7 @@
   (let [[gmaps-dom gmaps-obj] (get-cached-gmaps (:id props "global"))
         update-fn  (fn [this]
                      ;;(log/debug "Updating, component props:" (r/props this))
-                     (.log js/console "Updating, component props:" (r/props this))
+                     ;;(.log js/console "Updating, component props:" (r/props this))
                      (let [{center :center} (r/props this)
                            latlng (create-latlng center)]
                        ;;(.panTo gmaps-obj latlng)
@@ -88,6 +88,6 @@
 
        :set-options
        (fn [this]
-         (.log js/console "set-options was called")
+         ;;(.log js/console "set-options was called")
          )}
       )))

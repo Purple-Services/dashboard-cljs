@@ -231,6 +231,7 @@
           {:toggle (r/cursor tab-content-toggle [:coupons-view])}
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
+            [coupons/new-coupon-panel]
             [coupons/coupons-panel @datastore/coupons]]]]
          ;; orders page
          [TabContent
