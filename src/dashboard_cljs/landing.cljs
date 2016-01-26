@@ -5,9 +5,10 @@
             [dashboard-cljs.utils :refer [base-url update-values]]
             [dashboard-cljs.components :refer [CountPanel]]
             [dashboard-cljs.datastore :as datastore]
-            [dashboard-cljs.orders :as orders]
             [dashboard-cljs.couriers :as couriers]
             [dashboard-cljs.users :as users]
+            [dashboard-cljs.coupons :as coupons]
+            [dashboard-cljs.orders :as orders]
             [dashboard-cljs.utils :refer [unix-epoch->hrf]]
             [dashboard-cljs.googlemaps :refer [get-cached-gmaps]]
             ))
@@ -134,12 +135,18 @@
             :side-bar-toggle (:side-bar-toggle props)}
        [:div
         "Couriers"]]
-      [Tab {:default? true
+      [Tab {:default? false
             :toggle-key :users-view
             :toggle (:tab-content-toggle props)
             :side-bar-toggle (:side-bar-toggle props)}
-       [:div ;;[:i {:class "fa fa-fw fa-users"}]
+       [:div
         "Users"]]
+      [Tab {:default? true
+            :toggle-key :coupons-view
+            :toggle (:tab-content-toggle props)
+            :side-bar-toggle (:side-bar-toggle props)}
+       [:div
+        "Promo Codes"]]
       [Tab {:default? false
             :toggle-key :orders-view
             :toggle (:tab-content-toggle props)
@@ -156,7 +163,6 @@
                             (:target_time_start
                              @datastore/last-acknowledged-order))
                        @datastore/orders)))]])
-        ;;[:i {:class "fa fa-fw fa-shopping-cart"}]
         "Orders"]]]]))
 
 ;; based on https://github.com/IronSummitMedia/startbootstrap-sb-admin
@@ -203,10 +209,10 @@
                                        (filter #(>= (:time-completed %)
                                                     today-begin)))))]
                [CountPanel {:data (new-orders @datastore/orders)
-                             :description "completed orders today!"
-                             :panel-class "panel-primary"
-                             :icon-class  "fa-shopping-cart"
-                             }])]]]]
+                            :description "completed orders today!"
+                            :panel-class "panel-primary"
+                            :icon-class  "fa-shopping-cart"
+                            }])]]]]
          ;; couriers page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:couriers-view])}
@@ -220,6 +226,12 @@
            [:div {:class "col-lg-12"}
             [users/user-push-notification]
             [users/users-panel @datastore/users]]]]
+         ;; promo code page
+         [TabContent
+          {:toggle (r/cursor tab-content-toggle [:coupons-view])}
+          [:div {:class "row"}
+           [:div {:class "col-lg-12"}
+            [coupons/coupons-panel @datastore/coupons]]]]
          ;; orders page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:orders-view])}
