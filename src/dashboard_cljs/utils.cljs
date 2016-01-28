@@ -1,5 +1,7 @@
 (ns dashboard-cljs.utils
-  (:require [cljsjs.moment]))
+  (:require [cljsjs.moment]
+            [clojure.string :as s]
+            ))
 
 (defn unix-epoch->fmt
   "Convert a unix epoch (in seconds) to fmt"
@@ -18,9 +20,21 @@
   (unix-epoch->fmt unix-epoch "M/D/YYYY h:mm A"))
 
 (defn cents->dollars
+  "Converts an integer value of cents to dollars"
+  [cents]
+  (str (-> cents (/ 100) (.toFixed 2))))
+
+(defn dollars->cents
+  "Convert a dollar amount into cents"
+  [dollars]
+  (* dollars 100))
+
+(defn cents->$dollars
   "Converts an integer value of cents to dollar string"
   [cents]
-  (str "$" (-> cents (/ 100) (.toFixed 2))))
+  (str "$" (cents->dollars cents)))
+
+
 
 (defn continuous-update
   "Call f continously every n seconds"
@@ -55,3 +69,8 @@
   "Get an element by its id from coll"
   [coll id]
   (first (filter #(= (:id %) id) coll)))
+
+(defn format-coupon-code
+  "Capitilize and remove spaces from string code"
+  [code]
+  (s/replace (s/upper-case code) #" " ""))

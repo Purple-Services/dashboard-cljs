@@ -496,7 +496,7 @@
              [:strong @alert-success]])
           ;; alert error
           (when (not (empty? @alert-error))
-            [:div {:class "alert alert-error"}
+            [:div {:class "alert alert-danger"}
              @alert-error])
           ;; selected users table
           (when (not @all-selected?)

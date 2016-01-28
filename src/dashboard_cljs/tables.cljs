@@ -2,7 +2,7 @@
   (:require-macros [cljs.core.async.macros :refer [go go-loop]])
   (:require [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.utils :refer [unix-epoch->hrf continuous-update
-                                          cents->dollars unix-epoch->fuller
+                                          cents->$dollars unix-epoch->fuller
                                           get-by-id]]
             [cljs.core.async :refer [chan pub put! sub <! >!]]
             [cljs.reader :refer [read-string]]
@@ -681,7 +681,7 @@ transformed by f, if given"
                              (not= 0 (:total_price order)))
                       "late" ;; Payment failed!
                       "not-late")}
-        (cents->dollars (:total_price order))]])))
+        (cents->$dollars (:total_price order))]])))
 
 (defn orders-table-header
   []
@@ -873,7 +873,7 @@ transformed by f, if given"
   (fn [coupon]
     [:tr
      [:td (:code coupon)]
-     [:td (cents->dollars (.abs js/Math (:value coupon)))]
+     [:td (cents->$dollars (.abs js/Math (:value coupon)))]
      [:td (unix-epoch->fuller (:expiration_time coupon))]
      [:td (:times_used coupon)]
      [:td (if (:only_for_first_orders coupon) "Yes" "No")]]))

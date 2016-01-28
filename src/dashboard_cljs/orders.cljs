@@ -7,7 +7,7 @@
                                                RefreshButton ErrorComp]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->hrf base-url
-                                          cents->dollars json-string->clj]]
+                                          cents->$dollars json-string->clj]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps]]
             ))
@@ -409,7 +409,7 @@
          [:div
           ;; order price
           [:h5 [:span {:class "info-window-label"} "Total Price: "]
-           (cents->dollars (:total_price @current-order))
+           (cents->$dollars (:total_price @current-order))
            " "
            ;; declined payment?
            (if (and (= (:status @current-order)
