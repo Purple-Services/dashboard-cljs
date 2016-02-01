@@ -110,6 +110,9 @@
 ;; coupons
 (def coupons (r/atom #{}))
 
+;; zones
+(def zones (r/atom #{}))
+
 (defn init-datastore
   "Initialize the datastore for the app. Should be called once when launching
   the app."
@@ -200,4 +203,16 @@
                       {:topic "coupons"
                        :data (js->clj response :keywordize-keys
                                       true)}))))
-    ))
+    ;; zones data channel
+    (sync-state! zones (sub read-data-chan "zones" (chan)))
+    ;; initialize zones
+    (retrieve-url
+     (str base-url "zones")
+     "GET"
+     {}
+     (partial xhrio-wrapper
+              (fn [response]
+                (put! modify-data-chan
+                      {:topic "zones"
+                       :data (js->clj response :keywordize-keys
+                                      true)}))))))

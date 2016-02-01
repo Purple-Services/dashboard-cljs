@@ -8,6 +8,7 @@
             [dashboard-cljs.couriers :as couriers]
             [dashboard-cljs.users :as users]
             [dashboard-cljs.coupons :as coupons]
+            [dashboard-cljs.zones :as zones]
             [dashboard-cljs.orders :as orders]
             [dashboard-cljs.utils :refer [unix-epoch->hrf]]
             [dashboard-cljs.googlemaps :refer [get-cached-gmaps]]
@@ -141,12 +142,18 @@
             :side-bar-toggle (:side-bar-toggle props)}
        [:div
         "Users"]]
-      [Tab {:default? true
+      [Tab {:default? false
             :toggle-key :coupons-view
             :toggle (:tab-content-toggle props)
             :side-bar-toggle (:side-bar-toggle props)}
        [:div
         "Promo Codes"]]
+      [Tab {:default? true
+            :toggle-key :zones-view
+            :toggle (:tab-content-toggle props)
+            :side-bar-toggle (:side-bar-toggle props)}
+       [:div
+        "Zones"]]
       [Tab {:default? false
             :toggle-key :orders-view
             :toggle (:tab-content-toggle props)
@@ -233,6 +240,12 @@
            [:div {:class "col-lg-12"}
             [coupons/new-coupon-panel]
             [coupons/coupons-panel @datastore/coupons]]]]
+         ;; zones page
+         [TabContent
+          {:toggle (r/cursor tab-content-toggle [:zones-view])}
+          [:div {:class "row"}
+           [:div {:class "col-lg-12"}
+            [zones/zones-panel @datastore/zones]]]]
          ;; orders page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:orders-view])}

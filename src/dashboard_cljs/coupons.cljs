@@ -1,6 +1,5 @@
 (ns dashboard-cljs.coupons
   (:require [reagent.core :as r]
-            [crate.core :as crate]
             [cljs.core.async :refer [put!]]
             [cljsjs.pikaday.with-moment]
             [dashboard-cljs.datastore :as datastore]
@@ -8,7 +7,7 @@
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt markets
                                           json-string->clj cents->$dollars
                                           cents->dollars dollars->cents
-                                          format-coupon-code]]
+                                          format-coupon-code parse-to-number?]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton]]
             [clojure.string :as s]))
@@ -89,8 +88,12 @@
        "POST"
        (js/JSON.stringify
         (clj->js (assoc @coupon
-                        :value (dollars->cents
-                                (:value @coupon)))))
+                        :value
+                        (let [value (:value @coupon)]
+                          (if (parse-to-number? value)
+                            (dollars->cents
+                             value)
+                            value)))))
        (partial
         xhrio-wrapper
         (fn [r]
@@ -141,8 +144,12 @@
        "PUT"
        (js/JSON.stringify
         (clj->js (assoc @coupon
-                        :value (dollars->cents
-                                (:value @coupon)))))
+                        :value
+                        (let [value (:value @coupon)]
+                          (if (parse-to-number? value)
+                            (dollars->cents
+                             value)
+                            value)))))
        (partial
         xhrio-wrapper
         (fn [r]
@@ -174,13 +181,13 @@
                     (put! datastore/modify-data-chan
                           {:topic "coupons"
                            :data response})
-                    ;; reset  edit-coupon
+                    ;; reset edit-coupon
                     (reset!
                      coupon
                      (assoc
                       @coupon
                       :retrieving? false
-                      :error nil
+                      :errors nil
                       ))
                     ;; reset the current-coupon
                     (reset! current-coupon (assoc

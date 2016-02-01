@@ -27,7 +27,7 @@
 (defn dollars->cents
   "Convert a dollar amount into cents"
   [dollars]
-  (* dollars 100))
+  (->  (* dollars 100) .toFixed js/parseInt))
 
 (defn cents->$dollars
   "Converts an integer value of cents to dollar string"
@@ -74,3 +74,19 @@
   "Capitilize and remove spaces from string code"
   [code]
   (s/replace (s/upper-case code) #" " ""))
+
+(defn parse-to-number?
+  "Will s parse to a number?
+  ex:
+  (parse-to-number? '1234') => true
+  (parse-to-number? '1234aasdf') => false
+
+  note: returns false for blank strings
+  "
+  [s]
+  (if (s/blank? s)
+    false
+    (-> s
+        js/Number
+        js/isNaN
+        not)))
