@@ -34,13 +34,20 @@
   [cents]
   (str "$" (cents->dollars cents)))
 
-
-
 (defn continuous-update
-  "Call f continously every n seconds"
+  "Call f continuously every n seconds"
   [f n]
   (js/setTimeout #(do (f)
                       (continuous-update f n))
+                 n))
+
+(defn continuous-update-until
+  "Call f continuously every n seconds until pred is satisified. pred must be
+  a fn."
+  [f pred n]
+  (js/setTimeout #(when (not (pred))
+                    (f)
+                    (continuous-update-until f pred n))
                  n))
 
 (def base-url (-> (.getElementById js/document "base-url")

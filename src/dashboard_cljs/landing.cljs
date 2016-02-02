@@ -10,6 +10,7 @@
             [dashboard-cljs.coupons :as coupons]
             [dashboard-cljs.zones :as zones]
             [dashboard-cljs.orders :as orders]
+            [dashboard-cljs.analytics :as analytics]
             [dashboard-cljs.utils :refer [unix-epoch->hrf]]
             [dashboard-cljs.googlemaps :refer [get-cached-gmaps]]
             ))
@@ -125,7 +126,8 @@
     [:div {:class (str "collapse navbar-collapse navbar-ex1-collapse "
                        (when @(:side-bar-toggle props) "in"))}
      [:ul {:class "nav navbar-nav side-nav side-nav-color"}
-      [Tab {:toggle-key :dashboard-view
+      [Tab {:default? true
+            :toggle-key :dashboard-view
             :toggle (:tab-content-toggle props)
             :side-bar-toggle (:side-bar-toggle props)}
        [:div ;;[:i {:class "fa fa-home fa-fw"}]
@@ -148,7 +150,7 @@
             :side-bar-toggle (:side-bar-toggle props)}
        [:div
         "Promo Codes"]]
-      [Tab {:default? true
+      [Tab {:default? false
             :toggle-key :zones-view
             :toggle (:tab-content-toggle props)
             :side-bar-toggle (:side-bar-toggle props)}
@@ -170,7 +172,13 @@
                             (:target_time_start
                              @datastore/last-acknowledged-order))
                        @datastore/orders)))]])
-        "Orders"]]]]))
+        "Orders"]]
+      [Tab {:default? false
+            :toggle-key :analytics-view
+            :toggle (:tab-content-toggle props)
+            :side-bar-toggle (:side-bar-toggle props)}
+       [:div
+        "Analytics"]]]]))
 
 ;; based on https://github.com/IronSummitMedia/startbootstrap-sb-admin
 (defn app
@@ -252,8 +260,14 @@
           [:div
            [:div {:class "row"}
             [:div {:class "col-lg-12"}
-             [orders/orders-panel @datastore/orders]]]]]]]]
-      )))
+             [orders/orders-panel @datastore/orders]]]]]
+         ;; analytics page
+         [TabContent
+          {:toggle (r/cursor tab-content-toggle [:analytics-view])}
+          [:div
+           [:div {:class "row"}
+            [:div {:class "col-lg-12"}
+             [analytics/stats-panel]]]]]]]])))
 
 (defn init-landing
   []
