@@ -9,8 +9,7 @@
             [dashboard-cljs.utils :refer [unix-epoch->hrf base-url
                                           cents->$dollars json-string->clj]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
-            [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps]]
-            ))
+            [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps]]))
 
 (defn EditButton
   "Button for toggling editing? button"
@@ -97,7 +96,7 @@
   props is:
   {
   :select-courier ; reagent atom, id of currently selected courier
-  :couriers        ; set of courier maps
+  :couriers       ; set of courier maps
   }"
   [props]
   (fn [{:keys [selected-courier couriers]} props]
@@ -119,6 +118,9 @@
       couriers)]))
 
 (defn assign-courier
+  "Assign order to selected-courier from the list of couriers. error
+  is an r/atom that contains any error associated with this call. editing?
+  is an r/atom that sets whether or not the order is being edited."
   [editing? order selected-courier couriers error]
   (retrieve-url
    (str base-url "assign-order")
@@ -228,6 +230,10 @@
                   ))))))
 
 (defn update-status
+  "Update order with status on server. error-message is an r/atom to set
+  any associated error messages. retrieving? is an atom with a boolean
+  to indicate whether or not the client is currently retrieving data
+  from the server"
   [order status error-message retrieving?]
   (retrieve-url
    (str base-url "update-status")
@@ -262,6 +268,8 @@
                   (reset! retrieving? false)))))))
 
 (defn cancel-order
+  "Cancel order on the server. Any resulting error messages
+  will be put in the error-message atom"
   [order error-message]
   (retrieve-url
    (str base-url "cancel-order")
@@ -363,7 +371,7 @@
         ))))
 
 (defn order-panel
-  "Display detailed and editable fields for an order"
+  "Display detailed and editable fields for current-order"
   [current-order]
   (let [google-marker (atom nil)]
     (fn [current-order]
@@ -517,8 +525,9 @@
                         :order current-order}]]]))))
 
 (defn orders-filter
+  "A component for determing which orders to display. selected-filter is
+  an r/atom containing a string which describes what filter to use."
   [selected-filter]
-  ;;(let [selected (r/atom "show-all")])
   (fn [selected-filter]
     [:div {:class "btn-group"
            :role "group"
@@ -541,6 +550,7 @@
       "Declined Payments"]]))
 
 (defn new-orders-button
+  "A component for allowing the user to see new orders on the server"
   []
   (fn []
     (let [new-orders (- (count @datastore/orders)
@@ -632,8 +642,7 @@
                           @datastore/last-acknowledged-order))
               [new-orders-button])
             [RefreshButton {:refresh-fn
-                            refresh-fn}]
-            ]]]
+                            refresh-fn}]]]]
          [:div {:class "table-responsive"}
           [StaticTable
            {:table-header [order-table-header {:sort-keyword sort-keyword
