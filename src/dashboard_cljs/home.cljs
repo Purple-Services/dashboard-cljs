@@ -37,10 +37,10 @@
       [CountPanel {:data (new-orders @datastore/orders)
                    :description "completed orders today!"
                    :panel-class "panel-primary"
-                   :icon-class  "fa-shopping-cart"
-                   }])))
+                   :icon-class  "fa-shopping-cart"}])))
 
 (defn dash-map-link-panel
+  "A panel for displaying a link to the dash map"
   []
   (fn []
     ;; a link to the dash map
@@ -119,6 +119,7 @@
        "Street Address"]]]))
 
 (defn ongoing-jobs-panel
+  "Display the jobs that have yet to be completed or cancelled"
   [orders]
   (let [current-order (r/cursor state [:current-order])
         sort-keyword (r/atom :target_time_start)
