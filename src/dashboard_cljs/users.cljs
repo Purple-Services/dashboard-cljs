@@ -86,9 +86,6 @@
       [TableHeadSortable
        (conj props {:keyword :courier_name})
        "Courier Name"]
-      ;; [TableHeadSortable
-      ;;  (conj props {:keyword :customer_phone_number})
-      ;;  "Phone #"]
       [:th {:style {:font-size "16px"
                     :font-weight "normal"}} "Payment"]
       [TableHeadSortable
@@ -125,15 +122,9 @@
   [current-user]
   (let [sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
-        show-orders? (r/atom false)
-        ]
+        show-orders? (r/atom false)]
     (fn [current-user]
-      (let [;;editing-zones? (r/atom false)
-            ;;zones-error-message (r/atom "")
-            ;; zones-input-value (r/atom (-> (:zones @current-user)
-            ;;                               sort
-            ;;                               clj->js
-            ;;                               .join))
+      (let [
             sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
@@ -156,25 +147,9 @@
                                                  (:id %)))
                                      first))
             ]
-        ;; create and insert user market
-        ;; (when (:lat @current-user)
-        ;;   (when @google-marker
-        ;;     (.setMap @google-marker nil))
-        ;;   (reset! google-marker (js/google.maps.Marker.
-        ;;                          (clj->js {:position
-        ;;                                    {:lat (:lat @current-user)
-        ;;                                     :lng (:lng @current-user)
-        ;;                                     }
-        ;;                                    :map (second (get-cached-gmaps
-        ;;                                                  :users))
-        ;;                                    }))))
         ;; populate the current user with additional information
         [:div {:class "panel-body"}
-         [:div [:h3 (:name @current-user)]
-          ;; [:div {:class "pull-right"}
-          ;;  [RefreshButton {:refresh-fn
-          ;;                  #(.log js/console "user refresh hit")}]]
-          ]
+         [:div [:h3 (:name @current-user)]]
          ;; google map
          [:div {:class "row"}
           ;; main display panel
@@ -185,8 +160,8 @@
            [KeyVal "Phone Number" (:phone_number @current-user)]
            ;; date started
            [KeyVal "Registered" (unix-epoch->fmt
-                                   (:timestamp_created @current-user)
-                                   "M/D/YYYY")]
+                                 (:timestamp_created @current-user)
+                                 "M/D/YYYY")]
            ;; last active (last ping)
            (let [most-recent-order-time (->> orders
                                              (sort-by :target_time_start)
@@ -206,8 +181,7 @@
                (when (not (empty? (:exp_month default-card-info)))
                  (:exp_month default-card-info)
                  "/"
-                 (:exp_year default-card-info)))])
-           ]]
+                 (:exp_year default-card-info)))])]]
          ;; Table of orders for current user
          [:div {:class "row"}
           (when (> (count sorted-orders)
@@ -228,8 +202,7 @@
                             {:sort-keyword sort-keyword
                              :sort-reversed? sort-reversed?}]
              :table-row (user-orders-row)}
-            sorted-orders]
-           ]]]))))
+            sorted-orders]]]]))))
 
 (defn users-panel
   "Display a table of selectable coureirs with an indivdual user panel
@@ -252,9 +225,7 @@
                             :else (fn [user] true))
             displayed-users users
             sorted-users (->> displayed-users
-                               sort-fn
-                               ;;(filter filter-fn)
-                               )
+                              sort-fn)
             refresh-fn (fn [saving?]
                          (reset! saving? true)
                          (retrieve-url
@@ -282,10 +253,8 @@
            [:div {:class "btn-group"
                   :role "group"
                   :aria-label "refresh group"}
-            ;;[refresh-button]
             [RefreshButton {:refresh-fn
-                               refresh-fn}]
-            ]]]
+                            refresh-fn}]]]]
          [:div {:class "table-responsive"}
           [StaticTable
            {:table-header [user-table-header
@@ -347,7 +316,8 @@
                                              (fn [selected-atom]
                                                (disj selected-atom
                                                      (:id user))))))
-                      :checked (contains? @push-selected-users (:id user))}]])]]))
+                      :checked (contains? @push-selected-users (:id user))}]])]
+     ]))
 
 (defn user-push-notification
   "A prop for sending push notifications to users"
@@ -367,9 +337,7 @@
                       (comp reverse (partial sort-by @sort-keyword)))
             displayed-users @datastore/users
             sorted-users (->> displayed-users
-                              sort-fn)
-            ;;push-selected-users (r/atom (set nil))
-            ]
+                              sort-fn)]
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
           [:div [:h4 {:class "pull-left"} "Send Push Notification"]
@@ -441,16 +409,14 @@
                                               " not have been sent. Wait until"
                                               " sure before trying again."))))
                              (reset! confirming? false)
-                             (reset! message "")))))
-                       }
+                             (reset! message "")))))}
               "Confirm"]
              [:button {
                        :type "button"
                        :class "btn btn-default"
                        :on-click (fn [e]
                                    (reset! confirming? false)
-                                   (reset! message ""))
-                       }
+                                   (reset! message ""))}
               "Cancel"]]
             ;; Message form
             [:form
@@ -474,16 +440,16 @@
                                      (reset! confirming? true)))
                        :disabled (and (not @all-selected?)
                                       (empty? @push-selected-users))
-                       } "Send Notification"]
+                       }
+              "Send Notification"]
              ;; clear all selected users
              (when (not @all-selected?)
                [:button {:type "submit"
                          :class "btn btn-default"
                          :on-click (fn [e]
                                      (.preventDefault e)
-                                     (reset! push-selected-users (set nil)))
-                         } "Clear Selected Users"])
-             ])
+                                     (reset! push-selected-users (set nil)))}
+                "Clear Selected Users"])])
           ;; alert message
           (when (not (empty? @alert-success))
             [:div {:class "alert alert-success alert-dismissible"}
@@ -491,8 +457,7 @@
                        :class "close"
                        :aria-label "Close"}
               [:i {:class "fa fa-times"
-                   :on-click #(reset! alert-success "")}]
-              ]
+                   :on-click #(reset! alert-success "")}]]
              [:strong @alert-success]])
           ;; alert error
           (when (not (empty? @alert-error))
@@ -505,6 +470,5 @@
               {:table-header [user-notification-header
                               {:sort-keyword sort-keyword
                                :sort-reversed? sort-reversed?}]
-               :table-row (user-notification-row)
-               }
+               :table-row (user-notification-row)}
               sorted-users]])]]))))
