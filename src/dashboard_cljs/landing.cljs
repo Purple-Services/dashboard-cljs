@@ -2,16 +2,16 @@
   (:require [reagent.core :as r]
             [clojure.string :as s]
             [cljsjs.moment]
-            [dashboard-cljs.utils :refer [base-url update-values]]
-            [dashboard-cljs.components :refer [CountPanel]]
+            [dashboard-cljs.utils :refer [base-url update-values
+                                          unix-epoch->hrf]]
             [dashboard-cljs.datastore :as datastore]
+            [dashboard-cljs.home :as home]
             [dashboard-cljs.couriers :as couriers]
             [dashboard-cljs.users :as users]
             [dashboard-cljs.coupons :as coupons]
             [dashboard-cljs.zones :as zones]
             [dashboard-cljs.orders :as orders]
             [dashboard-cljs.analytics :as analytics]
-            [dashboard-cljs.utils :refer [unix-epoch->hrf]]
             [dashboard-cljs.googlemaps :refer [get-cached-gmaps]]
             ))
 
@@ -198,36 +198,14 @@
        [:div {:id "page-wrapper"
               :class "page-wrapper-color"}
         [:div {:class "container-fluid tab-content"}
-         ;; landing page
+         ;; home page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:dashboard-view])}
           [:div
            [:div {:class "row"}
-            [:div {:class "col-lg-3 col-md-6"}
-             ;; todays order count panel
-             (let [new-orders (fn [orders]
-                                (let [today-begin (-> (js/moment)
-                                                      (.startOf "day")
-                                                      (.unix))
-                                      complete-time (fn [order]
-                                                      (-> (str
-                                                           "kludgeFix 1|"
-                                                           (:event_log order))
-                                                          (s/split #"\||\s")
-                                                          (->> (apply hash-map))
-                                                          (get "complete")))]
-                                  (->> orders
-                                       (filter #(= (:status %) "complete"))
-                                       (map
-                                        #(assoc % :time-completed
-                                                (complete-time %)))
-                                       (filter #(>= (:time-completed %)
-                                                    today-begin)))))]
-               [CountPanel {:data (new-orders @datastore/orders)
-                            :description "completed orders today!"
-                            :panel-class "panel-primary"
-                            :icon-class  "fa-shopping-cart"
-                            }])]]]]
+            [home/orders-count-panel]
+            [home/dash-map-link-panel]
+            [home/ongoing-jobs-panel @datastore/orders]]]]
          ;; couriers page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:couriers-view])}

@@ -6,8 +6,10 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="stylesheet" type="text/css" href="resources/css/pikaday.css"></link>
 	<link rel="stylesheet" type="text/css" href="resources/css/dashmap.css"></link>
-	<link rel="stylesheet" type="text/css" href="resources/css/bootstrap.css"></link>
-	<link rel="stylesheet" type="text/css" href="resources/css/sb-admin.css"></link>
+	<!-- bootstrap.css needs to be disabled for dash map development -->
+	<!-- <link rel="stylesheet" type="text/css" href="resources/css/bootstrap.css"></link> -->
+	<!-- sb-admin.css needs to be disabled for dash map development -->
+	<!-- <link rel="stylesheet" type="text/css" href="resources/css/sb-admin.css"></link> -->
 	<link rel="stylesheet" type="text/css" href="resources/css/dashboard.css"></link>
 	<link rel="stylesheet" type="text/css" href="resources/css/font-awesome.min.css"></link>
     </head>
@@ -15,8 +17,16 @@
       <!-- <div id="base-url" value="http://localhost:3000/dashboard/" style="display: none;"></div> -->
       <div id="base-url" value="http://192.168.1.100:3000/dashboard/" style="display: none;"></div>
       <div id="accessible-routes" value="#{&quot;/dashboard/all&quot; &quot;/dashboard/&quot; &quot;/dashboard/assign-order&quot; &quot;/dashboard/couriers&quot; &quot;/dashboard/orders-since-date&quot; &quot;/dashboard/send-push-to-all-active-users&quot; &quot;/dashboard/zctas&quot; &quot;/dashboard/dash-map-couriers&quot; &quot;/dashboard/update-status&quot; &quot;/dashboard/cancel-order&quot; &quot;/dashboard/declined&quot; &quot;/dashboard&quot; &quot;/dashboard/send-push-users-lists&quot; &quot;/dashboard/dash-map-orders&quot; &quot;/dashboard/update-zone&quot; &quot;/dashboard/update-courier-zones&quot; &quot;/dashboard/zones&quot; &quot;/dashboard/users&quot; &quot;/dashboard/coupons&quot; &quot;/dashboard/generate-stats-csv&quot; &quot;/dashboard/download-stats-csv&quot; &quot;/dashboard/status-stats-csv&quot;}"></div>
-      <script async defer src='https://maps.googleapis.com/maps/api/js?key=AIzaSyCr_OX9SFz0I8IE9p5NIdsjRaXTIEjlrbE'></script>
+      <!-- For testing the dashboard -->
+      <!-- <script async defer src='https://maps.googleapis.com/maps/api/js?key=AIzaSyCr_OX9SFz0I8IE9p5NIdsjRaXTIEjlrbE'></script> -->
+      <!-- <script src="out/dashboard_cljs.js" type="text/javascript"></script> -->
+      <!-- <div id="app"></div> -->
+      <!-- <script>dashboard_cljs.core.init_new_dash();</script> -->
+
+      <!-- For testing the dash map -->
       <script src="out/dashboard_cljs.js" type="text/javascript"></script>
+      <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCr_OX9SFz0I8IE9p5NIdsjRaXTIEjlrbE&callback=dashboard_cljs.gmaps.init_map_couriers"></script>
+      <div id="map"></div>
       <!-- <div id="map"></div> -->
       <!-- <div id="login"></div> -->
       <!-- <script>dashboard_cljs.core.login();</script> -->
@@ -27,8 +37,5 @@
 
       <!-- The reason this works is that logging in sets a cookie for the session -->
       <!-- for http://localhost:3000. All requests to it will have the cookie. -->
-
-      <div id="app"></div>
-      <script>dashboard_cljs.core.init_new_dash();</script>
     </body>
 </html>

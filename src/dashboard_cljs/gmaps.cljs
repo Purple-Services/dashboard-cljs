@@ -6,6 +6,8 @@
             [cljsjs.pikaday.with-moment]
             [maplabel]
             [cljs.reader :refer [read-string]]
+            [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
+            [dashboard-cljs.utils :refer [base-url]]
             ))
 
 (def state (atom {:timeout-interval 5000
@@ -22,6 +24,8 @@
                   :to-date nil
                   :status
                   {:unassigned {:color "#ff0000"
+                                :selected? true}
+                   :assigned   {:color "#ffc0cb"
                                 :selected? true}
                    :accepted   {:color "#808080"
                                 :selected? true}
@@ -46,16 +50,6 @@
   "Send a xhr to url using callback and HTTP method."
   [url callback method & [data headers timeout]]
   (.send goog.net.XhrIo url callback method data headers timeout))
-
-(defn xhrio-wrapper
-  "A callback for processing the xhrio response event. If
-  response.target.isSuccess() is true, call f on the json response"
-  [f response]
-  (let [target (.-target response)]
-    (if (.isSuccess target)
-      (f (.getResponseJson target))
-      (.log js/console
-            (str "xhrio-wrapper error:" (aget target "lastError_"))))))
 
 (defn get-obj-with-prop-val
   "Get the object in array by prop with val"
@@ -789,11 +783,12 @@
   "Get all zones from the server and store them in the state atom. This should
   only be called once initially."
   [state]
-  (retrieve-route
-   "zones"
+  (retrieve-url
+   (str base-url "zones")
+   "GET"
    {}
    (partial xhrio-wrapper
-            #(let [zones (aget % "zones")]
+            #(let [zones %]
                (if (not (nil? zones))
                  (mapv (partial sync-zone! state) zones))
                ))))
@@ -858,6 +853,7 @@
                  :title "Select order status"}
                 (map #(order-status-checkbox state %)
                      '("unassigned"
+                       "assigned"
                        "accepted"
                        "enroute"
                        "servicing"
