@@ -2,12 +2,10 @@
   (:require [crate.core :as crate]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.cookies :as cookies]
-            ))
-
-(def base-url (-> (.getElementById js/document "base-url")
-                  (.getAttribute "value")))
+            [dashboard-cljs.utils :refer [base-url]]))
 
 (defn process-login
+  "Process the response used when logging in"
   [response]
   (let [error-div (.querySelector js/document "#error-message")
         cljs-response (js->clj response :keywordize-keys true)]
@@ -21,6 +19,7 @@
             (str "Error: " (:message cljs-response))))))
 
 (defn login-form
+  "A form for logging into the dashboard"
   []
   (let [submit-button (crate/html
                        [:button {:id "login"
@@ -33,10 +32,10 @@
                       [:label {:for "email-address"}
                        "Email Address"]
                       [:input
-                          {:id "email"
-                           :type "text"
-                           :class "form-control"
-                           :placeholder "Email"}]]
+                       {:id "email"
+                        :type "text"
+                        :class "form-control"
+                        :placeholder "Email"}]]
                      [:div {:class "form-group"}
                       [:label {:for "password"} "Password"]
                       [:input
@@ -64,6 +63,7 @@
     login-form))
 
 (defn login
+  "Set up the login form"
   []
   (let [login-div (.getElementById js/document "login")]
     (.appendChild login-div
