@@ -1,7 +1,6 @@
 (ns dashboard-cljs.coupons
   (:require [reagent.core :as r]
             [cljs.core.async :refer [put!]]
-            [cljsjs.pikaday.with-moment]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt markets
@@ -9,7 +8,7 @@
                                           cents->dollars dollars->cents
                                           format-coupon-code parse-to-number?]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
-                                               RefreshButton]]
+                                               RefreshButton DatePicker]]
             [clojure.string :as s]))
 
 (def default-new-coupon
@@ -28,52 +27,10 @@
                     default-new-coupon
                     :edit-coupon
                     default-new-coupon
-                    :selected "active"
-                    }))
-
-(defn exp-date-picker
-  [exp-date]
-  (let [pikaday-instance (atom nil)]
-    (r/create-class
-     {:component-did-mount
-      (fn [this]
-        (reset!
-         pikaday-instance
-         (js/Pikaday.
-          (clj->js {:field (r/dom-node this)
-                    :format "M/D/YYYY"
-                    :onSelect (fn [input]
-                                (reset! exp-date
-                                        (-> (js/moment input)
-                                            (.endOf "day")
-                                            (.unix))))
-                    :onOpen #(when (not (nil? @pikaday-instance))
-                               (.setMoment @pikaday-instance
-                                           (-> @exp-date
-                                               (js/moment.unix)
-                                               (.endOf "day"))))
-                    }))))
-      :reagent-render
-      (fn []
-        [:input {:type "text"
-                 :class "form-control date-picker"
-                 :placeholder "Choose Date"
-                 :defaultValue (-> @exp-date
-                                   (js/moment.unix)
-                                   (.endOf "day")
-                                   (.format "M/D/YYYY"))
-                 :value (-> @exp-date
-                            (js/moment.unix)
-                            (.endOf "day")
-                            (.format "M/D/YYYY"))
-                 :on-change (fn [input]
-                              (reset! exp-date
-                                      (-> (js/moment input)
-                                          (.endOf "day")
-                                          (.unix))))
-                 }])})))
+                    :selected "active"}))
 
 (defn create-on-click
+  "on-click fn for creating a new coupon on the server"
   [coupon]
   (let [retrieving? (r/cursor coupon [:retrieving?])
         errors      (r/cursor coupon [:errors])
@@ -129,11 +86,11 @@
                            "' successfully created!")))))))))))))))
 
 (defn edit-on-click
+  "on-click fn for updating a coupon on the server"
   [coupon current-coupon]
   (let [retrieving? (r/cursor coupon [:retrieving?])
         errors      (r/cursor coupon [:errors])
-        code        (r/cursor coupon [:code])
-        ]
+        code        (r/cursor coupon [:code])]
     (fn [e]
       (.preventDefault e)
       ;; we are retrieving
@@ -198,6 +155,8 @@
                     ))))))))))))
 
 (defn coupon-form-submit
+  "Button for submitting a coupon form for coupon, using on-click
+  and label for submit button"
   [coupon on-click label]
   (fn []
     (let [retrieving? (r/cursor coupon [:retrieving?])
@@ -214,17 +173,15 @@
        ])))
 
 (defn coupon-form
-  "Form for a new coupon"
+  "Form for a new coupon using submit-button"
   [coupon submit-button]
-  (let [
-        code (r/cursor coupon [:code])
+  (let [code (r/cursor coupon [:code])
         value (r/cursor coupon [:value])
         only-for-first-order (r/cursor coupon
                                        [:only_for_first_orders])
         errors (r/cursor coupon [:errors])
         retrieving? (r/cursor coupon [:retrieving?])
-        alert-success (r/cursor coupon [:alert-success])
-        ]
+        alert-success (r/cursor coupon [:alert-success])]
     (fn []
       [:form {:class "form-horizontal"}
        ;; promo code
@@ -242,12 +199,10 @@
                                                (aget "target")
                                                (aget "value")
                                                (format-coupon-code)
-                                               ))
-                  }]
+                                               ))}]
          (when (:code @errors)
            [:div {:class "alert alert-danger"}
-            (first (:code @errors))])
-         ]]
+            (first (:code @errors))])]]
        ;; amount
        [:div {:class "form-group"}
         [:label {:for "amount"
@@ -263,12 +218,10 @@
                    :value @value
                    :on-change #(reset! value (-> %
                                                  (aget "target")
-                                                 (aget "value")))
-                   }]]
+                                                 (aget "value")))}]]
          (when (:value @errors)
            [:div {:class "alert alert-danger"}
-            (first (:value @errors))])]
-          ]
+            (first (:value @errors))])]]
        ;; exp date
        [:div {:class "form-group"}
         [:label {:for "amount"
@@ -276,12 +229,10 @@
          "Expiration Date"]
         [:div {:class "col-sm-10"}
          [:div {:class "input-group"}
-          [exp-date-picker (r/cursor coupon [:expiration_time])]]
+          [DatePicker (r/cursor coupon [:expiration_time])]]
          (when (:expiration_time @errors)
            [:div {:class "alert alert-danger"}
-            (first (:expiration_time @errors))]
-           )
-         ]]
+            (first (:expiration_time @errors))])]]
        ;; first time only?
        [:div {:class "form-group"}
         [:label {:for "first time only?"
@@ -303,19 +254,17 @@
                     :class "close"
                     :aria-label "Close"}
            [:i {:class "fa fa-times"
-                :on-click #(reset! alert-success "")}]
-           ]
-          [:strong @alert-success]])
-       ])))
+                :on-click #(reset! alert-success "")}]]
+          [:strong @alert-success]])])))
 
 (defn new-coupon-panel
+  "The panel for creating a new coupon"
   []
   (fn []
     (let [coupon (r/cursor state [:new-coupon])
           retrieving? (r/cursor coupon [:retrieving?])
           errors      (r/cursor coupon [:errors])
-          code        (r/cursor coupon [:code])
-          ]
+          code        (r/cursor coupon [:code])]
       [:div {:class "panel panel-default"}
        [:div {:class "panel-body"}
         [:h3 "Create Promo Code"]
@@ -376,8 +325,7 @@
         edit-coupon (r/cursor state [:edit-coupon])
         sort-keyword (r/atom :timestamp_created)
         sort-reversed? (r/atom false)
-        selected (r/cursor state [:selected])
-        ]
+        selected (r/cursor state [:selected])]
     (fn [coupons]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -435,7 +383,6 @@
                                                           current-coupon)
             "Update"]]]
          [:div {:class "panel-body"}
-          ;;[user-panel current-user]
           [:div [:h4 {:class "pull-left"} "Coupons"]
            [:div {:class "btn-toolbar"
                   :role "toolbar"
@@ -475,17 +422,12 @@
            [:div {:class "btn-group"
                   :role "group"
                   :aria-label "refresh group"}
-            ;;[refresh-button]
             [RefreshButton {:refresh-fn
-                            refresh-fn}]
-            ]]]
-         ;; [:div {:class "panel-body"}
-         ;;  [coupon-form edit-coupon]]
+                            refresh-fn}]]]]
          [:div {:class "table-responsive"}
           [StaticTable
            {:table-header [coupon-table-header
                            {:sort-keyword sort-keyword
                             :sort-reversed? sort-reversed?}]
             :table-row (coupon-row current-coupon)}
-           sorted-coupons]]]
-        ))))
+           sorted-coupons]]]))))

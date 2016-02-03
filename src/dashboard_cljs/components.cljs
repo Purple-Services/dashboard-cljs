@@ -1,5 +1,6 @@
 (ns dashboard-cljs.components
   (:require [reagent.core :as r]
+            [cljsjs.pikaday.with-moment]
             [dashboard-cljs.datastore :as datastore]))
 
 ;; Reagent components
@@ -121,3 +122,45 @@
            :role "alert"}
      [:span {:class "sr-only"} "Error:"]
      error-message]))
+
+(defn DatePicker
+  "A component for picking dates. exp-date is an r/atom
+  which is a unix epoch number"
+  [exp-date]
+  (let [pikaday-instance (atom nil)]
+    (r/create-class
+     {:component-did-mount
+      (fn [this]
+        (reset!
+         pikaday-instance
+         (js/Pikaday.
+          (clj->js {:field (r/dom-node this)
+                    :format "M/D/YYYY"
+                    :onSelect (fn [input]
+                                (reset! exp-date
+                                        (-> (js/moment input)
+                                            (.endOf "day")
+                                            (.unix))))
+                    :onOpen #(when (not (nil? @pikaday-instance))
+                               (.setMoment @pikaday-instance
+                                           (-> @exp-date
+                                               (js/moment.unix)
+                                               (.endOf "day"))))}))))
+      :reagent-render
+      (fn []
+        [:input {:type "text"
+                 :class "form-control date-picker"
+                 :placeholder "Choose Date"
+                 :defaultValue (-> @exp-date
+                                   (js/moment.unix)
+                                   (.endOf "day")
+                                   (.format "M/D/YYYY"))
+                 :value (-> @exp-date
+                            (js/moment.unix)
+                            (.endOf "day")
+                            (.format "M/D/YYYY"))
+                 :on-change (fn [input]
+                              (reset! exp-date
+                                      (-> (js/moment input)
+                                          (.endOf "day")
+                                          (.unix))))}])})))
