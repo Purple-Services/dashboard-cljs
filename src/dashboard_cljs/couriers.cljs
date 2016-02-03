@@ -10,8 +10,7 @@
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->fmt base-url markets]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
-            [dashboard-cljs.googlemaps :refer [get-cached-gmaps gmap]]
-            ))
+            [dashboard-cljs.googlemaps :refer [get-cached-gmaps gmap]]))
 
 (defn courier-row
   "A table row for an courier in a table. current-courier is an r/atom."
@@ -179,27 +178,27 @@
   "
   [props]
   (let [retrieve-courier (fn [editing? retrieving? courier]
-                         (retrieve-url
-                          (str base-url "courier/" (:id @courier))
-                          "GET"
-                          {}
-                          (partial xhrio-wrapper
-                                   #(let [response (js->clj % :keywordize-keys
-                                                            true)]
-                                      ;; the response is valid
-                                      (when (not (empty? response))
-                                        ;; update the datastore
-                                        (put! datastore/modify-data-chan
-                                              {:topic "couriers"
-                                               :data response})
-                                        ;; update the courier
-                                        (reset! courier (first response))
-                                        ;; no longer retrieving
-                                        (reset! retrieving? false)
-                                        ;; no longer editing
-                                        (reset! editing? false))
-                                      ;; there was an error
-                                      (when (:success response))))))
+                           (retrieve-url
+                            (str base-url "courier/" (:id @courier))
+                            "GET"
+                            {}
+                            (partial xhrio-wrapper
+                                     #(let [response (js->clj % :keywordize-keys
+                                                              true)]
+                                        ;; the response is valid
+                                        (when (not (empty? response))
+                                          ;; update the datastore
+                                          (put! datastore/modify-data-chan
+                                                {:topic "couriers"
+                                                 :data response})
+                                          ;; update the courier
+                                          (reset! courier (first response))
+                                          ;; no longer retrieving
+                                          (reset! retrieving? false)
+                                          ;; no longer editing
+                                          (reset! editing? false))
+                                        ;; there was an error
+                                        (when (:success response))))))
         update-courier (fn [editing? retrieving? error-message retrieve-courier
                             courier input-value]
                          (retrieve-url
@@ -224,7 +223,6 @@
                                         ;; error message
                                         (reset! error-message
                                                 (:message response)))))))
-
         save-button-on-click (fn [editing? retrieving? input-value current-value
                                   error-message courier retrieve-courier]
                                (fn [e]
@@ -241,7 +239,7 @@
                                        (update-courier
                                         editing? retrieving?
                                         error-message retrieve-courier
-                                                       courier input-value)))
+                                        courier input-value)))
                                    (reset! editing? true))))
         text-input-on-change (fn [input-value]
                                (fn [e]
@@ -252,8 +250,7 @@
     (fn [{:keys [editing?
                  input-value
                  error-message
-                 courier
-                 ]}]
+                 courier]}]
       (let [current-value (-> (:zones @courier)
                               sort
                               clj->js
@@ -278,9 +275,7 @@
                                   retrieve-courier)}]
          (when (not (s/blank? @error-message))
            [ErrorComp (str "Courier could not be assigned! Reason: "
-                           @error-message
-                           )])]
-        ))))
+                           @error-message)])]))))
 
 
 (defn courier-panel
@@ -290,8 +285,7 @@
   (let [google-marker (atom nil)
         sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
-        show-orders? (r/atom false)
-        ]
+        show-orders? (r/atom false)]
     (fn [current-courier]
       (let [editing-zones? (r/atom false)
             zones-error-message (r/atom "")
@@ -326,11 +320,7 @@
                                            }))))
         ;; populate the current courier with additional information
         [:div {:class "panel-body"}
-         [:div [:h3 (:name @current-courier)]
-          ;; [:div {:class "pull-right"}
-          ;;  [RefreshButton {:refresh-fn
-          ;;                  #(.log js/console "courier refresh hit")}]]
-          ]
+         [:div [:h3 (:name @current-courier)]]
          ;; google map
          [:div {:class "row"}
           [:div 
@@ -359,8 +349,7 @@
                                 ;;:zones (:zones @current-courier)
                                 :input-value zones-input-value
                                 :error-message zones-error-message
-                                :courier current-courier}]
-           ]]
+                                :courier current-courier}]]]
          ;; Table of orders for current courier
          [:div {:class "row"}
           (when (> (count sorted-orders)
@@ -404,9 +393,7 @@
                             :else (fn [courier] true))
             displayed-couriers couriers
             sorted-couriers (->> displayed-couriers
-                                 sort-fn
-                                 ;;(filter filter-fn)
-                                 )
+                                 sort-fn)
             refresh-fn (fn [saving?]
                          (reset! saving? true)
                          (retrieve-url
@@ -437,10 +424,8 @@
            [:div {:class "btn-group"
                   :role "group"
                   :aria-label "refresh group"}
-            ;;[refresh-button]
             [RefreshButton {:refresh-fn
-                               refresh-fn}]
-            ]]]
+                            refresh-fn}]]]]
          [:div {:class "table-responsive"}
           [StaticTable
            {:table-header [courier-table-header
