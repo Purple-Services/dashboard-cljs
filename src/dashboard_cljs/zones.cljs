@@ -20,16 +20,15 @@
    :service-time-bracket-end nil
    :errors nil
    :retrieving? false
-   :alert-success ""
-   })
+   :alert-success ""})
 
 (def state (r/atom {:current-zone nil
                     :edit-zone
                     default-new-zone
-                    :selected "active"
-                    }))
+                    :selected "active"}))
 
 (defn edit-on-click
+  "on-click fn for editing zone. current-zone is an r/atom"
   [zone current-zone]
   (let [retrieving? (r/cursor zone [:retrieving?])
         errors      (r/cursor zone [:errors])
@@ -125,6 +124,8 @@
                     ))))))))))))
 
 (defn zone-form-submit
+  "A submit button for the zone using on-click and label for
+  the submit button"
   [zone on-click label]
   (fn []
     (let [retrieving? (r/cursor zone [:retrieving?])
@@ -133,19 +134,15 @@
       ;; submit
       [:button {:type "submit"
                 :class "btn btn-default"
-                :on-click on-click
-                }
+                :on-click on-click}
        (if @retrieving?
          [:i {:class "fa fa-lg fa-refresh fa-pulse "}]
-         label)
-       ])))
-
+         label)])))
 
 (defn zone-form
-  "Form for a new zone"
+  "Form for a zone using submit-button"
   [zone submit-button]
-  (let [
-        price-87 (r/cursor zone [:price-87])
+  (let [price-87 (r/cursor zone [:price-87])
         price-91 (r/cursor zone [:price-91])
         service-fee-60 (r/cursor zone [:service-fee-60])
         service-fee-180 (r/cursor zone [:service-fee-180])
@@ -153,8 +150,7 @@
         service-time-bracket-end   (r/cursor zone [:service-time-bracket-end])
         errors (r/cursor zone [:errors])
         retrieving? (r/cursor zone [:retrieving?])
-        alert-success (r/cursor zone [:alert-success])
-        ]
+        alert-success (r/cursor zone [:alert-success])]
     (fn []
       [:form {:class "form-horizontal"}
        ;; 87 Price
@@ -172,12 +168,10 @@
                    :value @price-87
                    :on-change #(reset! price-87 (-> %
                                                     (aget "target")
-                                                    (aget "value")))
-                   }]]
+                                                    (aget "value")))}]]
          (when (:price-87 @errors)
            [:div {:class "alert alert-danger"}
-            (first (:price-87 @errors))])]
-        ]
+            (first (:price-87 @errors))])]]
        ;; 91 Price
        [:div {:class "form-group"}
         [:label {:for "91 price"
@@ -193,12 +187,10 @@
                    :value @price-91
                    :on-change #(reset! price-91 (-> %
                                                     (aget "target")
-                                                    (aget "value")))
-                   }]]
+                                                    (aget "value")))}]]
          (when (:price-91 @errors)
            [:div {:class "alert alert-danger"}
-            (first (:price-91 @errors))])]
-        ]
+            (first (:price-91 @errors))])]]
        ;; 1 Hour Fee
        [:div {:class "form-group"}
         [:label {:for "1 Hour Fee"
@@ -214,12 +206,10 @@
                    :value @service-fee-60
                    :on-change #(reset! service-fee-60 (-> %
                                                           (aget "target")
-                                                          (aget "value")))
-                   }]]
+                                                          (aget "value")))}]]
          (when (:service-fee-60 @errors)
            [:div {:class "alert alert-danger"}
-            (first (:service-fee-60 @errors))])]
-        ]
+            (first (:service-fee-60 @errors))])]]
        ;; 3 Hour Fee
        [:div {:class "form-group"}
         [:label {:for "3 Hour Fee"
@@ -235,8 +225,7 @@
                    :value @service-fee-180
                    :on-change #(reset! service-fee-180 (-> %
                                                            (aget "target")
-                                                           (aget "value")))
-                   }]]
+                                                           (aget "value")))}]]
          (when (:service-fee-180 @errors)
            [:div {:class "alert alert-danger"}
             (first (:service-fee-180 @errors))])]]
@@ -254,8 +243,7 @@
                    :on-change #(reset! service-time-bracket-begin
                                        (-> %
                                            (aget "target")
-                                           (aget "value")))
-                   }]]
+                                           (aget "value")))}]]
          (when (:service-time-bracket-begin @errors)
            [:div {:class "alert alert-danger"}
             (first (:service-time-bracket-begin @errors))])]]
@@ -273,8 +261,7 @@
                    :on-change #(reset! service-time-bracket-end
                                        (-> %
                                            (aget "target")
-                                           (aget "value")))
-                   }]]
+                                           (aget "value")))}]]
          (when (:service-time-bracket-end @errors)
            [:div {:class "alert alert-danger"}
             (first (:service-time-bracket-end @errors))])]]
@@ -286,10 +273,8 @@
                     :class "close"
                     :aria-label "Close"}
            [:i {:class "fa fa-times"
-                :on-click #(reset! alert-success "")}]
-           ]
-          [:strong @alert-success]])
-       ])))
+                :on-click #(reset! alert-success "")}]]
+          [:strong @alert-success]])])))
 
 (defn zone-table-header
   "props is:
@@ -404,8 +389,7 @@
                                    {:topic "zones"
                                     :data (js->clj response :keywordize-keys
                                                    true)})
-                             (reset! refreshing? false)))))
-            ]
+                             (reset! refreshing? false)))))]
         (if (nil? @current-zone)
           (reset! current-zone (first sorted-zones)))
         ;; set the edit-zone values to match those of current-zone
@@ -457,13 +441,11 @@
                   :role "group"
                   :aria-label "refresh group"}
             [RefreshButton {:refresh-fn
-                            refresh-fn}]
-            ]]]
+                            refresh-fn}]]]]
          [:div {:class "table-responsive"}
           [StaticTable
            {:table-header [zone-table-header
                            {:sort-keyword sort-keyword
                             :sort-reversed? sort-reversed?}]
             :table-row (zone-row current-zone)}
-           sorted-zones]]
-         ]))))
+           sorted-zones]]]))))
