@@ -1,12 +1,13 @@
 (ns dashboard-cljs.zones
   (:require [reagent.core :as r]
             [cljs.core.async :refer [put!]]
+            [clojure.set :refer [subset?]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt markets
                                           json-string->clj cents->$dollars
                                           cents->dollars dollars->cents
-                                          parse-to-number?]]
+                                          parse-to-number? accessible-routes]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton]]
             [clojure.string :as s]))
@@ -318,7 +319,6 @@
   "A table row for a zone."
   [current-zone]
   (fn [zone]
-    (let [])
     [:tr {:class (when (= (:id zone)
                           (:id @current-zone))
                    "active")
@@ -423,15 +423,18 @@
                                  :alert-success (:alert-success
                                                  @current-zone)))
         [:div {:class "panel panel-default"}
-         [:div {:class "panel-body"}
-          [:h2 [:i {:class "fa fa-circle"
-                    :style {:color
-                            (:color @current-zone)}}]
-           (str " " (:name @current-zone))]
-          [zone-form edit-zone
-           [zone-form-submit edit-zone (edit-on-click edit-zone
-                                                      current-zone)
-            "Update"]]]
+         (when (subset? #{{:uri "/dashboard/zone"
+                           :method "PUT"}}
+                        @accessible-routes)
+           [:div {:class "panel-body"}
+            [:h2 [:i {:class "fa fa-circle"
+                      :style {:color
+                              (:color @current-zone)}}]
+             (str " " (:name @current-zone))]
+            [zone-form edit-zone
+             [zone-form-submit edit-zone (edit-on-click edit-zone
+                                                        current-zone)
+              "Update"]]])
          [:div {:class "panel-body"}
           [:div [:h4 {:class "pull-left"} "Zones"]]
           [:div {:class "btn-toolbar"

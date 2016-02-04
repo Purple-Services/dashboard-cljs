@@ -2,12 +2,14 @@
   (:require [cljs.core.async :refer [put!]]
             [cljsjs.moment]
             [clojure.string :as s]
+            [clojure.set :refer [subset?]]
             [reagent.core :as r]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton ErrorComp]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->hrf base-url
-                                          cents->$dollars json-string->clj]]
+                                          cents->$dollars json-string->clj
+                                          accessible-routes]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps]]))
 
@@ -175,9 +177,15 @@
         [:h5 [:span {:class "info-window-label"} "Courier: "]
          ;; courier assigned (if any)
          (when (not @editing?)
-           [:span (str (:courier_name @order) " ")])
+           [:span (str (if ((comp not nil?)
+                            (:courier_name @order))
+                         (:courier_name @order)
+                         "none assigned") " ")])
          ;; assign courier button
-         (when (not @editing?)
+         (when (and (not @editing?)
+                    (subset? #{{:uri "/dashboard/assign-order"
+                                :method "POST"}}
+                             @accessible-routes))
            [:button {:type "button"
                      :class "btn btn-xs btn-default"
                      :on-click #(reset! editing? true)}
@@ -186,13 +194,19 @@
               "Reassign Courier"
               )])
          ;; courier select
-         (when @editing?
+         (when (and @editing?
+                    (subset? #{{:uri "/dashboard/assign-order"
+                                :method "POST"}}
+                             @accessible-routes))
            [order-courier-select {:selected-courier
                                   selected-courier
                                   :couriers couriers}])
          ;; save assignment
          " "
-         (when (and @editing?)
+         (when (and @editing?
+                    (subset? #{{:uri "/dashboard/assign-order"
+                                :method "POST"}}
+                             @accessible-routes))
            [:button {:type "button"
                      :class "btn btn-xs btn-default"
                      :on-click
@@ -330,7 +344,10 @@
        (when
            (and (not @editing?)
                 (not (contains? #{"complete" "cancelled"}
-                                status)))
+                                status))
+                (subset? #{{:uri "/dashboard/cancel-order"
+                            :method "POST"}}
+                         @accessible-routes))
          [:button {:type "button"
                    :class "btn btn-xs btn-default btn-danger"
                    :on-click #(cancel-order order error-message)}

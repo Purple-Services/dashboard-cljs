@@ -1,10 +1,12 @@
 (ns dashboard-cljs.datastore
   (:require-macros [cljs.core.async.macros :refer [go go-loop]])
   (:require [cljs.core.async :refer [chan pub put! sub <! >!]]
-            [clojure.set :refer [difference intersection project union]]
+            [clojure.set :refer [difference intersection project union
+                                 subset?]]
             [reagent.core :as r]
             [cljsjs.moment]
-            [dashboard-cljs.utils :refer [base-url continuous-update get-by-id]]
+            [dashboard-cljs.utils :refer [base-url continuous-update get-by-id
+                                          accessible-routes]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]))
 
 ;; This namespace contains the global state of the app and the fn's associated
@@ -137,82 +139,93 @@
                                                   :target_time_start orders))))
 
                                  )))]
-    ;; keep data synced with the data channel
-    (sync-state! orders (sub read-data-chan "orders" (chan)))
-    ;; initialize orders
-    (retrieve-url
-     (str base-url "orders-since-date")
-     "POST"
-     (js/JSON.stringify
-      (clj->js
-       ;; just retrieve the last 20 days worth of orders
-       {:date (-> (js/moment)
-                  (.subtract 30 "days")
-                  (.format "YYYY-MM-DD"))}))
-     (partial xhrio-wrapper
-              #(orders-response-fn % true)))
-    ;; periodically check server for updates in orders
-    (continuous-update
-     #(when (:target_time_start @most-recent-order)
-        (retrieve-url
-         (str base-url "orders-since-date")
-         "POST"
-         (js/JSON.stringify
-          (clj->js
-           {:date (:target_time_start @most-recent-order)
-            :unix-epoch? true}))
-         (partial xhrio-wrapper
-                  orders-response-fn)))
-     10000)
-    ;; couriers data channel
-    (sync-state! couriers (sub read-data-chan "couriers" (chan)))
-    ;; initialize couriers
-    (retrieve-url
-     (str base-url "couriers")
-     "POST"
-     {}
-     (partial xhrio-wrapper
-              (fn [response]
-                (put! modify-data-chan
-                      {:topic "couriers"
-                       :data (:couriers (js->clj response :keywordize-keys
-                                                 true))}))))
-    ;; users data channel
-    (sync-state! users (sub read-data-chan "users" (chan)))
-    ;; initialize users
-    (retrieve-url
-     (str base-url "users")
-     "GET"
-     {}
-     (partial xhrio-wrapper
-              (fn [response]
-                (put! modify-data-chan
-                      {:topic "users"
-                       :data (js->clj response :keywordize-keys
-                                      true)}))))
-    ;; coupons data channel
-    (sync-state! coupons (sub read-data-chan "coupons" (chan)))
-    ;; initialize coupons
-    (retrieve-url
-     (str base-url "coupons")
-     "GET"
-     {}
-     (partial xhrio-wrapper
-              (fn [response]
-                (put! modify-data-chan
-                      {:topic "coupons"
-                       :data (js->clj response :keywordize-keys
-                                      true)}))))
-    ;; zones data channel
-    (sync-state! zones (sub read-data-chan "zones" (chan)))
-    ;; initialize zones
-    (retrieve-url
-     (str base-url "zones")
-     "GET"
-     {}
-     (partial xhrio-wrapper
-              (fn [response]
-                (put! modify-data-chan
-                      {:topic "zones"
-                       :data (js->clj response :keywordize-keys
-                                      true)}))))))
+    ;; orders
+    (when (subset? #{{:uri "/dashboard/orders-since-date"
+                      :method "POST"}} @accessible-routes)
+      ;; keep data synced with the data channel
+      (sync-state! orders (sub read-data-chan "orders" (chan)))
+      ;; initialize orders
+      (retrieve-url
+       (str base-url "orders-since-date")
+       "POST"
+       (js/JSON.stringify
+        (clj->js
+         ;; just retrieve the last 20 days worth of orders
+         {:date (-> (js/moment)
+                    (.subtract 30 "days")
+                    (.format "YYYY-MM-DD"))}))
+       (partial xhrio-wrapper
+                #(orders-response-fn % true)))
+      ;; periodically check server for updates in orders
+      (continuous-update
+       #(when (:target_time_start @most-recent-order)
+          (retrieve-url
+           (str base-url "orders-since-date")
+           "POST"
+           (js/JSON.stringify
+            (clj->js
+             {:date (:target_time_start @most-recent-order)
+              :unix-epoch? true}))
+           (partial xhrio-wrapper
+                    orders-response-fn)))
+       10000))
+    ;; couriers
+    (when (subset? #{{:uri "/dashboard/couriers"
+                      :method "POST"}} @accessible-routes)
+      (sync-state! couriers (sub read-data-chan "couriers" (chan)))
+      ;; initialize couriers
+      (retrieve-url
+       (str base-url "couriers")
+       "POST"
+       {}
+       (partial xhrio-wrapper
+                (fn [response]
+                  (put! modify-data-chan
+                        {:topic "couriers"
+                         :data (:couriers (js->clj response :keywordize-keys
+                                                   true))})))))
+    ;; users
+    (when (subset? #{{:uri "/dashboard/users"
+                      :method "GET"}} @accessible-routes)
+      (sync-state! users (sub read-data-chan "users" (chan)))
+      ;; initialize users
+      (retrieve-url
+       (str base-url "users")
+       "GET"
+       {}
+       (partial xhrio-wrapper
+                (fn [response]
+                  (put! modify-data-chan
+                        {:topic "users"
+                         :data (js->clj response :keywordize-keys
+                                        true)})))))
+    ;; coupons
+    (when (subset? #{{:uri "/dashboard/coupons"
+                      :method "GET"}} @accessible-routes)
+      (sync-state! coupons (sub read-data-chan "coupons" (chan)))
+      ;; initialize coupons
+      (retrieve-url
+       (str base-url "coupons")
+       "GET"
+       {}
+       (partial xhrio-wrapper
+                (fn [response]
+                  (put! modify-data-chan
+                        {:topic "coupons"
+                         :data (js->clj response :keywordize-keys
+                                        true)})))))
+    ;; zones
+    (when (subset? #{{:uri "/dashboard/zones"
+                      :method "GET"}} @accessible-routes)
+      (sync-state! zones (sub read-data-chan "zones" (chan)))
+      ;; initialize zones
+      (retrieve-url
+       (str base-url "zones")
+       "GET"
+       {}
+       (partial xhrio-wrapper
+                (fn [response]
+                  (put! modify-data-chan
+                        {:topic "zones"
+                         :data (js->clj response :keywordize-keys
+                                        true)})))))))

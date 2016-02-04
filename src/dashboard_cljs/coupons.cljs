@@ -1,12 +1,14 @@
 (ns dashboard-cljs.coupons
   (:require [reagent.core :as r]
             [cljs.core.async :refer [put!]]
+            [clojure.set :refer [subset?]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt markets
                                           json-string->clj cents->$dollars
                                           cents->dollars dollars->cents
-                                          format-coupon-code parse-to-number?]]
+                                          format-coupon-code parse-to-number?
+                                          accessible-routes]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton DatePicker]]
             [clojure.string :as s]))
@@ -169,8 +171,7 @@
                 }
        (if @retrieving?
          [:i {:class "fa fa-lg fa-refresh fa-pulse "}]
-         label)
-       ])))
+         label)])))
 
 (defn coupon-form
   "Form for a new coupon using submit-button"
@@ -377,11 +378,14 @@
                                    :alert-success (:alert-success
                                                    @current-coupon)))
         [:div {:class "panel panel-default"}
-         [:div {:class "panel-body"}
-          [coupon-form edit-coupon
-           [coupon-form-submit edit-coupon (edit-on-click edit-coupon
-                                                          current-coupon)
-            "Update"]]]
+         (when (subset? #{{:uri "/dashboard/coupon"
+                           :method "PUT"}}
+                        @accessible-routes)
+           [:div {:class "panel-body"}
+            [coupon-form edit-coupon
+             [coupon-form-submit edit-coupon (edit-on-click edit-coupon
+                                                            current-coupon)
+              "Update"]]])
          [:div {:class "panel-body"}
           [:div [:h4 {:class "pull-left"} "Coupons"]
            [:div {:class "btn-toolbar"
@@ -393,11 +397,9 @@
              [:button {:type "button"
                        :class (str "btn btn-default "
                                    (when (= @selected
-                                            "active"
-                                            )
+                                            "active")
                                      "active"))
-                       :on-click #(reset! selected "active")
-                       }
+                       :on-click #(reset! selected "active")}
               "Active"]
              [:button {:type "button"
                        :class (str "btn btn-default "

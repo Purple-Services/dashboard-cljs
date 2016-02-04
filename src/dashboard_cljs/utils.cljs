@@ -1,7 +1,8 @@
 (ns dashboard-cljs.utils
   (:require [cljsjs.moment]
+            [cljs.reader :refer [read-string]]
             [clojure.string :as s]
-            ))
+            [reagent.core :as r]))
 
 (defn unix-epoch->fmt
   "Convert a unix epoch (in seconds) to fmt"
@@ -52,6 +53,8 @@
 
 (def base-url (-> (.getElementById js/document "base-url")
                   (.getAttribute "value")))
+
+(def accessible-routes (r/atom #{}))
 
 (def markets
   {0 "Los Angeles"

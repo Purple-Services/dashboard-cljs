@@ -1,9 +1,10 @@
 (ns dashboard-cljs.landing
   (:require [reagent.core :as r]
             [clojure.string :as s]
+            [clojure.set :refer [subset?]]
             [cljsjs.moment]
             [dashboard-cljs.utils :refer [base-url update-values
-                                          unix-epoch->hrf]]
+                                          unix-epoch->hrf accessible-routes]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.home :as home]
             [dashboard-cljs.couriers :as couriers]
@@ -126,59 +127,84 @@
     [:div {:class (str "collapse navbar-collapse navbar-ex1-collapse "
                        (when @(:side-bar-toggle props) "in"))}
      [:ul {:class "nav navbar-nav side-nav side-nav-color"}
-      [Tab {:default? true
-            :toggle-key :dashboard-view
-            :toggle (:tab-content-toggle props)
-            :side-bar-toggle (:side-bar-toggle props)}
-       [:div ;;[:i {:class "fa fa-home fa-fw"}]
-        "Home"]]
-      [Tab {:default? false
-            :toggle-key :couriers-view
-            :toggle (:tab-content-toggle props)
-            :side-bar-toggle (:side-bar-toggle props)}
-       [:div
-        "Couriers"]]
-      [Tab {:default? false
-            :toggle-key :users-view
-            :toggle (:tab-content-toggle props)
-            :side-bar-toggle (:side-bar-toggle props)}
-       [:div
-        "Users"]]
-      [Tab {:default? false
-            :toggle-key :coupons-view
-            :toggle (:tab-content-toggle props)
-            :side-bar-toggle (:side-bar-toggle props)}
-       [:div
-        "Promo Codes"]]
-      [Tab {:default? false
-            :toggle-key :zones-view
-            :toggle (:tab-content-toggle props)
-            :side-bar-toggle (:side-bar-toggle props)}
-       [:div
-        "Zones"]]
-      [Tab {:default? false
-            :toggle-key :orders-view
-            :toggle (:tab-content-toggle props)
-            :side-bar-toggle (:side-bar-toggle props)}
-       [:div
-        (when (not (= @datastore/most-recent-order
-                      @datastore/last-acknowledged-order))
-          [:span {:class "fa-stack"}
-           [:i {:class "fa fa-circle fa-stack-2x text-danger"}]
-           [:i {:class "fa fa-stack-1x fa-inverse"}
-            (- (count @datastore/orders)
-               (count (filter
-                       #(<= (:target_time_start %)
-                            (:target_time_start
-                             @datastore/last-acknowledged-order))
-                       @datastore/orders)))]])
-        "Orders"]]
-      [Tab {:default? false
-            :toggle-key :analytics-view
-            :toggle (:tab-content-toggle props)
-            :side-bar-toggle (:side-bar-toggle props)}
-       [:div
-        "Analytics"]]]]))
+      (when (subset? #{{:uri "/dashboard/orders-since-date"
+                        :method "POST"}}
+                     @accessible-routes)
+        [Tab {:default? true
+              :toggle-key :dashboard-view
+              :toggle (:tab-content-toggle props)
+              :side-bar-toggle (:side-bar-toggle props)}
+         [:div
+          "Home"]])
+      (when (subset? #{{:uri "/dashboard/couriers"
+                        :method "POST"}}
+                     @accessible-routes)
+        [Tab {:default? false
+              :toggle-key :couriers-view
+              :toggle (:tab-content-toggle props)
+              :side-bar-toggle (:side-bar-toggle props)}
+         [:div
+          "Couriers"]])
+      (when (subset? #{{:uri "/dashboard/users"
+                        :method "GET"}}
+                     @accessible-routes)
+        [Tab {:default? false
+              :toggle-key :users-view
+              :toggle (:tab-content-toggle props)
+              :side-bar-toggle (:side-bar-toggle props)}
+         [:div
+          "Users"]])
+      (when (subset? #{{:uri "/dashboard/coupons"
+                        :method "GET"}}
+                     @accessible-routes)
+        [Tab {:default? false
+              :toggle-key :coupons-view
+              :toggle (:tab-content-toggle props)
+              :side-bar-toggle (:side-bar-toggle props)}
+         [:div
+          "Promo Codes"]])
+      (when (subset? #{{:uri "/dashboard/zones"
+                        :method "GET"}}
+                     @accessible-routes)
+        [Tab {:default? false
+              :toggle-key :zones-view
+              :toggle (:tab-content-toggle props)
+              :side-bar-toggle (:side-bar-toggle props)}
+         [:div
+          "Zones"]])
+      (when (subset? #{{:uri "/dashboard/orders-since-date"
+                        :method "POST"}}
+                     @accessible-routes)
+        [Tab {:default? false
+              :toggle-key :orders-view
+              :toggle (:tab-content-toggle props)
+              :side-bar-toggle (:side-bar-toggle props)}
+         [:div
+          (when (not (= @datastore/most-recent-order
+                        @datastore/last-acknowledged-order))
+            [:span {:class "fa-stack"}
+             [:i {:class "fa fa-circle fa-stack-2x text-danger"}]
+             [:i {:class "fa fa-stack-1x fa-inverse"}
+              (- (count @datastore/orders)
+                 (count (filter
+                         #(<= (:target_time_start %)
+                              (:target_time_start
+                               @datastore/last-acknowledged-order))
+                         @datastore/orders)))]])
+          "Orders"]])
+      (when (subset? #{{:uri "/dashboard/generate-stats-csv"
+                        :method "GET"}
+                       {:uri "/dashboard/download-stats-csv"
+                        :method "GET"}
+                       {:uri "/dashboard/status-stats-csv"
+                        :method "GET"}}
+                     @accessible-routes)
+        [Tab {:default? false
+              :toggle-key :analytics-view
+              :toggle (:tab-content-toggle props)
+              :side-bar-toggle (:side-bar-toggle props)}
+         [:div
+          "Analytics"]])]]))
 
 ;; based on https://github.com/IronSummitMedia/startbootstrap-sb-admin
 (defn app
@@ -200,52 +226,96 @@
         [:div {:class "container-fluid tab-content"}
          ;; home page
          [TabContent
-          {:toggle (r/cursor tab-content-toggle [:dashboard-view])}
-          [:div
-           [:div {:class "row"}
-            [home/orders-count-panel]
-            [home/dash-map-link-panel]
-            [home/ongoing-jobs-panel @datastore/orders]]]]
+             {:toggle (r/cursor tab-content-toggle [:dashboard-view])}
+             [:div
+              [:div {:class "row"}
+               [:div {:class "col-lg-12"}
+                (when (subset? #{{:uri "/dashboard/orders-since-date"
+                                  :method "POST"}}
+                               @accessible-routes)
+                  [:div
+                   [home/orders-count-panel]
+                   (when (subset? #{{:uri "/dashboard/dash-map-couriers"
+                                     :method "GET"}}
+                                  @accessible-routes)
+                     [home/dash-map-link-panel])
+                   [home/ongoing-jobs-panel @datastore/orders]])]]]]
          ;; couriers page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:couriers-view])}
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
-            [couriers/couriers-panel @datastore/couriers]]]]
+            (when (subset? #{{:uri "/dashboard/couriers"
+                              :method "POST"}}
+                           @accessible-routes)
+              [couriers/couriers-panel @datastore/couriers])]]]
          ;; users page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:users-view])}
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
-            [users/user-push-notification]
-            [users/users-panel @datastore/users]]]]
+            (when (subset? #{{:uri "/dashboard/users"
+                              :method "GET"
+                              }} @accessible-routes)
+              [:div
+               (when (subset?
+                      #{{:uri "/dashboard/send-push-to-all-active-users"
+                         :method "POST"}
+                        {:uri "/dashboard/send-push-to-users-list"
+                         :method "POST"}}
+                      @accessible-routes)
+                 [users/user-push-notification])
+               [users/users-panel @datastore/users]])]]]
          ;; promo code page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:coupons-view])}
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
-            [coupons/new-coupon-panel]
-            [coupons/coupons-panel @datastore/coupons]]]]
+            (when (subset? #{{:uri "/dashboard/coupons"
+                              :method "GET"}}
+                           @accessible-routes)
+              [:div
+               (when (subset? #{{:uri "/dashboard/coupon"
+                                 :method "POST"}}
+                              @accessible-routes)
+                 [coupons/new-coupon-panel])
+               [coupons/coupons-panel @datastore/coupons]])]]]
          ;; zones page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:zones-view])}
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
-            [zones/zones-panel @datastore/zones]]]]
+            (when (subset? #{{:uri "/dashboard/zones"
+                              :method "GET"}}
+                           @accessible-routes)
+              [:div
+               [zones/zones-panel @datastore/zones]])]]]
          ;; orders page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:orders-view])}
           [:div
            [:div {:class "row"}
             [:div {:class "col-lg-12"}
-             [orders/orders-panel @datastore/orders]]]]]
+             (when (subset? #{{:uri "/dashboard/orders-since-date"
+                               :method "POST"}}
+                            @accessible-routes)
+               [:div
+                [orders/orders-panel @datastore/orders]])]]]]
          ;; analytics page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:analytics-view])}
           [:div
            [:div {:class "row"}
             [:div {:class "col-lg-12"}
-             [analytics/stats-panel]]]]]]]])))
+             (when (subset? #{{:uri "/dashboard/generate-stats-csv"
+                               :method "GET"}
+                              {:uri "/dashboard/download-stats-csv"
+                               :method "GET"}
+                              {:uri "/dashboard/status-stats-csv"
+                               :method "GET"}}
+                            @accessible-routes)
+               [:div
+                [analytics/stats-panel]])]]]]]]])))
 
 (defn init-landing
   []

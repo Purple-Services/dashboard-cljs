@@ -1,6 +1,7 @@
 (ns dashboard-cljs.couriers
   (:require [cljs.core.async :refer [put!]]
             [cljsjs.moment]
+            [clojure.set :refer [subset?]]
             [clojure.string :as s]
             [cljs.reader :refer [read-string]]
             [reagent.core :as r]
@@ -8,7 +9,8 @@
                                                RefreshButton KeyVal StarRating
                                                ErrorComp]]
             [dashboard-cljs.datastore :as datastore]
-            [dashboard-cljs.utils :refer [unix-epoch->fmt base-url markets]]
+            [dashboard-cljs.utils :refer [unix-epoch->fmt base-url markets
+                                          accessible-routes]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [get-cached-gmaps gmap]]))
 
@@ -263,16 +265,19 @@
            [text-input {:error? (not (s/blank? @error-message))
                         :default-value @input-value
                         :on-change (text-input-on-change input-value)}])
-         [save-button {:editing? editing?
-                       :retrieving? retrieving?
-                       :on-click (save-button-on-click
-                                  editing?
-                                  retrieving?
-                                  input-value
-                                  current-value
-                                  error-message
-                                  courier
-                                  retrieve-courier)}]
+         (when (subset? #{{:uri "/dashboard/courier"
+                           :method "POST"}}
+                        @accessible-routes)
+           [save-button {:editing? editing?
+                         :retrieving? retrieving?
+                         :on-click (save-button-on-click
+                                    editing?
+                                    retrieving?
+                                    input-value
+                                    current-value
+                                    error-message
+                                    courier
+                                    retrieve-courier)}])
          (when (not (s/blank? @error-message))
            [ErrorComp (str "Courier could not be assigned! Reason: "
                            @error-message)])]))))
@@ -351,26 +356,29 @@
                                 :error-message zones-error-message
                                 :courier current-courier}]]]
          ;; Table of orders for current courier
-         [:div {:class "row"}
-          (when (> (count sorted-orders)
-                   0)
-            [:button {:type "button"
-                      :class "btn btn-sm btn-default"
-                      :on-click #(swap! show-orders? not)
-                      }
-             (if @show-orders?
-               "Hide Orders"
-               "Show Orders")])
-          [:div {:class "table-responsive"
-                 :style (if @show-orders?
-                          {}
-                          {:display "none"})}
-           [StaticTable
-            {:table-header [courier-orders-header
-                            {:sort-keyword sort-keyword
-                             :sort-reversed? sort-reversed?}]
-             :table-row (courier-orders-row)}
-            sorted-orders]]]]))))
+         (when (subset? #{{:uri "/dashboard/orders-since-date"
+                           :method "POST"}}
+                        @accessible-routes)
+           [:div {:class "row"}
+            (when (> (count sorted-orders)
+                     0)
+              [:button {:type "button"
+                        :class "btn btn-sm btn-default"
+                        :on-click #(swap! show-orders? not)
+                        }
+               (if @show-orders?
+                 "Hide Orders"
+                 "Show Orders")])
+            [:div {:class "table-responsive"
+                   :style (if @show-orders?
+                            {}
+                            {:display "none"})}
+             [StaticTable
+              {:table-header [courier-orders-header
+                              {:sort-keyword sort-keyword
+                               :sort-reversed? sort-reversed?}]
+               :table-row (courier-orders-row)}
+              sorted-orders]]])]))))
 
 (defn couriers-panel
   "Display a table of selectable couriers with an indivdual courier panel
