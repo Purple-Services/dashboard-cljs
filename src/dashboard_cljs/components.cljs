@@ -166,28 +166,80 @@
                                           (.unix))))}])})))
 (defn TablePager
   "props is:
-  {:total-pages integer ; the amount of pages
-   :pagenumber  integer ; r/atom, the current page number we are on
+  {:total-pages  integer ; the amount of pages
+   :current-page integer ; r/atom, the current page number we are on
   }"
   [props]
-  (fn [{:keys [total-pages pagenumber]} props]
-    (when (> total-pages 1)
-      [:div
-       [:br]
-       [:div {:class "btn-toolbar"
-              :role "toolbar"}
-        [:div {:class "btn-group"
-               :role "group"
-               :aria-label "pager"}
-         (doall (map (fn [page-partition]
-                       ^{:key page-partition}
-                       [:button {:type "button"
-                                 :class
-                                 (str "btn btn-default "
-                                      (when (= page-partition
-                                               @pagenumber)
-                                        "active"))
-                                 :on-click #(reset! pagenumber page-partition)}
-                        page-partition])
-                     (range 1 (+ 1 total-pages))))]]]
-      )))
+  (fn [{:keys [total-pages current-page]} props]
+    (let [page-width 5
+          pages (->> (range 1 (+ 1 total-pages))
+                     (partition-all page-width))
+          displayed-pages (->> pages
+                               (filter (fn [i] (some #(= @current-page %) i)))
+                               first)]
+      (when (> total-pages 1)
+        [:nav
+         [:ul {:class "pagination"}
+          [:li {:class "page-item"}
+           [:a {:href "#"
+                :class "page-link"
+                :on-click (fn [e]
+                            (.preventDefault e)
+                            (reset! current-page 1))
+                }
+            ;; the symbol here is called a Guillemet
+            ;; html character entity reference &laquo;
+            "«"
+            ]]
+          [:li {:class "page-item"}
+           [:a {:href "#"
+                :class "page-link"
+                :on-click
+                (fn [e]
+                  (.preventDefault e)
+                  (let [new-current-page (- (first displayed-pages) 1)]
+                    (if (< new-current-page 1)
+                      (reset! current-page 1)
+                      (reset! current-page new-current-page))))}
+            ;; html character entity reference &lsaquo;
+            "‹"
+            ]]
+          (doall (map (fn [page-number]
+                        ^{:key page-number}
+                        [:li {:class
+                              (str "page-item "
+                                   (when (= page-number
+                                            @current-page)
+                                     "active ")
+                                   (when (= 1))
+                                   )}
+                         [:a {:href "#"
+                              :class "page-link"
+                              :on-click (fn [e]
+                                          (.preventDefault e)
+                                          (reset! current-page page-number))
+                              }
+                          page-number]])
+                      ;;(range 1 (+ 1 total-pages))
+                      displayed-pages
+                      ))
+          [:li {:class "page-item"}
+           [:a {:href "#"
+                :class "page-link"
+                :on-click (fn [e]
+                            (.preventDefault e)
+                            (let [new-current-page (+ (last displayed-pages) 1)]
+                              (if (> new-current-page total-pages)
+                                (reset! current-page total-pages)
+                                (reset! current-page new-current-page))))}
+            ;; html character entity reference &rsaquo;
+            "›"
+            ]]
+          [:li {:class "page-item"}
+           [:a {:href "#"
+                :class "page-link"
+                :on-click (fn [e]
+                            (.preventDefault e)
+                            (reset! current-page total-pages))}
+            ;; html character entity reference &raquo;
+            "»"]]]]))))

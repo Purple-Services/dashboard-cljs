@@ -124,7 +124,7 @@
   (let [sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
         show-orders? (r/atom false)
-        pagenumber (r/atom 1)
+        current-page (r/atom 1)
         page-size 5]
     (fn [current-user]
       (let [
@@ -143,7 +143,7 @@
                                sort-fn
                                (partition-all page-size))
             paginated-orders (-> sorted-orders
-                                 (nth (- @pagenumber 1)
+                                 (nth (- @current-page 1)
                                       '()))
             default-card-info (if (empty? (:stripe_cards @current-user))
                                 nil
@@ -215,7 +215,7 @@
                             {:display "none"})}
              [TablePager
               {:total-pages (count sorted-orders)
-               :pagenumber pagenumber}]]])]))))
+               :current-page current-page}]]])]))))
 
 (defn users-panel
   "Display a table of selectable coureirs with an indivdual user panel
@@ -225,7 +225,7 @@
         sort-keyword (r/atom :timestamp_created)
         sort-reversed? (r/atom false)
         selected-filter (r/atom "show-all")
-        pagenumber (r/atom 1)
+        current-page (r/atom 1)
         page-size 5]
     (fn [users]
       (let [sort-fn (if @sort-reversed?
@@ -243,7 +243,7 @@
                               sort-fn
                               (partition-all page-size))
             paginated-users (-> sorted-users
-                                (nth (- @pagenumber 1)
+                                (nth (- @current-page 1)
                                      '()))
             refresh-fn (fn [saving?]
                          (reset! saving? true)
@@ -283,7 +283,7 @@
            paginated-users]]
          [TablePager
           {:total-pages (count sorted-users)
-           :pagenumber pagenumber}]]))))
+           :current-page current-page}]]))))
 
 (defn user-notification-header
   "props is:
@@ -352,7 +352,7 @@
         alert-error   (r/atom (str))
         sort-keyword (r/atom :timestamp_created)
         sort-reversed? (r/atom false)
-        pagenumber (r/atom 1)
+        current-page (r/atom 1)
         page-size 5]
     (fn []
       (let [sort-fn (if @sort-reversed?
@@ -363,7 +363,7 @@
                               sort-fn
                               (partition-all page-size))
             paginated-users (-> sorted-users
-                                (nth (- @pagenumber 1)
+                                (nth (- @current-page 1)
                                      '()))]
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
@@ -502,4 +502,4 @@
                paginated-users]]
              [TablePager
               {:total-pages (count sorted-users)
-               :pagenumber pagenumber}]])]]))))
+               :current-page current-page}]])]]))))

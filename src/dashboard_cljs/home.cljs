@@ -125,7 +125,7 @@
   (let [current-order (r/cursor state [:current-order])
         sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom true)
-        pagenumber (r/atom 1)
+        current-page (r/atom 1)
         page-size 5]
     (fn [orders]
       (let [sort-fn (if @sort-reversed?
@@ -143,7 +143,7 @@
                                (filter filter-fn)
                                (partition-all page-size))
             paginated-orders (-> sorted-orders
-                                 (nth (- @pagenumber 1)
+                                 (nth (- @current-page 1)
                                       '()))]
         (if (nil? @current-order)
           (reset! current-order (first paginated-orders)))
@@ -158,5 +158,5 @@
            paginated-orders]]
          [TablePager
           {:total-pages (count sorted-orders)
-           :pagenumber pagenumber}]
+           :current-page current-page}]
            ]))))

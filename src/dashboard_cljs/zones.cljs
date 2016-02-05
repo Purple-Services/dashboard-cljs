@@ -368,7 +368,7 @@
         sort-keyword (r/atom :id)
         sort-reversed? (r/atom true)
         selected (r/cursor state [:selected])
-        pagenumber (r/atom 1)
+        current-page (r/atom 1)
         page-size 5]
     (fn [zones]
       (let [sort-fn (if @sort-reversed?
@@ -379,7 +379,7 @@
                               sort-fn
                               (partition-all page-size))
             paginated-zones (-> sorted-zones
-                                (nth (- @pagenumber 1)
+                                (nth (- @current-page 1)
                                      '()))
             refresh-fn (fn [refreshing?]
                          (reset! refreshing? true)
@@ -460,4 +460,4 @@
            paginated-zones]]
          [TablePager
           {:total-pages (count sorted-zones)
-           :pagenumber pagenumber}]]))))
+           :current-page current-page}]]))))

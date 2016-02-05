@@ -328,7 +328,7 @@
         sort-keyword (r/atom :timestamp_created)
         sort-reversed? (r/atom false)
         selected (r/cursor state [:selected])
-        pagenumber (r/atom 1)
+        current-page (r/atom 1)
         page-size 5]
     (fn [coupons]
       (let [sort-fn (if @sort-reversed?
@@ -351,7 +351,7 @@
                                 sort-fn
                                 (partition-all page-size))
             paginated-coupons (-> sorted-coupons
-                                  (nth (- @pagenumber 1)
+                                  (nth (- @current-page 1)
                                        '()))
             refresh-fn (fn [refreshing?]
                          (reset! refreshing? true)
@@ -442,5 +442,5 @@
            paginated-coupons]]
          [TablePager
           {:total-pages (count sorted-coupons)
-           :pagenumber  pagenumber}]
+           :current-page  current-page}]
          ]))))

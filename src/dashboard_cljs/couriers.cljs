@@ -291,7 +291,7 @@
         sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
         show-orders? (r/atom false)
-        pagenumber (r/atom 1)
+        current-page (r/atom 1)
         page-size 5]
     (fn [current-courier]
       (let [editing-zones? (r/atom false)
@@ -315,7 +315,7 @@
                                sort-fn
                                (partition-all page-size))
             paginated-orders (-> sorted-orders
-                                 (nth (- @pagenumber 1)
+                                 (nth (- @current-page 1)
                                       '()))]
         ;; create and insert courier marker
         (when (:lat @current-courier)
@@ -365,31 +365,31 @@
          (when (subset? #{{:uri "/dashboard/orders-since-date"
                            :method "POST"}}
                         @accessible-routes)
-           [:div {:class "row"}
-            (when (> (count sorted-orders)
+            (when (> (count paginated-orders)
                      0)
-              [:button {:type "button"
-                        :class "btn btn-sm btn-default"
-                        :on-click #(swap! show-orders? not)
-                        }
-               (if @show-orders?
-                 "Hide Orders"
-                 "Show Orders")])
-            [:div {:class "table-responsive"
-                   :style (if @show-orders?
-                            {}
-                            {:display "none"})}
-             [StaticTable
-              {:table-header [courier-orders-header
-                              {:sort-keyword sort-keyword
-                               :sort-reversed? sort-reversed?}]
-               :table-row (courier-orders-row)}
-              paginated-orders]]
-            (when @show-orders?
-              [TablePager
-               {:total-pages (count sorted-orders )
-                :pagenumber pagenumber}])
-            ])]))))
+              [:div {:class "row"}
+               [:button {:type "button"
+                         :class "btn btn-sm btn-default"
+                         :on-click #(swap! show-orders? not)
+                         }
+                (if @show-orders?
+                  "Hide Orders"
+                  "Show Orders")]
+               [:div {:class "table-responsive"
+                      :style (if @show-orders?
+                               {}
+                               {:display "none"})}
+                [StaticTable
+                 {:table-header [courier-orders-header
+                                 {:sort-keyword sort-keyword
+                                  :sort-reversed? sort-reversed?}]
+                  :table-row (courier-orders-row)}
+                 paginated-orders]]
+               (when @show-orders?
+                 [TablePager
+                  {:total-pages (count sorted-orders )
+                   :current-page current-page}])
+               ]))]))))
 
 (defn couriers-panel
   "Display a table of selectable couriers with an indivdual courier panel
@@ -399,7 +399,7 @@
         sort-keyword (r/atom :timestamp_created)
         sort-reversed? (r/atom false)
         selected-filter (r/atom "show-all")
-        pagenumber (r/atom 1)
+        current-page (r/atom 1)
         page-size 5]
     (fn [couriers]
       (let [sort-fn (if @sort-reversed?
@@ -417,7 +417,7 @@
                                  sort-fn
                                  (partition-all page-size))
             paginated-couriers (-> sorted-couriers
-                                 (nth (- @pagenumber 1)
+                                 (nth (- @current-page 1)
                                       '()))
             refresh-fn (fn [saving?]
                          (reset! saving? true)
@@ -460,4 +460,4 @@
            paginated-couriers]]
          [TablePager
           {:total-pages (count sorted-couriers)
-           :pagenumber pagenumber}]]))))
+           :current-page current-page}]]))))

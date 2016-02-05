@@ -592,7 +592,7 @@
         sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
         selected-filter (r/atom "show-all")
-        pagenumber (r/atom 1)
+        current-page (r/atom 1)
         page-size 5]
     (fn [orders]
       (let [sort-fn (if @sort-reversed?
@@ -614,7 +614,7 @@
                                 (filter filter-fn)
                                 (partition-all page-size))
             paginated-orders  (-> sorted-orders
-                                  (nth (- @pagenumber 1)
+                                  (nth (- @current-page 1)
                                        '()))
             refresh-fn (fn [saving?]
                          (reset! saving? true)
@@ -675,4 +675,4 @@
            paginated-orders]]
          [TablePager
           {:total-pages (count sorted-orders)
-           :pagenumber  pagenumber}]]))))
+           :current-page  current-page}]]))))
