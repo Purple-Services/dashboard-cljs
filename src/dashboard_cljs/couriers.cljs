@@ -10,7 +10,7 @@
                                                ErrorComp TablePager]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->fmt base-url markets
-                                          accessible-routes]]
+                                          accessible-routes pager-helper!]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [get-cached-gmaps gmap]]))
 
@@ -314,9 +314,7 @@
             sorted-orders (->> orders
                                sort-fn
                                (partition-all page-size))
-            paginated-orders (-> sorted-orders
-                                 (nth (- @current-page 1)
-                                      '()))]
+            paginated-orders (pager-helper! sorted-orders current-page)]
         ;; create and insert courier marker
         (when (:lat @current-courier)
           (when @google-marker

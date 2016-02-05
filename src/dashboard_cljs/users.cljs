@@ -3,7 +3,7 @@
             [cljs.core.async :refer [put!]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt markets
-                                          json-string->clj]]
+                                          json-string->clj pager-helper!]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton KeyVal StarRating
@@ -142,9 +142,7 @@
             sorted-orders (->> orders
                                sort-fn
                                (partition-all page-size))
-            paginated-orders (-> sorted-orders
-                                 (nth (- @current-page 1)
-                                      '()))
+            paginated-orders (pager-helper! sorted-orders current-page)
             default-card-info (if (empty? (:stripe_cards @current-user))
                                 nil
                                 (->> (:stripe_cards @current-user)
@@ -152,8 +150,7 @@
                                      (filter #(= (:stripe_default_card
                                                   @current-user)
                                                  (:id %)))
-                                     first))
-            ]
+                                     first))]
         ;; populate the current user with additional information
         [:div {:class "panel-body"}
          [:div [:h3 (:name @current-user)]]

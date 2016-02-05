@@ -100,3 +100,24 @@
         js/Number
         js/isNaN
         not)))
+
+(defn pager-helper!
+  "When the amount of pages that a pager changes inside of a component,
+  it is possible to overshot @current-page so that it points to an empty
+  page collection.
+
+  Given part-col and current-page atom, return an empty list if
+  part-col is empty,  the corresponding partition if there is one,
+  or reset the current-page to 1 and return the first partition of
+  part-col"
+  [part-col current-page]
+  (let [part (nth part-col (- @current-page 1) '())]
+    (cond
+      (empty? part-col)
+      '()
+      ;; the part-col itself is not empty
+      (empty? part)
+      (do (reset! current-page 1)
+          (nth part-col (- @current-page 1)))
+      :else
+      part)))
