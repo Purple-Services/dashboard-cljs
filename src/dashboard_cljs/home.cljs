@@ -5,7 +5,8 @@
                                           unix-epoch->hrf cents->$dollars
                                           markets]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
-                                               RefreshButton CountPanel]]
+                                               RefreshButton CountPanel
+                                               TablePager]]
             [clojure.string :as s]))
 
 
@@ -123,7 +124,9 @@
   [orders]
   (let [current-order (r/cursor state [:current-order])
         sort-keyword (r/atom :target_time_start)
-        sort-reversed? (r/atom true)]
+        sort-reversed? (r/atom true)
+        pagenumber (r/atom 1)
+        page-size 5]
     (fn [orders]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -136,10 +139,14 @@
                                      "servicing"} (:status order)))
             displayed-orders orders
             sorted-orders (->> displayed-orders
+                               sort-fn
                                (filter filter-fn)
-                               sort-fn)]
+                               (partition-all page-size))
+            paginated-orders (-> sorted-orders
+                                 (nth (- @pagenumber 1)
+                                      '()))]
         (if (nil? @current-order)
-          (reset! current-order (first sorted-orders)))
+          (reset! current-order (first paginated-orders)))
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
           [:h3 "Ongoing Jobs"]]
@@ -148,4 +155,8 @@
            {:table-header [order-table-header {:sort-keyword sort-keyword
                                                :sort-reversed? sort-reversed?}]
             :table-row (order-row current-order)}
-           sorted-orders]]]))))
+           paginated-orders]]
+         [TablePager
+          {:total-pages (count sorted-orders)
+           :pagenumber pagenumber}]
+           ]))))

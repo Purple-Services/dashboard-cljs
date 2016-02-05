@@ -5,7 +5,8 @@
             [clojure.set :refer [subset?]]
             [reagent.core :as r]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
-                                               RefreshButton ErrorComp]]
+                                               RefreshButton ErrorComp
+                                               TablePager]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->hrf base-url
                                           cents->$dollars json-string->clj
@@ -590,7 +591,9 @@
   (let [current-order (r/atom nil)
         sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
-        selected-filter (r/atom "show-all")]
+        selected-filter (r/atom "show-all")
+        pagenumber (r/atom 1)
+        page-size 5]
     (fn [orders]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -606,9 +609,13 @@
                                           (:target_time_start
                                            @datastore/last-acknowledged-order))
                                      orders)
-            sorted-orders (->> displayed-orders
-                               sort-fn
-                               (filter filter-fn))
+            sorted-orders  (->> displayed-orders
+                                sort-fn
+                                (filter filter-fn)
+                                (partition-all page-size))
+            paginated-orders  (-> sorted-orders
+                                  (nth (- @pagenumber 1)
+                                       '()))
             refresh-fn (fn [saving?]
                          (reset! saving? true)
                          (retrieve-url
@@ -643,7 +650,7 @@
                                          @datastore/most-recent-order)
                                  (reset! saving? false)))))))]
         (when (nil? @current-order)
-          (reset! current-order (first sorted-orders)))
+          (reset! current-order (first paginated-orders)))
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
           [order-panel current-order]
@@ -665,4 +672,7 @@
            {:table-header [order-table-header {:sort-keyword sort-keyword
                                                :sort-reversed? sort-reversed?}]
             :table-row (order-row current-order)}
-           sorted-orders]]]))))
+           paginated-orders]]
+         [TablePager
+          {:total-pages (count sorted-orders)
+           :pagenumber  pagenumber}]]))))

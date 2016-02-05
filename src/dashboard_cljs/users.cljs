@@ -6,7 +6,8 @@
                                           json-string->clj]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
-                                               RefreshButton KeyVal StarRating]]
+                                               RefreshButton KeyVal StarRating
+                                               TablePager]]
             [clojure.string :as s]))
 
 (def push-selected-users (r/atom (set nil)))
@@ -122,7 +123,9 @@
   [current-user]
   (let [sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
-        show-orders? (r/atom false)]
+        show-orders? (r/atom false)
+        pagenumber (r/atom 1)
+        page-size 5]
     (fn [current-user]
       (let [
             sort-fn (if @sort-reversed?
@@ -137,7 +140,11 @@
                            (= (:id @current-user)
                               (:user_id order)))))
             sorted-orders (->> orders
-                               sort-fn)
+                               sort-fn
+                               (partition-all page-size))
+            paginated-orders (-> sorted-orders
+                                 (nth (- @pagenumber 1)
+                                      '()))
             default-card-info (if (empty? (:stripe_cards @current-user))
                                 nil
                                 (->> (:stripe_cards @current-user)
@@ -183,26 +190,32 @@
                  "/"
                  (:exp_year default-card-info)))])]]
          ;; Table of orders for current user
-         [:div {:class "row"}
-          (when (> (count sorted-orders)
-                   0)
+         (when (> (count paginated-orders)
+                  0)
+           [:div {:class "row"}
             [:button {:type "button"
                       :class "btn btn-sm btn-default"
                       :on-click #(swap! show-orders? not)
                       }
              (if @show-orders?
                "Hide Orders"
-               "Show Orders")])
-          [:div {:class "table-responsive"
-                 :style (if @show-orders?
-                          {}
-                          {:display "none"})}
-           [StaticTable
-            {:table-header [user-orders-header
-                            {:sort-keyword sort-keyword
-                             :sort-reversed? sort-reversed?}]
-             :table-row (user-orders-row)}
-            sorted-orders]]]]))))
+               "Show Orders")]
+            [:div {:class "table-responsive"
+                   :style (if @show-orders?
+                            {}
+                            {:display "none"})}
+             [StaticTable
+              {:table-header [user-orders-header
+                              {:sort-keyword sort-keyword
+                               :sort-reversed? sort-reversed?}]
+               :table-row (user-orders-row)}
+              paginated-orders]]
+            [:div {:style (if @show-orders?
+                            {}
+                            {:display "none"})}
+             [TablePager
+              {:total-pages (count sorted-orders)
+               :pagenumber pagenumber}]]])]))))
 
 (defn users-panel
   "Display a table of selectable coureirs with an indivdual user panel
@@ -211,7 +224,9 @@
   (let [current-user (r/atom nil)
         sort-keyword (r/atom :timestamp_created)
         sort-reversed? (r/atom false)
-        selected-filter (r/atom "show-all")]
+        selected-filter (r/atom "show-all")
+        pagenumber (r/atom 1)
+        page-size 5]
     (fn [users]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -225,7 +240,11 @@
                             :else (fn [user] true))
             displayed-users users
             sorted-users (->> displayed-users
-                              sort-fn)
+                              sort-fn
+                              (partition-all page-size))
+            paginated-users (-> sorted-users
+                                (nth (- @pagenumber 1)
+                                     '()))
             refresh-fn (fn [saving?]
                          (reset! saving? true)
                          (retrieve-url
@@ -242,7 +261,7 @@
                                                    true)})
                              (reset! saving? false)))))]
         (when (nil? @current-user)
-          (reset! current-user (first sorted-users)))
+          (reset! current-user (first paginated-users)))
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
           [user-panel current-user]
@@ -261,7 +280,10 @@
                            {:sort-keyword sort-keyword
                             :sort-reversed? sort-reversed?}]
             :table-row (user-row current-user)}
-           sorted-users]]]))))
+           paginated-users]]
+         [TablePager
+          {:total-pages (count sorted-users)
+           :pagenumber pagenumber}]]))))
 
 (defn user-notification-header
   "props is:
@@ -330,14 +352,19 @@
         alert-error   (r/atom (str))
         sort-keyword (r/atom :timestamp_created)
         sort-reversed? (r/atom false)
-        ]
+        pagenumber (r/atom 1)
+        page-size 5]
     (fn []
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
             displayed-users @datastore/users
             sorted-users (->> displayed-users
-                              sort-fn)]
+                              sort-fn
+                              (partition-all page-size))
+            paginated-users (-> sorted-users
+                                (nth (- @pagenumber 1)
+                                     '()))]
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
           [:div [:h4 {:class "pull-left"} "Send Push Notification"]
@@ -465,10 +492,14 @@
              @alert-error])
           ;; selected users table
           (when (not @all-selected?)
-            [:div {:class "table-responsive"}
-             [StaticTable
-              {:table-header [user-notification-header
-                              {:sort-keyword sort-keyword
-                               :sort-reversed? sort-reversed?}]
-               :table-row (user-notification-row)}
-              sorted-users]])]]))))
+            [:div
+             [:div {:class "table-responsive"}
+              [StaticTable
+               {:table-header [user-notification-header
+                               {:sort-keyword sort-keyword
+                                :sort-reversed? sort-reversed?}]
+                :table-row (user-notification-row)}
+               paginated-users]]
+             [TablePager
+              {:total-pages (count sorted-users)
+               :pagenumber pagenumber}]])]]))))

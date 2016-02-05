@@ -10,7 +10,8 @@
                                           format-coupon-code parse-to-number?
                                           accessible-routes]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
-                                               RefreshButton DatePicker]]
+                                               RefreshButton DatePicker
+                                               TablePager]]
             [clojure.string :as s]))
 
 (def default-new-coupon
@@ -326,7 +327,9 @@
         edit-coupon (r/cursor state [:edit-coupon])
         sort-keyword (r/atom :timestamp_created)
         sort-reversed? (r/atom false)
-        selected (r/cursor state [:selected])]
+        selected (r/cursor state [:selected])
+        pagenumber (r/atom 1)
+        page-size 5]
     (fn [coupons]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -345,7 +348,11 @@
             displayed-coupons coupons
             sorted-coupons (->> displayed-coupons
                                 (filter filter-fn)
-                                sort-fn)
+                                sort-fn
+                                (partition-all page-size))
+            paginated-coupons (-> sorted-coupons
+                                  (nth (- @pagenumber 1)
+                                       '()))
             refresh-fn (fn [refreshing?]
                          (reset! refreshing? true)
                          (retrieve-url
@@ -363,7 +370,7 @@
                              (reset! refreshing? false)))))
             ]
         (if (nil? @current-coupon)
-          (reset! current-coupon (first sorted-coupons)))
+          (reset! current-coupon (first paginated-coupons)))
         ;; set the edit-coupon values to match those of current-coupon
         (reset! edit-coupon (assoc default-new-coupon
                                    :code (:code @current-coupon)
@@ -432,4 +439,8 @@
                            {:sort-keyword sort-keyword
                             :sort-reversed? sort-reversed?}]
             :table-row (coupon-row current-coupon)}
-           sorted-coupons]]]))))
+           paginated-coupons]]
+         [TablePager
+          {:total-pages (count sorted-coupons)
+           :pagenumber  pagenumber}]
+         ]))))

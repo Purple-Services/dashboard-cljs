@@ -164,3 +164,30 @@
                                       (-> (js/moment input)
                                           (.endOf "day")
                                           (.unix))))}])})))
+(defn TablePager
+  "props is:
+  {:total-pages integer ; the amount of pages
+   :pagenumber  integer ; r/atom, the current page number we are on
+  }"
+  [props]
+  (fn [{:keys [total-pages pagenumber]} props]
+    (when (> total-pages 1)
+      [:div
+       [:br]
+       [:div {:class "btn-toolbar"
+              :role "toolbar"}
+        [:div {:class "btn-group"
+               :role "group"
+               :aria-label "pager"}
+         (doall (map (fn [page-partition]
+                       ^{:key page-partition}
+                       [:button {:type "button"
+                                 :class
+                                 (str "btn btn-default "
+                                      (when (= page-partition
+                                               @pagenumber)
+                                        "active"))
+                                 :on-click #(reset! pagenumber page-partition)}
+                        page-partition])
+                     (range 1 (+ 1 total-pages))))]]]
+      )))

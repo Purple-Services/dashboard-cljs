@@ -7,7 +7,7 @@
             [reagent.core :as r]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton KeyVal StarRating
-                                               ErrorComp]]
+                                               ErrorComp TablePager]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->fmt base-url markets
                                           accessible-routes]]
@@ -290,7 +290,9 @@
   (let [google-marker (atom nil)
         sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
-        show-orders? (r/atom false)]
+        show-orders? (r/atom false)
+        pagenumber (r/atom 1)
+        page-size 5]
     (fn [current-courier]
       (let [editing-zones? (r/atom false)
             zones-error-message (r/atom "")
@@ -310,7 +312,11 @@
                            (= (:id @current-courier)
                               (:courier_id order)))))
             sorted-orders (->> orders
-                               sort-fn)]
+                               sort-fn
+                               (partition-all page-size))
+            paginated-orders (-> sorted-orders
+                                 (nth (- @pagenumber 1)
+                                      '()))]
         ;; create and insert courier marker
         (when (:lat @current-courier)
           (when @google-marker
@@ -378,7 +384,12 @@
                               {:sort-keyword sort-keyword
                                :sort-reversed? sort-reversed?}]
                :table-row (courier-orders-row)}
-              sorted-orders]]])]))))
+              paginated-orders]]
+            (when @show-orders?
+              [TablePager
+               {:total-pages (count sorted-orders )
+                :pagenumber pagenumber}])
+            ])]))))
 
 (defn couriers-panel
   "Display a table of selectable couriers with an indivdual courier panel
@@ -387,7 +398,9 @@
   (let [current-courier (r/atom nil)
         sort-keyword (r/atom :timestamp_created)
         sort-reversed? (r/atom false)
-        selected-filter (r/atom "show-all")]
+        selected-filter (r/atom "show-all")
+        pagenumber (r/atom 1)
+        page-size 5]
     (fn [couriers]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -401,7 +414,11 @@
                             :else (fn [courier] true))
             displayed-couriers couriers
             sorted-couriers (->> displayed-couriers
-                                 sort-fn)
+                                 sort-fn
+                                 (partition-all page-size))
+            paginated-couriers (-> sorted-couriers
+                                 (nth (- @pagenumber 1)
+                                      '()))
             refresh-fn (fn [saving?]
                          (reset! saving? true)
                          (retrieve-url
@@ -421,7 +438,7 @@
                                       :data  couriers})
                                (reset! saving? false))))))]
         (when (nil? @current-courier)
-          (reset! current-courier (first sorted-couriers)))
+          (reset! current-courier (first paginated-couriers)))
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
           [courier-panel current-courier]
@@ -440,4 +457,7 @@
                            {:sort-keyword sort-keyword
                             :sort-reversed? sort-reversed?}]
             :table-row (courier-row current-courier)}
-           sorted-couriers]]]))))
+           paginated-couriers]]
+         [TablePager
+          {:total-pages (count sorted-couriers)
+           :pagenumber pagenumber}]]))))

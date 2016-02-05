@@ -9,7 +9,7 @@
                                           cents->dollars dollars->cents
                                           parse-to-number? accessible-routes]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
-                                               RefreshButton]]
+                                               RefreshButton TablePager]]
             [clojure.string :as s]))
 
 (def default-new-zone
@@ -367,14 +367,20 @@
         edit-zone (r/cursor state [:edit-zone])
         sort-keyword (r/atom :id)
         sort-reversed? (r/atom true)
-        selected (r/cursor state [:selected])]
+        selected (r/cursor state [:selected])
+        pagenumber (r/atom 1)
+        page-size 5]
     (fn [zones]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
             displayed-zones zones
             sorted-zones (->> displayed-zones
-                              sort-fn)
+                              sort-fn
+                              (partition-all page-size))
+            paginated-zones (-> sorted-zones
+                                (nth (- @pagenumber 1)
+                                     '()))
             refresh-fn (fn [refreshing?]
                          (reset! refreshing? true)
                          (retrieve-url
@@ -391,7 +397,7 @@
                                                    true)})
                              (reset! refreshing? false)))))]
         (if (nil? @current-zone)
-          (reset! current-zone (first sorted-zones)))
+          (reset! current-zone (first paginated-zones)))
         ;; set the edit-zone values to match those of current-zone
         (reset! edit-zone (assoc default-new-zone
                                  :price-87 (cents->dollars
@@ -451,4 +457,7 @@
                            {:sort-keyword sort-keyword
                             :sort-reversed? sort-reversed?}]
             :table-row (zone-row current-zone)}
-           sorted-zones]]]))))
+           paginated-zones]]
+         [TablePager
+          {:total-pages (count sorted-zones)
+           :pagenumber pagenumber}]]))))
