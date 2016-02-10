@@ -326,7 +326,7 @@
        ;; advance order button
        ;; note: assigned should not be a status the server uses,
        ;; see web-service/orders.clj
-       (when-not (contains? #{"complete" "cancelled" "unassigned" "assigned"}
+       (when-not (contains? #{"complete" "cancelled" "unassigned"}
                             status)
          [:button {:type "button"
                    :class "btn btn-xs btn-default"
@@ -335,7 +335,8 @@
                                 (update-status order status error-message
                                                retrieving?))}
           (if (not @retrieving?)
-            ({"accepted" "Start Route"
+            ({"assigned" "Force Accept"
+              "accepted" "Start Route"
               "enroute" "Begin Servicing"
               "servicing" "Complete Order"}
              status)
