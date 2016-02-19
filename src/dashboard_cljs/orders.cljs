@@ -10,7 +10,9 @@
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->hrf base-url
                                           cents->$dollars json-string->clj
-                                          accessible-routes]]
+                                          accessible-routes
+                                          new-orders-count
+                                          same-timestamp?]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps]]))
 
@@ -572,18 +574,15 @@
   "A component for allowing the user to see new orders on the server"
   []
   (fn []
-    (let [new-orders (- (count @datastore/orders)
-                        (count (filter
-                                #(<= (:target_time_start %)
-                                     (:target_time_start
-                                      @datastore/last-acknowledged-order))
-                                @datastore/orders)))]
-      [:button {:type "button"
-                :class "btn btn-default"
-                :on-click
-                #(reset! datastore/last-acknowledged-order
-                         @datastore/most-recent-order)}
-       (str "View " new-orders " New Orders")])))
+    [:button {:type "button"
+              :class "btn btn-default"
+              :on-click
+              #(reset! datastore/last-acknowledged-order
+                       @datastore/most-recent-order)}
+     (str "View " (new-orders-count @datastore/orders
+                                    @datastore/last-acknowledged-order)
+          " New Orders")]))
+
 
 (defn orders-panel
   "Display a table of selectable orders with an indivdual order panel
@@ -663,8 +662,8 @@
            [:div {:class "btn-group"
                   :role "group"
                   :aria-label "refresh group"}
-            (when (not (= @datastore/most-recent-order
-                          @datastore/last-acknowledged-order))
+            (when (not (same-timestamp? @datastore/most-recent-order
+                                        @datastore/last-acknowledged-order))
               [new-orders-button])
             [RefreshButton {:refresh-fn
                             refresh-fn}]]]]

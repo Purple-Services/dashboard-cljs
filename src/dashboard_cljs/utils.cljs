@@ -121,3 +121,26 @@
           (nth part-col (- @current-page 1)))
       :else
       part)))
+
+(defn parse-timestamp
+  "Given a mysql timestamp, convert it to unix epoch seconds"
+  [timestamp]
+  (quot (.parse js/Date timestamp) 1000))
+
+(defn new-orders-count
+  "Given a set of orders and a last-acknowledged-order, return the
+  amount of new orders"
+  [orders last-acknowledged-order]
+  (- (count orders)
+     (count (filter
+             #(<= (parse-timestamp (:timestamp_created %))
+                  (parse-timestamp (:timestamp_created
+                                    last-acknowledged-order)))
+             orders))))
+
+(defn same-timestamp?
+  "Given two maps with a :timestamp_created key, determine if they have the same
+  value"
+  [m1 m2]
+  (= (parse-timestamp (:timestamp_created m1))
+     (parse-timestamp (:timestamp_created m2))))

@@ -6,7 +6,7 @@
             [reagent.core :as r]
             [cljsjs.moment]
             [dashboard-cljs.utils :refer [base-url continuous-update get-by-id
-                                          accessible-routes]]
+                                          accessible-routes parse-timestamp]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]))
 
 ;; This namespace contains the global state of the app and the fn's associated
@@ -158,13 +158,13 @@
                 #(orders-response-fn % true)))
       ;; periodically check server for updates in orders
       (continuous-update
-       #(when (:target_time_start @most-recent-order)
+       #(when (:timestamp_created @most-recent-order)
           (retrieve-url
            (str base-url "orders-since-date")
            "POST"
            (js/JSON.stringify
             (clj->js
-             {:date (:target_time_start @most-recent-order)
+             {:date (parse-timestamp (:timestamp_created @most-recent-order))
               :unix-epoch? true}))
            (partial xhrio-wrapper
                     orders-response-fn)))

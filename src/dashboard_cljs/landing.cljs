@@ -4,7 +4,9 @@
             [clojure.set :refer [subset?]]
             [cljsjs.moment]
             [dashboard-cljs.utils :refer [base-url update-values
-                                          unix-epoch->hrf accessible-routes]]
+                                          unix-epoch->hrf accessible-routes
+                                          new-orders-count
+                                          same-timestamp?]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.home :as home]
             [dashboard-cljs.couriers :as couriers]
@@ -180,17 +182,14 @@
               :toggle (:tab-content-toggle props)
               :side-bar-toggle (:side-bar-toggle props)}
          [:div
-          (when (not (= @datastore/most-recent-order
-                        @datastore/last-acknowledged-order))
+          ;; this correlates with orders/new-orders-button
+          (when (not (same-timestamp? @datastore/most-recent-order
+                                      @datastore/last-acknowledged-order))
             [:span {:class "fa-stack"}
              [:i {:class "fa fa-circle fa-stack-2x text-danger"}]
              [:i {:class "fa fa-stack-1x fa-inverse"}
-              (- (count @datastore/orders)
-                 (count (filter
-                         #(<= (:target_time_start %)
-                              (:target_time_start
-                               @datastore/last-acknowledged-order))
-                         @datastore/orders)))]])
+              (new-orders-count @datastore/orders
+                                @datastore/last-acknowledged-order)]])
           "Orders"]])
       (when (subset? #{{:uri "/dashboard/generate-stats-csv"
                         :method "GET"}
