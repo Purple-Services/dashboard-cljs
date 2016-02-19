@@ -1,6 +1,6 @@
 # dashboard-cljs
 
-Clojurescript version of the web-service dashboard
+Clojurescript frontend of Purple internal dashboard
 
 ## Setup
 
@@ -59,28 +59,28 @@ Check both browser tabs as you are developing to ensure that each compilation re
 The code depends on setting a base-url in the html file that it is served from. For example, index.html and index_release.html both have this div:
 
 ```html
-<div id="base-url" value="http://localhost:3000/dashboard/" style="display: none;"></div>
+<div id="base-url" value="http://localhost:3001/dashboard/" style="display: none;"></div>
 ```
 
 where the attribute 'value' is the base-url. The clojurescript code pulls the value attribute from div#base-url in order to set the base-url used in server calls.
 
-The web-service server should be running when developing. Start it in the web-service dir:
+The dashboard-service server should be running when developing. Start it in the dashboard-service dir:
 
 	lein ring server
 
-The base-url defined in the div above assumes the server is running on the default port of 3000
+The base-url defined in the div above assumes the server is running on the default port of 3001
 
 ## exporting to the server
 
-The dashboard-cljs repository contains a script that will do an advanced compilation of the clojurescript code and copy it to the appropriate location in web-service
+The dashboard-cljs repository contains a script that will do an advanced compilation of the clojurescript code and copy it to the appropriate location in dashboard-service
 
-	 ./scripts/export_to_web-service
+	 ./scripts/export_to_dashboard-service
 
-This script assumes that you are developing in a root dir which contains both the web-service and dashboard-cljs repositories. For example, the dir structure that I use for development on my local machine is:
+This script assumes that you are developing in a root dir which contains both the dashboard-service and dashboard-cljs repositories. For example, the dir structure that I use for development on my local machine is:
 
 	PurpleInc
 	|
-	|- web-service
+	|- dashboard-service
 	|
 	 - dashboard-cljs
 
