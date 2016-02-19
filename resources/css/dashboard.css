@@ -38,11 +38,26 @@
     color: #8B8D8E !important;
 }
 
-
+tbody > tr.active > td {
+    background-color: #e0e0e0 !important;
+}
 
 .purple-logo {
     width: 3.5em;
 }
 
+.fake-link {
+    font-size: 16px;
+    color: #3498db;
+    font-weight: normal;
+    cursor: pointer;
+    text-decoration: none;
+}
 
+.courier-active {
+    color: #00ff00;
+}
 
+.courier-inactive {
+    color: #ff0000;
+}

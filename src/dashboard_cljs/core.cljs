@@ -3,6 +3,9 @@
             [dashboard-cljs.login :as login]
             [dashboard-cljs.tables :as tables]
             [dashboard-cljs.landing :as landing]
+            [dashboard-cljs.datastore :as datastore]
+            [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
+            [dashboard-cljs.utils :refer [base-url accessible-routes]]
             [weasel.repl :as repl]))
 
 (defn ^:export get-map-info
@@ -17,17 +20,32 @@
   []
   (gmaps/init-map-couriers))
 
-(defn ^:export init-map-coverage-map
-  []
-  (gmaps/init-map-coverage-map))
+;; (defn ^:export init-map-coverage-map
+;;   []
+;;   (gmaps/init-map-coverage-map))
 
 (defn ^:export login
   []
   (login/login))
 
+
 (defn ^:export init-app
   []
-  (landing/init-landing))
+  (tables/init-tables))
+
+(defn ^:export init-new-dash
+  []
+  (landing/init-landing)
+  ;; accessible-routes has to be setup BEFORE datastore is initialized
+  (retrieve-url
+     (str base-url "permissions")
+     "GET"
+     {}
+     (partial xhrio-wrapper
+              (fn [response]
+                (reset! accessible-routes
+                        (set (js->clj response :keywordize-keys true)))
+                (datastore/init-datastore)))))
 
 (when-not (repl/alive?)
   (repl/connect "ws://127.0.0.1:9001"))

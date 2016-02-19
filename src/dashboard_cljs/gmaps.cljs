@@ -1,14 +1,13 @@
 (ns dashboard-cljs.gmaps
   (:require [crate.core :as crate]
-            [dashboard-cljs.xhr :refer [xhrio-wrapper retrieve-url]]
-            [dashboard-cljs.utils :refer [unix-epoch->hrf cents->dollars
-                                          continous-update]]
+            [goog.net.XhrIo :as xhr]
             [goog.object]
             [cljsjs.moment]
             [cljsjs.pikaday.with-moment]
             [maplabel]
             [cljs.reader :refer [read-string]]
-            [goog.dom.classes]
+            [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
+            [dashboard-cljs.utils :refer [base-url]]
             ))
 
 (def state (atom {:timeout-interval 5000
@@ -21,12 +20,12 @@
                   {:zones-display {:selected? true}
                    :zones-zips-display {:selected? true}}
                   :google-map nil
-                  :from-date (-> (js/moment)
-                                 (.subtract 30 "days")
-                                 (.format "YYYY-MM-DD"))
-                  :to-date   (.format (js/moment) "YYYY-MM-DD")
+                  :from-date nil
+                  :to-date nil
                   :status
                   {:unassigned {:color "#ff0000"
+                                :selected? true}
+                   :assigned   {:color "#ffc0cb"
                                 :selected? true}
                    :accepted   {:color "#808080"
                                 :selected? true}
@@ -38,16 +37,19 @@
                                 :selected? true}
                    :cancelled  {:color "#000000"
                                 :selected? true}}
-                  :cities-control
-                  {:selected-city "Los Angeles"}
                   :cities
                   {"Los Angeles"
                    {:coords (js-obj "lat" 34.0714522
                                     "lng" -118.40362)}
                    "San Diego"
-                   {:coords (js-obj "lat" 32.91
-                                    "lng" -117.163146)}}
+                   {:coords (js-obj "lat" 32.715786
+                                    "lng" -117.158340)}}
                   :zones (array)}))
+
+(defn send-xhr
+  "Send a xhr to url using callback and HTTP method."
+  [url callback method & [data headers timeout]]
+  (.send goog.net.XhrIo url callback method data headers timeout))
 
 (defn get-obj-with-prop-val
   "Get the object in array by prop with val"
@@ -67,6 +69,17 @@
    sync-obj
    (fn [el key obj]
      (aset target-obj (str key) el))))
+
+(defn unix-epoch->hrf
+  "Convert a unix epoch (in seconds) to a human readable format"
+  [unix-epoch]
+  (-> (js/moment.unix unix-epoch)
+      (.format "MM/DD hh:mm A")))
+
+(defn cents->dollars
+  "Converts an integer value of cents to dollar string"
+  [cents]
+  (str "$" (-> cents (/ 100) (.toFixed 2))))
 
 ;; the base url to use for server calls
 (def base-server-url (-> (.getElementById js/document "base-url")
@@ -185,10 +198,15 @@
         dlat       (dlat-label zoom)]
     (set-obj-label-lat-lng! (+ circle-lat dlat) circle-lng obj)))
 
-(defn get-map-info
+(defn ^:export get-map-info
   "Utility function for viewing map information in the browser"
   []
   (.log js/console (str "Map-Zoom:" (.getZoom (:google-map @state))
+                        " "
+                        "Font-size:" (-> (:couriers @state)
+                                         first
+                                         (aget "label")
+                                         (aget "fontSize"))
                         " "
                         "map-center:" (-> (.getCenter (:google-map @state))))))
 
@@ -309,10 +327,9 @@
 (defn order-displayed?
   "Given the state, determine if an order should be displayed or not"
   [state order]
-  (let [from-date (.parse js/Date (:from-date @state))
-        order-date (aget order "timestamp_created")
-        to-date (+ (.parse js/Date (:to-date @state))
-                   (* 24 60 60 1000)) ; need to add 24 hours so day is included
+  (let [from-date (:from-date @state)
+        order-date (aget order "target_time_start")
+        to-date (:to-date @state)
         status  (aget order "status")
         status-selected? (get-in @state [:status (keyword status) :selected?])]
     (and
@@ -366,6 +383,14 @@
       ;; set green stroke
       (.setOptions circle
                    (clj->js {:options {:strokeColor "#00ff00"}})))))
+
+(defn retrieve-route
+  "Access route with data and process xhr callback with f"
+  [route data f & [timeout]]
+  (let [url (str base-server-url route)
+        data data
+        header (clj->js {"Content-Type" "application/json"})]
+    (send-xhr url f "POST" data header timeout)))
 
 (defn sync-courier!
   "Given a courier, sync it with the one in state. If it does not already exist,
@@ -424,10 +449,8 @@
 (defn retrieve-couriers!
   "Get the couriers from the server and sync them with the state atom"
   [state & [timeout]]
-  (retrieve-url
-   (str base-server-url "couriers")
-   "POST"
-   {}
+  (retrieve-route
+   "couriers" {}
    (partial xhrio-wrapper
             #(let [couriers (aget % "couriers")]
                (if (not (nil? couriers))
@@ -449,12 +472,10 @@
 (defn retrieve-orders
   "Retrieve the orders since date and apply f to them"
   [date f & [timeout]]
-  (retrieve-url
-   (str base-server-url "orders-since-date")
-   "POST"
-   (js/JSON.stringify
-    (clj->js {:date date}))
-   f timeout))
+  (retrieve-route "orders-since-date" (js/JSON.stringify
+                                       (clj->js {:date date
+                                                 :unix-epoch? true}))
+                  f timeout))
 
 (defn convert-order-timestamp!
   "Convert an order's timestamp_created to a js/Date"
@@ -516,7 +537,7 @@
      date ; note: an empty date will return ALL orders
      (partial
       xhrio-wrapper
-      #(let [orders %]
+      #(let [orders (aget % "orders")]
          (if (not (nil? orders))
            (do (mapv (partial sync-order! state) orders)
                ;; redraw the circles according to which ones are selected
@@ -527,10 +548,13 @@
   "Retrieve today's orders and sync them with the state"
   [state]
   (retrieve-orders
-   (.format (js/moment) "YYYY-MM-DD")
+   ;;(.format (js/moment) "YYYY-MM-DD")
+   (-> (js/moment)
+       (.startOf "day")
+       (.unix))
    (partial
     xhrio-wrapper
-    #(let [orders %]
+    #(let [orders (aget % "orders")]
        (if (not (nil? orders))
          (do (mapv (partial sync-order! state) orders)
              ;; redraw the circles according to which ones are selected
@@ -647,13 +671,11 @@
        #(.setMap % gmap)
        zone)))
 
-;; this was ^:export'd
-(defn show-zcta-for-zip
+(defn ^:export show-zcta-for-zip
   "Given a zip code, show the zcta on map"
   [zip]
-  (retrieve-url
-   (str base-server-url "zctas")
-   "POST"
+  (retrieve-route
+   "zctas"
    (js/JSON.stringify (clj->js {:zips zip}))
    ;;(js/JSON.stringify (clj->js {:zips (.join zip ",")}))
    (partial xhrio-wrapper
@@ -692,29 +714,25 @@
 
 (defn set-zctas!
   "Given a zone, retrieve all zctas for the zone's zips, add polygons to the
-  zctas and add them as a 'zctas' prop on zone. Optionally use default-color
-  in state instead of zone's default color"
+  zctas and add them as a 'zctas' prop on zone"
   [state zone]
-  (retrieve-url
-   (str base-server-url "zctas")
-   "POST"
+  (retrieve-route
+   "zctas"
    (js/JSON.stringify ;;(clj->js {:zips (.join (aget zone "zip_codes") ",")})
-    (clj->js  {:zips (aget zone "zip_codes")}))
+    (clj->js  {:zips (aget zone "zip_codes")})
+    )
    (partial xhrio-wrapper
             #(let [server-zctas (aget % "zctas")]
                (if (not (nil? server-zctas))
-                 (let [default-color (get-in @state [:zones-control
-                                                     :default-color])
-                       zctas (mapv (partial
-                                    process-zcta!
-                                    (:google-map @state)
-                                    (if default-color
-                                      default-color
-                                      (aget zone "color")))
-                                   server-zctas)]
+                 (let [zctas (mapv (partial
+                                   process-zcta!
+                                   (:google-map @state)
+                                   (aget zone "color"))
+                                  server-zctas)]
                    (aset zone "zctas" (clj->js zctas))
                    (modify-zone-zctas! zone)
-                   (display-zone-selections! state)))))))
+                   (display-zone-selections! state)
+                   ))))))
 
 
 (defn sync-zone!
@@ -728,6 +746,8 @@
       (do
         ;; get all of the zctas for the zone
         (set-zctas! state zone)
+        ;;
+        ;;(modify-zone-zcta! zone)
         ;; add the zone to state
         (.push (:zones @state) zone))
       ;; update the existing zone
@@ -764,13 +784,14 @@
   only be called once initially."
   [state]
   (retrieve-url
-   (str base-server-url "zones")
+   (str base-url "zones")
    "GET"
    {}
    (partial xhrio-wrapper
             #(let [zones %]
                (if (not (nil? zones))
-                 (mapv (partial sync-zone! state) zones))))))
+                 (mapv (partial sync-zone! state) zones))
+               ))))
 
 (defn sync-zones!
   "Retrieve the zones and sync them with the state"
@@ -832,6 +853,7 @@
                  :title "Select order status"}
                 (map #(order-status-checkbox state %)
                      '("unassigned"
+                       "assigned"
                        "accepted"
                        "enroute"
                        "servicing"
@@ -850,19 +872,31 @@
                               "format" "YYYY-MM-DD"
                               "onSelect"
                               %2))
-        from-input (date-picker-input (:from-date @state))
+        from-input (date-picker-input
+                    (->
+                     (.unix js/moment (:from-date @state))
+                     (.format "YYYY-MM-DD")))
         from-date-picker (date-picker from-input
                                       #(do
                                          (swap! state assoc :from-date
-                                                from-input.value)
+                                                (-> (js/moment
+                                                     from-input.value
+                                                     "YYYY-MM-DD")
+                                                    (.unix)))
                                          (display-selected-props!
                                           state (:orders @state)
                                           "circle"
                                           (partial order-displayed? state))))
-        to-input (date-picker-input (:to-date @state))
+        to-input (date-picker-input
+                  (-> (.unix js/moment (:to-date @state))
+                      (.format "YYYY-MM-DD")))
         to-date-picker (date-picker
                         to-input #(do
-                                    (swap! state assoc :to-date to-input.value)
+                                    (swap! state assoc :to-date
+                                           (-> (js/moment to-input.value
+                                                          "YYYY-MM-DD")
+                                               (.endOf "day")
+                                               (.unix)))
                                     (display-selected-props!
                                      state (:orders @state)
                                      "circle"
@@ -979,18 +1013,13 @@
 (defn city-button
   "Create a button for selecting city-name"
   [state city-name]
-  (let [state-selected-city (get-in @state [:cities-control :selected-city])
-        city-button (crate/html
-                     [:div
-                      {:class (str "map-control-font cities "
-                                   (if (= state-selected-city
-                                          city-name)
-                                     "city-selected"))}
-                      city-name])]
+  (let [city-button (crate/html [:div {:class "map-control-font cities"}
+                                 city-name])]
     (.addEventListener
      city-button
      "click"
-     #(do (swap! state assoc-in [:cities-control :selected-city] city-name)
+     #(do (.log js/console (str "I clicked "
+                                city-name))
           (.setCenter (:google-map @state)
                       (get-in @state [:cities city-name :coords]))))
     city-button))
@@ -998,24 +1027,10 @@
 (defn city-control
   "A control for selecting which City to view"
   [state]
-  (let [cities (keys (:cities @state))
-        city-control
-        (crate/html  [:div {:class "setCenterUI city-ui-container"
-                              :title "cities"}
-                        (map (partial city-button state) cities)])]
-    (.addEventListener
-     city-control
-     "click"
-     #(let [city-buttons (array-seq (goog.dom.getChildren city-control))]
-        (mapv (fn [button]
-                (if (= (goog.dom.getTextContent button)
-                       (get-in @state [:cities-control :selected-city]))
-                  (goog.dom.classes.add button "city-selected")
-                  (goog.dom.classes.remove button "city-selected")))
-             city-buttons)
-        ))
-    city-control
-    ))
+  (let [cities      (keys (:cities @state))]
+    (crate/html [:div [:div {:class "setCenterUI" :title "cities"}
+                       (crate/html
+                        [:div (map (partial city-button state) cities)])]])))
 
 (defn add-control!
   "Add control to g-map using position"
@@ -1023,8 +1038,15 @@
   (.push  (aget g-map "controls" position)
           control))
 
-;; this was ^:export'd
-(defn init-map-orders
+
+(defn continous-update
+  "Call f continously every n seconds"
+  [f n]
+  (js/setTimeout #(do (f)
+                      (continous-update f n))
+                 n))
+
+(defn ^:export init-map-orders
   "Initialize the map for viewing all orders"
   []
   (do
@@ -1036,6 +1058,21 @@
             (js-obj "center"
                     (js-obj "lat" 34.0714522 "lng" -118.40362)
                     "zoom" 12) ))
+     ;; set from-date as startOf today, 30 days ago
+    (swap! state
+           assoc
+           :from-date
+           (-> (js/moment)
+               (.startOf "day")
+               (.subtract 30 "days")
+               (.unix)))
+    ;; set to-date as endOf today
+    (swap! state
+           assoc
+           :to-date
+           (-> (js/moment)
+               (.endOf "day")
+               (.unix)))
     ;; add listener for when the map is zoomed
     (.addListener (:google-map @state) "zoom_changed"
                   #(mapv (partial scale-spatial-object-circle-radius!
@@ -1053,15 +1090,14 @@
                                          ])
                   js/google.maps.ControlPosition.LEFT_TOP)
     ;; initialize the orders
-    (init-orders! state "")
+    (init-orders! state (:from-date @state))
     ;; initalize the zones
     (init-zones! state)
     ;; poll the server and update orders
     (continous-update #(do (sync-orders! state))
                       (* 10 60 1000))))
 
-;; this was ^:export'd
-(defn init-map-couriers
+(defn ^:export init-map-couriers
   "Initialize the map for manager couriers"
   []
   (do
@@ -1073,6 +1109,20 @@
             (js-obj "center"
                     (get-in @state [:cities "Los Angeles" :coords])
                     "zoom" 12)))
+    ;; set from-date as startOf today
+    (swap! state
+           assoc
+           :from-date
+           (-> (js/moment)
+               (.startOf "day")
+               (.unix)))
+    ;; set to-date as endOf today
+    (swap! state
+           assoc
+           :to-date
+           (-> (js/moment)
+               (.endOf "day")
+               (.unix)))
     (swap! state assoc-in [:zones-control :zones-zips-display :selected?] false)
     ;; listener for map zoom
     (.addListener (:google-map @state) "zoom_changed"
@@ -1097,7 +1147,8 @@
                                          ])
                   js/google.maps.ControlPosition.LEFT_TOP)
     ;; initialize the orders
-    (init-orders! state (.format (js/moment) "YYYY-MM-DD"))
+    (init-orders! state
+                  (:from-date @state))
     ;; initialize the couriers
     (init-couriers! state)
     ;; initialize the zones
@@ -1109,30 +1160,6 @@
                            )
                       (:timeout-interval @state))))
 
-;; this was ^:export'd
-(defn init-map-coverage-map
-  "Initialize the map for manager couriers"
+(defn ^:export get-zones
   []
-  (do
-    (swap! state
-           assoc
-           :google-map
-           (js/google.maps.Map.
-            (.getElementById js/document "map")
-            (js-obj "center"
-                    (get-in @state [:cities "Los Angeles" :coords])
-                    "zoom" 11)))
-    ;; turn off displaying zips
-    (swap! state assoc-in [:zones-control :zones-zips-display :selected?] false)
-    ;; set the zones default colors
-    (swap! state assoc-in [:zones-control :default-color] "purple")
-    ;; set the city to display
-    (swap! state assoc-in [:cities-control :selected-city] "Los Angeles")
-    ;; add controls
-    (add-control! (:google-map @state) (crate/html
-                                        [:div
-                                         (city-control state)
-                                         ])
-                  js/google.maps.ControlPosition.LEFT_TOP)
-    ;; initialize the zones
-    (init-zones! state)))
+  (.log js/console (:zones @state)))
