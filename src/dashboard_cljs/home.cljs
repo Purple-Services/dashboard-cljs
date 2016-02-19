@@ -149,14 +149,20 @@
           (reset! current-order (first paginated-orders)))
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
-          [:h3 "Ongoing Jobs"]]
-         [:div {:class "table-responsive"}
-          [StaticTable
-           {:table-header [order-table-header {:sort-keyword sort-keyword
-                                               :sort-reversed? sort-reversed?}]
-            :table-row (order-row current-order)}
-           paginated-orders]]
-         [TablePager
-          {:total-pages (count sorted-orders)
-           :current-page current-page}]
-           ]))))
+          (if (<= (count sorted-orders)
+                  0)
+            [:h3 "No Ongoing Jobs"]
+            [:h3 "Ongoing Jobs"])]
+         [:div {:class (when (<= (count sorted-orders)
+                                 0)
+                         "hide")}
+          [:div {:class "table-responsive"}
+           [StaticTable
+            {:table-header [order-table-header
+                            {:sort-keyword sort-keyword
+                             :sort-reversed? sort-reversed?}]
+             :table-row (order-row current-order)}
+            paginated-orders]]
+          [TablePager
+           {:total-pages (count sorted-orders)
+            :current-page current-page}]]]))))

@@ -183,8 +183,12 @@
               :side-bar-toggle (:side-bar-toggle props)}
          [:div
           ;; this correlates with orders/new-orders-button
-          (when (not (same-timestamp? @datastore/most-recent-order
-                                      @datastore/last-acknowledged-order))
+          (when (and
+                 (not (empty?
+                       (and @datastore/most-recent-order
+                            @datastore/last-acknowledged-order)))
+                 (not (same-timestamp? @datastore/most-recent-order
+                                       @datastore/last-acknowledged-order)))
             [:span {:class "fa-stack"}
              [:i {:class "fa fa-circle fa-stack-2x text-danger"}]
              [:i {:class "fa fa-stack-1x fa-inverse"}
