@@ -125,8 +125,9 @@
 (defn assign-courier
   "Assign order to selected-courier from the list of couriers. error
   is an r/atom that contains any error associated with this call. editing?
-  is an r/atom that sets whether or not the order is being edited."
-  [editing? order selected-courier couriers error]
+  is an r/atom that sets whether or not the order is being edited. retrieving?
+  is an r/atom boolean for determing if data is being retrieved."
+  [editing? retrieving? order selected-courier couriers error]
   (retrieve-url
    (str base-url "assign-order")
    "POST"
@@ -135,6 +136,7 @@
    (partial xhrio-wrapper
             (fn [r]
               (let [response (js->clj r :keywordize-keys true)]
+                (reset! retrieving? false)
                 (when (:success response)
                   (let [order-status (if (= (:status @order)
                                             "unassigned")
@@ -163,7 +165,7 @@
                   ))))))
 
 (defn order-courier-comp
-  "Component for the courier filed of an order panel
+  "Component for the courier field of an order panel
   props is:
   {
   :editing?         ; ratom, is the field currently being edited?
@@ -173,7 +175,9 @@
   }
   "
   [props]
-  (let [error-message (r/atom "")]
+  (let [error-message (r/atom "")
+        retrieving? (r/atom false)
+        ]
     (fn [{:keys [editing? assigned-courier couriers order]}
          props]
       (let [selected-courier (r/atom assigned-courier)]
@@ -213,10 +217,15 @@
            [:button {:type "button"
                      :class "btn btn-xs btn-default"
                      :on-click
-                     #(assign-courier editing? order selected-courier couriers
-                                      error-message)
+                     #(when (not @retrieving?)
+                        (reset! retrieving? true)
+                        (assign-courier editing? retrieving? order
+                                        selected-courier couriers
+                                        error-message))
                      }
-            "Save assignment"
+            (if @retrieving?
+              [:i {:class "fa fa-spinner fa-pulse"}]
+              "Save assignment")
             ])
          (when (not (s/blank? @error-message))
            [ErrorComp (str "Courier could not be assigned! Reason: "
@@ -286,8 +295,9 @@
 
 (defn cancel-order
   "Cancel order on the server. Any resulting error messages
-  will be put in the error-message atom"
-  [order error-message]
+  will be put in the error-message atom. retrieving? is a boolean
+  r/atom"
+  [order error-message retrieving?]
   (retrieve-url
    (str base-url "cancel-order")
    "POST"
@@ -296,6 +306,7 @@
    (partial xhrio-wrapper
             (fn [r]
               (let [response (js->clj r :keywordize-keys true)]
+                (reset! retrieving? false)
                 (when (:success response)
                   (let [updated-order
                         (assoc
@@ -354,8 +365,12 @@
                          @accessible-routes))
          [:button {:type "button"
                    :class "btn btn-xs btn-default btn-danger"
-                   :on-click #(cancel-order order error-message)}
-          "Cancel Order"])
+                   :on-click #(when (not @retrieving?)
+                                (reset! retrieving? true)
+                                (cancel-order order error-message retrieving?))}
+          (if @retrieving?
+            [:i {:class "fa fa-spinner fa-pulse"}]
+            "Cancel Order")])
        (when (not (s/blank? @error-message))
          [ErrorComp (str "Order status could be not be changed! Reason: "
                          @error-message)])
@@ -387,7 +402,7 @@
                                (reset! retrieving? true)
                                (get-etas order))}
          (if @retrieving?
-           [:i {:class "fa fa-lg fa-refresh fa-pulse "}]
+           [:i {:class "fa fa-lg fa-spinner fa-pulse "}]
            "Get ETAs")]
         ))))
 
