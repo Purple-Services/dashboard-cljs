@@ -37,7 +37,7 @@
             {:id "release"
              :source-paths ["src"]
              :compiler {:main dashboard-cljs.core
-                        :output-to "../dashboard-service/src/public/js/dashboard_cljs.min.js"
+                        :output-to "../dashboard-service/src/public/js/dashboard_cljs.js"
                         :optimizations :advanced
                         :verbose true
                         :foreign-libs [{:file "resources/js/maplabel.js"
