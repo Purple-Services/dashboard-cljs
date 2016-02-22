@@ -64,6 +64,7 @@
   (fn [props child]
     [:li [:a {:on-click
               #(do
+                 (.scrollTo js/window 0 0)
                  (.preventDefault %)
                  (swap! (:toggle props) update-values (fn [el] false))
                  (swap! (:toggle props) assoc (:toggle-key props) true)
@@ -91,13 +92,11 @@
                                     (js/google.maps.event.trigger gmap
                                                                   "resize")
                                     (.setCenter gmap center)))
-                                300)
-
-                 )
+                                300))
               :href "#"
               :class
-              (str (when ((:toggle-key props) @(:toggle props)) "active"))
-              } child]]))
+              (str (when ((:toggle-key props) @(:toggle props)) "active"))}
+          child]]))
 
 
 (defn TabContent
