@@ -124,7 +124,7 @@
   [orders]
   (let [current-order (r/cursor state [:current-order])
         sort-keyword (r/atom :target_time_start)
-        sort-reversed? (r/atom true)
+        sort-reversed? (r/atom false)
         current-page (r/atom 1)
         page-size 5]
     (fn [orders]
