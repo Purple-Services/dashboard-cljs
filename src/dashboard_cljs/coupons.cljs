@@ -20,7 +20,7 @@
    :expiration_time (-> (js/moment)
                         (.endOf "day")
                         (.unix))
-   :only_for_first_orders false
+   :only_for_first_orders true
    :errors nil
    :retrieving? false
    :alert-success ""})
@@ -295,6 +295,8 @@
       [TableHeadSortable
        (conj props {:keyword :expiration_time})
        "Expiration Date"]
+      [:th {:style {:font-size "16px" :font-height "normal"}}
+       "# of Users"]
       [TableHeadSortable
        (conj props {:keyword :only_for_first_orders})
        "First Order Only?"]]]))
@@ -315,6 +317,8 @@
      [:td (unix-epoch->fmt (:timestamp_created coupon) "M/D/YYYY")]
      ;; expiration date
      [:td (unix-epoch->fmt (:expiration_time coupon) "M/D/YYYY")]
+     ;; number of users
+     [:td (-> coupon :used_by_user_ids (s/split #",") count)]
      ;; first order only?
      [:td (if (:only_for_first_orders coupon)
             "Yes"
@@ -347,6 +351,8 @@
                                 true))
             displayed-coupons coupons
             sorted-coupons (->> displayed-coupons
+                                ;; remove all groupon coupons
+                                (filter #(not (re-matches #"GR.*" (:code %))))
                                 (filter filter-fn)
                                 sort-fn
                                 (partition-all page-size))
