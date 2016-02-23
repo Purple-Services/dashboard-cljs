@@ -24,7 +24,7 @@
             {:id "dev"
              :source-paths ["src"]
              :compiler {
-                        :main dashboard-cljs.core
+                        :main dashboard-cljs.dev
                         :output-to "out/dashboard_cljs.js"
                         :output-dir "out"
                         :optimizations :none

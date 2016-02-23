@@ -5,8 +5,7 @@
             [dashboard-cljs.landing :as landing]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
-            [dashboard-cljs.utils :refer [base-url accessible-routes]]
-            [weasel.repl :as repl]))
+            [dashboard-cljs.utils :refer [base-url accessible-routes]]))
 
 (defn ^:export get-map-info
   []
@@ -46,6 +45,3 @@
                 (reset! accessible-routes
                         (set (js->clj response :keywordize-keys true)))
                 (datastore/init-datastore)))))
-
-;; (when-not (repl/alive?)
-;;   (repl/connect "ws://127.0.0.1:9001"))
