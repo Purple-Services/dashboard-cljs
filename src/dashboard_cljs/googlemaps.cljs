@@ -22,7 +22,7 @@
   [id]
   (let [dom (.createElement js/document "div")
         _   (.setAttribute dom "id" (str (name id) "-cached"))
-        obj (js/google.maps.Map. dom (clj->js {"zoom" 15}))
+        obj (js/google.maps.Map. dom (clj->js {"zoom" 10}))
         result [dom obj]]
     (swap! instances #(assoc % id result))
     [dom obj]))

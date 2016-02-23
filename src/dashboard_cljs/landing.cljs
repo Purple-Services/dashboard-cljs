@@ -37,7 +37,7 @@
        [:span {:class "icon-bar"}]
        [:span {:class "icon-bar"}]]
       [:a {:class "navbar-brand" :href "index.html"}
-       [:img {:src "http://purpledelivery.com/images/purple_logoWh.png"
+       [:img {:src "resources/images/logo-white.png"
               :alt "PURPLE"
               :class "purple-logo"}]]]
      [:ul {:class "nav navbar-right top-nav"}
@@ -241,7 +241,7 @@
                                      :method "GET"}}
                                   @accessible-routes)
                      [home/dash-map-link-panel])
-                   [home/ongoing-jobs-panel @datastore/orders]])]]]]
+                   [home/current-orders-panel @datastore/orders]])]]]]
          ;; couriers page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:couriers-view])}
