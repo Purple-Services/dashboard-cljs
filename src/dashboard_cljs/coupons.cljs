@@ -295,7 +295,7 @@
       [TableHeadSortable
        (conj props {:keyword :expiration_time})
        "Expiration Date"]
-      [:th {:style {:font-size "16px" :font-height "normal"}}
+      [:td {:style {:font-size "16px" :font-height "normal"}}
        "# of Users"]
       [TableHeadSortable
        (conj props {:keyword :only_for_first_orders})
