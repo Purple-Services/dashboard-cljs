@@ -190,7 +190,7 @@
                          "none assigned") " ")])
          ;; assign courier button
          (when (and (not @editing?)
-                    (subset? #{{:uri "/dashboard/assign-order"
+                    (subset? #{{:uri "/assign-order"
                                 :method "POST"}}
                              @accessible-routes))
            [:button {:type "button"
@@ -202,7 +202,7 @@
               )])
          ;; courier select
          (when (and @editing?
-                    (subset? #{{:uri "/dashboard/assign-order"
+                    (subset? #{{:uri "/assign-order"
                                 :method "POST"}}
                              @accessible-routes))
            [order-courier-select {:selected-courier
@@ -211,7 +211,7 @@
          ;; save assignment
          " "
          (when (and @editing?
-                    (subset? #{{:uri "/dashboard/assign-order"
+                    (subset? #{{:uri "/assign-order"
                                 :method "POST"}}
                              @accessible-routes))
            [:button {:type "button"
@@ -360,7 +360,7 @@
            (and (not @editing?)
                 (not (contains? #{"complete" "cancelled"}
                                 status))
-                (subset? #{{:uri "/dashboard/cancel-order"
+                (subset? #{{:uri "/cancel-order"
                             :method "POST"}}
                          @accessible-routes))
          [:button {:type "button"
@@ -579,6 +579,14 @@
                :class
                (str "btn btn-default "
                     (when (= @selected-filter
+                             "current")
+                      "active"))
+               :on-click #(reset! selected-filter "current")}
+      "Current Orders"]
+     [:button {:type "button"
+               :class
+               (str "btn btn-default "
+                    (when (= @selected-filter
                              "declined")
                       "active"))
                :on-click #(reset! selected-filter "declined")}
@@ -618,6 +626,14 @@
                               (and (not (:paid order))
                                    (= (:status order) "complete")
                                    (> (:total_price order))))
+                            (= @selected-filter
+                               "current")
+                            (fn [order]
+                              (contains? #{"unassigned"
+                                           "assigned"
+                                           "accepted"
+                                           "enroute"
+                                           "servicing"} (:status order)))
                             :else (fn [order] true))
             displayed-orders (filter #(<= (:target_time_start %)
                                           (:target_time_start

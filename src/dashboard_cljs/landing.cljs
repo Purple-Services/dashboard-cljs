@@ -128,7 +128,7 @@
     [:div {:class (str "collapse navbar-collapse navbar-ex1-collapse "
                        (when @(:side-bar-toggle props) "in"))}
      [:ul {:class "nav navbar-nav side-nav side-nav-color"}
-      (when (subset? #{{:uri "/dashboard/orders-since-date"
+      (when (subset? #{{:uri "/orders-since-date"
                         :method "POST"}}
                      @accessible-routes)
         [Tab {:default? true
@@ -137,7 +137,7 @@
               :side-bar-toggle (:side-bar-toggle props)}
          [:div
           "Home"]])
-      (when (subset? #{{:uri "/dashboard/couriers"
+      (when (subset? #{{:uri "/couriers"
                         :method "POST"}}
                      @accessible-routes)
         [Tab {:default? false
@@ -146,7 +146,7 @@
               :side-bar-toggle (:side-bar-toggle props)}
          [:div
           "Couriers"]])
-      (when (subset? #{{:uri "/dashboard/users"
+      (when (subset? #{{:uri "/users"
                         :method "GET"}}
                      @accessible-routes)
         [Tab {:default? false
@@ -155,7 +155,7 @@
               :side-bar-toggle (:side-bar-toggle props)}
          [:div
           "Users"]])
-      (when (subset? #{{:uri "/dashboard/coupons"
+      (when (subset? #{{:uri "/coupons"
                         :method "GET"}}
                      @accessible-routes)
         [Tab {:default? false
@@ -164,7 +164,7 @@
               :side-bar-toggle (:side-bar-toggle props)}
          [:div
           "Promo Codes"]])
-      (when (subset? #{{:uri "/dashboard/zones"
+      (when (subset? #{{:uri "/zones"
                         :method "GET"}}
                      @accessible-routes)
         [Tab {:default? false
@@ -173,7 +173,7 @@
               :side-bar-toggle (:side-bar-toggle props)}
          [:div
           "Zones"]])
-      (when (subset? #{{:uri "/dashboard/orders-since-date"
+      (when (subset? #{{:uri "/orders-since-date"
                         :method "POST"}}
                      @accessible-routes)
         [Tab {:default? false
@@ -194,11 +194,11 @@
               (new-orders-count @datastore/orders
                                 @datastore/last-acknowledged-order)]])
           "Orders"]])
-      (when (subset? #{{:uri "/dashboard/generate-stats-csv"
+      (when (subset? #{{:uri "/generate-stats-csv"
                         :method "GET"}
-                       {:uri "/dashboard/download-stats-csv"
+                       {:uri "/download-stats-csv"
                         :method "GET"}
-                       {:uri "/dashboard/status-stats-csv"
+                       {:uri "/status-stats-csv"
                         :method "GET"}}
                      @accessible-routes)
         [Tab {:default? false
@@ -232,12 +232,12 @@
              [:div
               [:div {:class "row"}
                [:div {:class "col-lg-12"}
-                (when (subset? #{{:uri "/dashboard/orders-since-date"
+                (when (subset? #{{:uri "/orders-since-date"
                                   :method "POST"}}
                                @accessible-routes)
                   [:div
                    [home/orders-count-panel]
-                   (when (subset? #{{:uri "/dashboard/dash-map-couriers"
+                   (when (subset? #{{:uri "/dash-map-couriers"
                                      :method "GET"}}
                                   @accessible-routes)
                      [home/dash-map-link-panel])
@@ -247,7 +247,7 @@
           {:toggle (r/cursor tab-content-toggle [:couriers-view])}
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
-            (when (subset? #{{:uri "/dashboard/couriers"
+            (when (subset? #{{:uri "/couriers"
                               :method "POST"}}
                            @accessible-routes)
               [couriers/couriers-panel @datastore/couriers])]]]
@@ -256,14 +256,14 @@
           {:toggle (r/cursor tab-content-toggle [:users-view])}
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
-            (when (subset? #{{:uri "/dashboard/users"
+            (when (subset? #{{:uri "/users"
                               :method "GET"
                               }} @accessible-routes)
               [:div
                (when (subset?
-                      #{{:uri "/dashboard/send-push-to-all-active-users"
+                      #{{:uri "/send-push-to-all-active-users"
                          :method "POST"}
-                        {:uri "/dashboard/send-push-to-users-list"
+                        {:uri "/send-push-to-users-list"
                          :method "POST"}}
                       @accessible-routes)
                  [users/user-push-notification])
@@ -273,11 +273,11 @@
           {:toggle (r/cursor tab-content-toggle [:coupons-view])}
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
-            (when (subset? #{{:uri "/dashboard/coupons"
+            (when (subset? #{{:uri "/coupons"
                               :method "GET"}}
                            @accessible-routes)
               [:div
-               (when (subset? #{{:uri "/dashboard/coupon"
+               (when (subset? #{{:uri "/coupon"
                                  :method "POST"}}
                               @accessible-routes)
                  [coupons/new-coupon-panel])
@@ -287,7 +287,7 @@
           {:toggle (r/cursor tab-content-toggle [:zones-view])}
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
-            (when (subset? #{{:uri "/dashboard/zones"
+            (when (subset? #{{:uri "/zones"
                               :method "GET"}}
                            @accessible-routes)
               [:div
@@ -298,7 +298,7 @@
           [:div
            [:div {:class "row"}
             [:div {:class "col-lg-12"}
-             (when (subset? #{{:uri "/dashboard/orders-since-date"
+             (when (subset? #{{:uri "/orders-since-date"
                                :method "POST"}}
                             @accessible-routes)
                [:div
@@ -309,11 +309,11 @@
           [:div
            [:div {:class "row"}
             [:div {:class "col-lg-12"}
-             (when (subset? #{{:uri "/dashboard/generate-stats-csv"
+             (when (subset? #{{:uri "/generate-stats-csv"
                                :method "GET"}
-                              {:uri "/dashboard/download-stats-csv"
+                              {:uri "/download-stats-csv"
                                :method "GET"}
-                              {:uri "/dashboard/status-stats-csv"
+                              {:uri "/status-stats-csv"
                                :method "GET"}}
                             @accessible-routes)
                [:div

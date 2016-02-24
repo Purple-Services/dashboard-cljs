@@ -1,12 +1,10 @@
 (ns dashboard-cljs.core
   (:require [dashboard-cljs.gmaps :as gmaps]
             [dashboard-cljs.login :as login]
-            [dashboard-cljs.tables :as tables]
             [dashboard-cljs.landing :as landing]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
-            [dashboard-cljs.utils :refer [base-url accessible-routes]]
-            [weasel.repl :as repl]))
+            [dashboard-cljs.utils :refer [base-url accessible-routes]]))
 
 (defn ^:export get-map-info
   []
@@ -28,11 +26,6 @@
   []
   (login/login))
 
-
-(defn ^:export init-app
-  []
-  (tables/init-tables))
-
 (defn ^:export init-new-dash
   []
   (landing/init-landing)
@@ -46,6 +39,3 @@
                 (reset! accessible-routes
                         (set (js->clj response :keywordize-keys true)))
                 (datastore/init-datastore)))))
-
-;; (when-not (repl/alive?)
-;;   (repl/connect "ws://127.0.0.1:9001"))

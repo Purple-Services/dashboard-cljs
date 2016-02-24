@@ -140,7 +140,7 @@
 
                                  )))]
     ;; orders
-    (when (subset? #{{:uri "/dashboard/orders-since-date"
+    (when (subset? #{{:uri "/orders-since-date"
                       :method "POST"}} @accessible-routes)
       ;; keep data synced with the data channel
       (sync-state! orders (sub read-data-chan "orders" (chan)))
@@ -170,7 +170,7 @@
                     orders-response-fn)))
        10000))
     ;; couriers
-    (when (subset? #{{:uri "/dashboard/couriers"
+    (when (subset? #{{:uri "/couriers"
                       :method "POST"}} @accessible-routes)
       (sync-state! couriers (sub read-data-chan "couriers" (chan)))
       ;; initialize couriers
@@ -185,7 +185,7 @@
                          :data (:couriers (js->clj response :keywordize-keys
                                                    true))})))))
     ;; users
-    (when (subset? #{{:uri "/dashboard/users"
+    (when (subset? #{{:uri "/users"
                       :method "GET"}} @accessible-routes)
       (sync-state! users (sub read-data-chan "users" (chan)))
       ;; initialize users
@@ -200,7 +200,7 @@
                          :data (js->clj response :keywordize-keys
                                         true)})))))
     ;; coupons
-    (when (subset? #{{:uri "/dashboard/coupons"
+    (when (subset? #{{:uri "/coupons"
                       :method "GET"}} @accessible-routes)
       (sync-state! coupons (sub read-data-chan "coupons" (chan)))
       ;; initialize coupons
@@ -215,7 +215,7 @@
                          :data (js->clj response :keywordize-keys
                                         true)})))))
     ;; zones
-    (when (subset? #{{:uri "/dashboard/zones"
+    (when (subset? #{{:uri "/zones"
                       :method "GET"}} @accessible-routes)
       (sync-state! zones (sub read-data-chan "zones" (chan)))
       ;; initialize zones

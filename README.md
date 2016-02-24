@@ -25,17 +25,13 @@ Production code should use the output from advanced compilation. When developing
 
 A common workflow is that a new feature is implemented and tested in basic mode. Once it is working to your satisfaction, test that the advanced compilation of the code works the same way.
 
-There are two scripts which will watch your "src" dir and recompile if there are any changes made to the clojurescript source file.
+Use cljsbuild to build both dev and prod environments together.
 
-Currently, these scripts must be run in two separate terminal instances. In one terminal:
+```bash
+$ lein cljsbuild auto
+```
 
-	./scripts/watch
-
-In another terminal:
-
-	./scripts/watch_release
-
-Open both `index.html` and `index_release.html` in your browser. Use the following chrome command:
+Open both `index.html` with the following chrome command:
 
 	/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --disable-web-security --user-data-dir=/tmp/chrome2/ \ index.html
 
@@ -51,7 +47,8 @@ chmod +x this script and put it on your $PATH. You can then open the files with:
 
 	chrome-open-file index.html
 
-	chrome-open-file index_release.html
+The production build is setup to be exported to dashboard-service. Run the server locally
+and test the prod build there.
 
 Check both browser tabs as you are developing to ensure that each compilation results in expected behavior. 
 
@@ -87,4 +84,4 @@ This script assumes that you are developing in a root dir which contains both th
 
 ## License
 
-Copyright © 2015 Purple Services Inc
+Copyright © 2016 Purple Services Inc

@@ -41,6 +41,18 @@
        [:td (:email user)]
        ;; phone
        [:td (:phone_number user)]
+       ;; card?
+       [:td (if (s/blank? (:stripe_default_card user))
+              "No"
+              "Yes")]
+       ;; push?
+       [:td (if (s/blank? (:arn_endpoint user))
+              "No"
+              "Yes")]
+       ;; os
+       [:td (:os user)]
+       ;; version
+       [:td (:app_version user)]
        ;; joined
        [:td (unix-epoch->fmt (:timestamp_created user) "M/D/YYYY")]])))
 
@@ -58,15 +70,29 @@
        (conj props {:keyword :name})
        "Name"]
       [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "Market"]
+                    :font-weight "normal"}}
+       "Market"]
       [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "Total Orders"]
+                    :font-weight "normal"}}
+       "Total Orders"]
       [TableHeadSortable
        (conj props {:keyword :email})
        "Email"] 
       [TableHeadSortable
        (conj props {:keyword :phone_number})
-       "Phone"] 
+       "Phone"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}}
+       "Card?"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}}
+       "Push?"]
+      [TableHeadSortable
+       (conj props {:keyword :os})
+       "OS"]
+      [TableHeadSortable
+       (conj props {:keyword :app_version})
+       "Version"]
       [TableHeadSortable
        (conj props {:keyword :timestamp_created})
        "Joined"]]]))
