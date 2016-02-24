@@ -190,11 +190,11 @@
        [:div {:class "form-group"}
         [:label {:for "promo code"
                  :class "col-sm-2 control-label"}
-         "Promo Code"]
+         "Code"]
         [:div {:class "col-sm-10"}
          [:input {:type "text"
                   :class "form-control"
-                  :placeholder "Promo Code"
+                  :placeholder "Code"
                   :defaultValue @code
                   :value @code
                   :on-change #(reset! code (-> %
@@ -269,7 +269,7 @@
           code        (r/cursor coupon [:code])]
       [:div {:class "panel panel-default"}
        [:div {:class "panel-body"}
-        [:h3 "Create Promo Code"]
+        [:h3 "Create Coupon Code"]
         [coupon-form (r/cursor state [:new-coupon])
          [coupon-form-submit coupon (create-on-click coupon) "Create"]]]])))
 
@@ -285,7 +285,7 @@
      [:tr
       [TableHeadSortable
        (conj props {:keyword :code})
-       "Promo Code"]
+       "Coupon Code"]
       [TableHeadSortable
        (conj props {:keyword :value})
        "Amount"]

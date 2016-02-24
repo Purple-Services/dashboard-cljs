@@ -441,9 +441,9 @@
                                            }))))
         ;; populate the current order with additional information
         [:div {:class "panel-body"}
-         ;; google map
          [:div {:class "row"}
           [:div {:class "col-xs-6 pull-left"}
+           [:h3 {:style {:margin-top 0}} "Order Details"]
            ;; order price
            [:h5 [:span {:class "info-window-label"} "Total Price: "]
             (cents->$dollars (:total_price @current-order))
@@ -615,7 +615,7 @@
         sort-reversed? (r/atom false)
         selected-filter (r/atom "show-all")
         current-page (r/atom 1)
-        page-size 5]
+        page-size 20]
     (fn [orders]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -682,7 +682,9 @@
         (when (nil? @current-order)
           (reset! current-order (first paginated-orders)))
         [:div {:class "panel panel-default"}
-         [:div {:class "panel-body"}
+         [order-panel current-order]
+         [:div {:class "panel-body"
+                :style {:margin-top "15px"}}
           [:div {:class "btn-toolbar"
                  :role "toolbar"
                  :aria-label "Toolbar with button groups"}
@@ -703,5 +705,4 @@
            paginated-orders]]
          [TablePager
           {:total-pages (count sorted-orders)
-           :current-page  current-page}]
-         [order-panel current-order]]))))
+           :current-page current-page}]]))))

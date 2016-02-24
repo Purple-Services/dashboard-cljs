@@ -115,6 +115,7 @@
      ;; order address
      [:td [:i {:class "fa fa-circle"
                :style {:color (:zone-color order)}}]
+      " "
       (:address_street order)]
      ;; username
      [:td (:customer_name order)]
@@ -329,65 +330,64 @@
                                            }))))
         ;; populate the current courier with additional information
         [:div {:class "panel-body"}
-         [:div [:h3 (:name @current-courier)]]
-         ;; google map
          [:div {:class "row"}
-          [:div 
+          [:div {:class "col-xs-6 pull-left"}
+           [:div [:h3 {:style {:margin-top 0}} (:name @current-courier)]]
+           ;; main display panel
+           [:div 
+            ;; email
+            [KeyVal "Email" (:email @current-courier)]
+            ;; phone number
+            [KeyVal "Phone Number" (:phone_number @current-courier)]
+            ;; date started
+            [KeyVal "Date Started" (unix-epoch->fmt
+                                    (:timestamp_created @current-courier)
+                                    "M/D/YYYY")]
+            ;; last active (last ping)
+            [KeyVal "Last Active" (unix-epoch->fmt
+                                   (:last_ping @current-courier)
+                                   "M/D/YYYY h:mm A"
+                                   )]
+            ;; zones the courier is currently assigned to
+            [courier-zones-comp {:editing? editing-zones?
+                                 ;;:zones (:zones @current-courier)
+                                 :input-value zones-input-value
+                                 :error-message zones-error-message
+                                 :courier current-courier}]
+            [:button {:type "button"
+                      :class "btn btn-sm btn-default"
+                      :on-click #(swap! show-orders? not)}
+             (if @show-orders?
+               "Hide Orders"
+               "Show Orders")]]]
+          [:div {:class "pull-right hidden-xs"}
            [gmap {:id :couriers
                   :style {:height 300
                           :width 300}
                   :center {:lat (:lat @current-courier)
-                           :lng (:lng @current-courier)}}]]
-          ;; main display panel
-          [:div 
-           ;; email
-           [KeyVal "Email" (:email @current-courier)]
-           ;; phone number
-           [KeyVal "Phone Number" (:phone_number @current-courier)]
-           ;; date started
-           [KeyVal "Date Started" (unix-epoch->fmt
-                                   (:timestamp_created @current-courier)
-                                   "M/D/YYYY")]
-           ;; last active (last ping)
-           [KeyVal "Last Active" (unix-epoch->fmt
-                                  (:last_ping @current-courier)
-                                  "M/D/YYYY h:mm A"
-                                  )]
-           ;; zones the courier is currently assigned to
-           [courier-zones-comp {:editing? editing-zones?
-                                ;;:zones (:zones @current-courier)
-                                :input-value zones-input-value
-                                :error-message zones-error-message
-                                :courier current-courier}]]]
+                           :lng (:lng @current-courier)}}]]]
          ;; Table of orders for current courier
          (when (subset? #{{:uri "/orders-since-date"
                            :method "POST"}}
                         @accessible-routes)
-            (when (> (count paginated-orders)
-                     0)
-              [:div {:class "row"}
-               [:button {:type "button"
-                         :class "btn btn-sm btn-default"
-                         :on-click #(swap! show-orders? not)
-                         }
-                (if @show-orders?
-                  "Hide Orders"
-                  "Show Orders")]
-               [:div {:class "table-responsive"
-                      :style (if @show-orders?
-                               {}
-                               {:display "none"})}
-                [StaticTable
-                 {:table-header [courier-orders-header
-                                 {:sort-keyword sort-keyword
-                                  :sort-reversed? sort-reversed?}]
-                  :table-row (courier-orders-row)}
-                 paginated-orders]]
-               (when @show-orders?
-                 [TablePager
-                  {:total-pages (count sorted-orders )
-                   :current-page current-page}])
-               ]))]))))
+           (when (> (count paginated-orders)
+                    0)
+             [:div {:class "row"}
+              [:div {:class "table-responsive"
+                     :style (if @show-orders?
+                              {}
+                              {:display "none"})}
+               [StaticTable
+                {:table-header [courier-orders-header
+                                {:sort-keyword sort-keyword
+                                 :sort-reversed? sort-reversed?}]
+                 :table-row (courier-orders-row)}
+                paginated-orders]]
+              (when @show-orders?
+                [TablePager
+                 {:total-pages (count sorted-orders )
+                  :current-page current-page}])
+              ]))]))))
 
 (defn couriers-panel
   "Display a table of selectable couriers with an indivdual courier panel
@@ -415,8 +415,8 @@
                                  sort-fn
                                  (partition-all page-size))
             paginated-couriers (-> sorted-couriers
-                                 (nth (- @current-page 1)
-                                      '()))
+                                   (nth (- @current-page 1)
+                                        '()))
             refresh-fn (fn [saving?]
                          (reset! saving? true)
                          (retrieve-url
@@ -440,7 +440,6 @@
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
           [courier-panel current-courier]
-          [:h3 "Couriers"]
           [:div {:class "btn-toolbar"
                  :role "toolbar"
                  :aria-label "Toolbar with button groups"}
