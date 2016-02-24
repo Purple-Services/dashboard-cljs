@@ -190,7 +190,7 @@
                          "none assigned") " ")])
          ;; assign courier button
          (when (and (not @editing?)
-                    (subset? #{{:uri "/dashboard/assign-order"
+                    (subset? #{{:uri "/assign-order"
                                 :method "POST"}}
                              @accessible-routes))
            [:button {:type "button"
@@ -202,7 +202,7 @@
               )])
          ;; courier select
          (when (and @editing?
-                    (subset? #{{:uri "/dashboard/assign-order"
+                    (subset? #{{:uri "/assign-order"
                                 :method "POST"}}
                              @accessible-routes))
            [order-courier-select {:selected-courier
@@ -211,7 +211,7 @@
          ;; save assignment
          " "
          (when (and @editing?
-                    (subset? #{{:uri "/dashboard/assign-order"
+                    (subset? #{{:uri "/assign-order"
                                 :method "POST"}}
                              @accessible-routes))
            [:button {:type "button"
@@ -360,7 +360,7 @@
            (and (not @editing?)
                 (not (contains? #{"complete" "cancelled"}
                                 status))
-                (subset? #{{:uri "/dashboard/cancel-order"
+                (subset? #{{:uri "/cancel-order"
                             :method "POST"}}
                          @accessible-routes))
          [:button {:type "button"

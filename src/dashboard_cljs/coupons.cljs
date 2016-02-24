@@ -391,7 +391,7 @@
                                    :alert-success (:alert-success
                                                    @current-coupon)))
         [:div {:class "panel panel-default"}
-         (when (subset? #{{:uri "/dashboard/coupon"
+         (when (subset? #{{:uri "/coupon"
                            :method "PUT"}}
                         @accessible-routes)
            [:div {:class "panel-body"}

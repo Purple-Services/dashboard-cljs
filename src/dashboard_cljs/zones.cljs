@@ -429,7 +429,7 @@
                                  :alert-success (:alert-success
                                                  @current-zone)))
         [:div {:class "panel panel-default"}
-         (when (subset? #{{:uri "/dashboard/zone"
+         (when (subset? #{{:uri "/zone"
                            :method "PUT"}}
                         @accessible-routes)
            [:div {:class "panel-body"}

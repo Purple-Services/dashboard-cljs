@@ -265,7 +265,7 @@
            [text-input {:error? (not (s/blank? @error-message))
                         :default-value @input-value
                         :on-change (text-input-on-change input-value)}])
-         (when (subset? #{{:uri "/dashboard/courier"
+         (when (subset? #{{:uri "/courier"
                            :method "POST"}}
                         @accessible-routes)
            [save-button {:editing? editing?
@@ -360,7 +360,7 @@
                                 :error-message zones-error-message
                                 :courier current-courier}]]]
          ;; Table of orders for current courier
-         (when (subset? #{{:uri "/dashboard/orders-since-date"
+         (when (subset? #{{:uri "/orders-since-date"
                            :method "POST"}}
                         @accessible-routes)
             (when (> (count paginated-orders)

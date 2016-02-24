@@ -1,7 +1,6 @@
 (ns dashboard-cljs.core
   (:require [dashboard-cljs.gmaps :as gmaps]
             [dashboard-cljs.login :as login]
-            [dashboard-cljs.tables :as tables]
             [dashboard-cljs.landing :as landing]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
@@ -26,11 +25,6 @@
 (defn ^:export login
   []
   (login/login))
-
-
-(defn ^:export init-app
-  []
-  (tables/init-tables))
 
 (defn ^:export init-new-dash
   []
