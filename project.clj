@@ -1,6 +1,6 @@
 (defproject dashboard-cljs "0.2.0"
-  :description "A dashboard written in cljs for Purple"
-  :url "http://example.com/FIXME"
+  :description "Purple dashboard client. Connects to dashboard-service API."
+  :url "https://dash.purpleapp.com"
   :dependencies [[org.clojure/clojure "1.7.0"]
                  [weasel "0.7.0" :exclusions [org.clojure/clojurescript]]
                  [org.clojure/clojurescript "1.7.170"]
@@ -19,12 +19,9 @@
   :clean-targets ["out" "release"]
   :target-path "target"
   :cljsbuild
-  {
-   :builds [
-            {:id "dev"
+  {:builds [{:id "dev"
              :source-paths ["src"]
-             :compiler {
-                        :main dashboard-cljs.dev
+             :compiler {:main dashboard-cljs.dev
                         :output-to "out/dashboard_cljs.js"
                         :output-dir "out"
                         :optimizations :none
@@ -32,8 +29,7 @@
                         :verbose true
                         :foreign-libs [;; https://github.com/googlemaps/js-map-label
                                        {:file "resources/js/maplabel.js"
-                                        :provides ["maplabel"]}
-                                       ]}}
+                                        :provides ["maplabel"]}]}}
             {:id "release"
              :source-paths ["src"]
              :compiler {:main dashboard-cljs.core
@@ -41,6 +37,4 @@
                         :optimizations :advanced
                         :verbose true
                         :foreign-libs [{:file "resources/js/maplabel.js"
-                                        :provides ["maplabel"]}]}
-             }]
-   })
+                                        :provides ["maplabel"]}]}}]})
