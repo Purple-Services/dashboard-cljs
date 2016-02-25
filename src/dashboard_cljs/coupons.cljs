@@ -16,12 +16,13 @@
 
 (def default-new-coupon
   {:code nil
-   :value "1.00"
+   :value "10.00"
    :expiration_time (-> (js/moment)
                         (.endOf "day")
                         (.unix))
    :only_for_first_orders true
    :errors nil
+   :expires? false
    :retrieving? false
    :alert-success ""})
 
@@ -53,7 +54,11 @@
                           (if (parse-to-number? value)
                             (dollars->cents
                              value)
-                            value)))))
+                            value))
+                        :expiration_time
+                        (if (:expires? @coupon)
+                          (:expiration_time @coupon)
+                          1999999999))))
        (partial
         xhrio-wrapper
         (fn [r]
@@ -109,7 +114,11 @@
                           (if (parse-to-number? value)
                             (dollars->cents
                              value)
-                            value)))))
+                            value))
+                        :expiration_time
+                        (if (:expires? @coupon)
+                          (:expiration_time @coupon)
+                          1999999999))))
        (partial
         xhrio-wrapper
         (fn [r]
@@ -154,8 +163,7 @@
                                             (first response)
                                             :alert-success
                                             (str "Coupon '" @code
-                                                 "' successfully updated!")))
-                    ))))))))))))
+                                                 "' successfully updated!")))))))))))))))
 
 (defn coupon-form-submit
   "Button for submitting a coupon form for coupon, using on-click
@@ -183,7 +191,8 @@
                                        [:only_for_first_orders])
         errors (r/cursor coupon [:errors])
         retrieving? (r/cursor coupon [:retrieving?])
-        alert-success (r/cursor coupon [:alert-success])]
+        alert-success (r/cursor coupon [:alert-success])
+        expires? (r/cursor coupon [:expires?])]
     (fn []
       [:form {:class "form-horizontal"}
        ;; promo code
@@ -228,10 +237,18 @@
        [:div {:class "form-group"}
         [:label {:for "amount"
                  :class "col-sm-2 control-label"}
-         "Expiration Date"]
+         "Expires?"]
         [:div {:class "col-sm-10"}
          [:div {:class "input-group"}
-          [DatePicker (r/cursor coupon [:expiration_time])]]
+          [:input {:type "checkbox"
+                   :checked @expires?
+                   :on-change #(reset!
+                                expires?
+                                (-> %
+                                    (aget "target")
+                                    (aget "checked")))}]
+          (when @expires?
+            [DatePicker (r/cursor coupon [:expiration_time])])]
          (when (:expiration_time @errors)
            [:div {:class "alert alert-danger"}
             (first (:expiration_time @errors))])]]
@@ -389,7 +406,12 @@
                                    (:only_for_first_orders
                                     @current-coupon)
                                    :alert-success (:alert-success
-                                                   @current-coupon)))
+                                                   @current-coupon)
+                                   :expires? (if (= (:expiration_time
+                                                     @current-coupon)
+                                                    1999999999)
+                                               false
+                                               true)))
         [:div {:class "panel panel-default"}
          (when (subset? #{{:uri "/coupon"
                            :method "PUT"}}
