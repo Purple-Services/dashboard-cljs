@@ -520,37 +520,22 @@
                        (clj->js {:options {:fillColor status-color
                                            :strokeColor status-color}})))))))
 
-(defn init-orders!
-  "Get all orders from the server and store them in the state atom. This
-  should only be called once initially."
-  [state date]
+(defn sync-orders!
+  "Retrieve orders since date (keyword arg) and sync them with state. date is
+  optional and defaults to start of current day.
+
+  ex: (sync-orders! state)
+      (sync-orders! state :date 1456429774) ; with date"
+  [state & {:keys [date]
+            :or {date (-> (js/moment)
+                          (.startOf "day")
+                          (.unix))}}]
   (retrieve-url
    (str base-url "orders-since-date")
    "POST"
    (js/JSON.stringify
     (clj->js
      {:date date
-      :unix-epoch? true}))
-   (partial
-    xhrio-wrapper
-    #(let [orders %]
-       (if (not (nil? orders))
-         (do (mapv (partial sync-order! state) orders)
-             ;; redraw the circles according to which ones are selected
-             (display-selected-props! state (:orders @state) "circle"
-                                      (partial order-displayed? state))))))))
-
-(defn sync-orders!
-  "Retrieve today's orders and sync them with the state"
-  [state]
-  (retrieve-url
-   (str base-url "orders-since-date")
-   "POST"
-   (js/JSON.stringify
-    (clj->js
-     {:date (-> (js/moment)
-                (.startOf "day")
-                (.unix))
       :unix-epoch? true}))
    (partial
     xhrio-wrapper
@@ -1089,7 +1074,7 @@
                                          ])
                   js/google.maps.ControlPosition.LEFT_TOP)
     ;; initialize the orders
-    (init-orders! state (:from-date @state))
+    (sync-orders! state :date (:from-date @state))
     ;; initalize the zones
     (init-zones! state)
     ;; poll the server and update orders
@@ -1146,8 +1131,8 @@
                                          ])
                   js/google.maps.ControlPosition.LEFT_TOP)
     ;; initialize the orders
-    (init-orders! state
-                  (:from-date @state))
+    (sync-orders! state
+                  :date (:from-date @state))
     ;; initialize the couriers
     (init-couriers! state)
     ;; initialize the zones
