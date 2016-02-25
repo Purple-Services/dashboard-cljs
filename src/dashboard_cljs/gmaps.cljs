@@ -469,14 +469,6 @@
   [state]
   (retrieve-couriers! state (:timeout-interval @state)))
 
-(defn retrieve-orders
-  "Retrieve the orders since date and apply f to them"
-  [date f & [timeout]]
-  (retrieve-route "orders-since-date" (js/JSON.stringify
-                                       (clj->js {:date date
-                                                 :unix-epoch? true}))
-                  f timeout))
-
 (defn convert-order-timestamp!
   "Convert an order's timestamp_created to a js/Date"
   [order]
@@ -532,35 +524,42 @@
   "Get all orders from the server and store them in the state atom. This
   should only be called once initially."
   [state date]
-  (do
-    (retrieve-orders
-     date ; note: an empty date will return ALL orders
-     (partial
-      xhrio-wrapper
-      #(let [orders (aget % "orders")]
-         (if (not (nil? orders))
-           (do (mapv (partial sync-order! state) orders)
-               ;; redraw the circles according to which ones are selected
-               (display-selected-props! state (:orders @state) "circle"
-                                        (partial order-displayed? state)))))))))
-
-(defn sync-orders!
-  "Retrieve today's orders and sync them with the state"
-  [state]
-  (retrieve-orders
-   ;;(.format (js/moment) "YYYY-MM-DD")
-   (-> (js/moment)
-       (.startOf "day")
-       (.unix))
+  (retrieve-url
+   (str base-url "orders-since-date")
+   "POST"
+   (js/JSON.stringify
+    (clj->js
+     {:date date
+      :unix-epoch? true}))
    (partial
     xhrio-wrapper
-    #(let [orders (aget % "orders")]
+    #(let [orders %]
        (if (not (nil? orders))
          (do (mapv (partial sync-order! state) orders)
              ;; redraw the circles according to which ones are selected
              (display-selected-props! state (:orders @state) "circle"
-                                      (partial order-displayed? state))))))
-   (:timeout-interval @state)))
+                                      (partial order-displayed? state))))))))
+
+(defn sync-orders!
+  "Retrieve today's orders and sync them with the state"
+  [state]
+  (retrieve-url
+   (str base-url "orders-since-date")
+   "POST"
+   (js/JSON.stringify
+    (clj->js
+     {:date (-> (js/moment)
+                (.startOf "day")
+                (.unix))
+      :unix-epoch? true}))
+   (partial
+    xhrio-wrapper
+    #(let [orders %]
+       (if (not (nil? orders))
+         (do (mapv (partial sync-order! state) orders)
+             ;; redraw the circles according to which ones are selected
+             (display-selected-props! state (:orders @state) "circle"
+                                      (partial order-displayed? state))))))))
 
 (defn vec-coords->json
   "Convert a vector of lat,lng vectors to a json obj"
@@ -1156,8 +1155,7 @@
     ;; poll the server and update the orders and couriers
     (continous-update #(do (sync-couriers! state)
                            (sync-orders! state)
-                           (sync-zones! state)
-                           )
+                           (sync-zones! state))
                       (:timeout-interval @state))))
 
 (defn ^:export get-zones
