@@ -12,6 +12,8 @@
                                           cents->$dollars json-string->clj
                                           accessible-routes
                                           new-orders-count
+                                          parse-timestamp
+                                          oldest-current-order
                                           same-timestamp?]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps]]))
@@ -653,10 +655,11 @@
                           "POST"
                           (js/JSON.stringify
                            (clj->js
-                            ;; just retrieve the last 20 days worth of orders
-                            {:date (-> (js/moment)
-                                       (.subtract 30 "days")
-                                       (.format "YYYY-MM-DD"))}))
+                            ;; just update current orders
+                            {:date (parse-timestamp (:timestamp_created
+                                                     (oldest-current-order
+                                                      @datastore/orders)))
+                             :unix-epoch? true}))
                           (partial
                            xhrio-wrapper
                            (fn [response]

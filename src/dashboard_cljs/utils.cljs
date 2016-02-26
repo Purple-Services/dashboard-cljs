@@ -144,3 +144,15 @@
   [m1 m2]
   (= (parse-timestamp (:timestamp_created m1))
      (parse-timestamp (:timestamp_created m2))))
+
+(defn oldest-current-order
+  "Given a col of orders, return the oldest order that is is not complete
+  or cancelled"
+  [orders]
+  (->> orders
+       (filter (every-pred
+                #(not= "complete" (:status %))
+                #(not= "cancelled" (:status %))))
+       (sort  #(compare (:timestamp_created %1)
+                        (:timestamp_created %2)))
+       first))
