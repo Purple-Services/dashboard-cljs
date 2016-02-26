@@ -410,6 +410,14 @@
              [:button {:type "button"
                        :class (str "btn btn-default "
                                    (when (= @selected
+                                            "all")
+                                     "active"))
+                       :on-click #(reset! selected "all")
+                       }
+              "Show All"]
+             [:button {:type "button"
+                       :class (str "btn btn-default "
+                                   (when (= @selected
                                             "active")
                                      "active"))
                        :on-click #(reset! selected "active")}
@@ -422,14 +430,6 @@
                        :on-click #(reset! selected "expired")
                        }
               "Expired"]
-             [:button {:type "button"
-                       :class (str "btn btn-default "
-                                   (when (= @selected
-                                            "all")
-                                     "active"))
-                       :on-click #(reset! selected "all")
-                       }
-              "See All"]
              ]]]
           [:div {:class "btn-toolbar"
                  :role "toolbar"
