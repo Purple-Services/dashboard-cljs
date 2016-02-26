@@ -146,7 +146,7 @@
      (parse-timestamp (:timestamp_created m2))))
 
 (defn oldest-current-order
-  "Given a col of orders, return the oldest order that is is not complete
+  "Given a coll of orders, return the oldest order that is is not complete
   or cancelled"
   [orders]
   (->> orders

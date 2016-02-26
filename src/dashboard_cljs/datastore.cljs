@@ -26,16 +26,16 @@
 ;; r/atom <- sync-state! <- chan <- component, fn's, etc.
 ;;
 ;; Currently, new data is put! on 'modify-data-chan'
-;; for the appropriate topic. It data should always be either a set
-;; or vector of maps
+;; as a map. :topic corresponds to the dataset atom to update.
+;; :data is a coll of maps.
 ;;
 ;; ex.:
 ;; (put! modify-data-chan
 ;;       {:topic "orders"
 ;;        :data order})
 ;;
-;; the topic is the name of atom which contains the data set
-;; order is a vector with one order map inside of it
+;; "orders" is the name of atom which contains the data set.
+;;  order   is a vector with one order map
 
 (defn set-ids
   "Given a set, return a set of just the vals for key :id"
