@@ -37,7 +37,7 @@
        [:span {:class "icon-bar"}]
        [:span {:class "icon-bar"}]]
       [:a {:class "navbar-brand" :href "index.html"}
-       [:img {:src "resources/images/logo-white.png"
+       [:img {:src (str base-url "/images/logo-white.png")
               :alt "PURPLE"
               :class "purple-logo"}]]]
      [:ul {:class "nav navbar-right top-nav"}
