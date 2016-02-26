@@ -389,6 +389,31 @@
                   :current-page current-page}])
               ]))]))))
 
+(defn couriers-filter
+  "A component for determing which coureirs to display. selected-filter is
+  an r/atom containing a string which describes what filter to use."
+  [selected-filter]
+  (fn [selected-filter]
+    [:div {:class "btn-group"
+           :role "group"
+           :aria-label "filter group"}
+     [:button {:type "button"
+               :class
+               (str "btn btn-default "
+                    (when (= @selected-filter
+                             "show-all")
+                      "active"))
+               :on-click #(reset! selected-filter "show-all")}
+      "Show All"]
+     [:button {:type "button"
+               :class
+               (str "btn btn-default "
+                    (when (= @selected-filter
+                             "connected")
+                      "active"))
+               :on-click #(reset! selected-filter "connected")}
+      "Connected"]]))
+
 (defn couriers-panel
   "Display a table of selectable couriers with an indivdual courier panel
   for the selected courier. couriers is set of couriers"
@@ -396,23 +421,22 @@
   (let [current-courier (r/atom nil)
         sort-keyword (r/atom :timestamp_created)
         sort-reversed? (r/atom false)
-        selected-filter (r/atom "show-all")
+        selected-filter (r/atom "connected")
         current-page (r/atom 1)
         page-size 5]
     (fn [couriers]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
-            filter-fn (cond (= @selected-filter
-                               "declined")
-                            (fn [courier]
-                              (and (not (:paid courier))
-                                   (= (:status courier) "complete")
-                                   (> (:total_price courier))))
-                            :else (fn [courier] true))
+            filter-fn  (cond (= @selected-filter
+                                "connected")
+                             (fn [courier]
+                               (:connected courier))
+                             :else (fn [courier] true))
             displayed-couriers couriers
             sorted-couriers (->> displayed-couriers
                                  sort-fn
+                                 (filter filter-fn)
                                  (partition-all page-size))
             paginated-couriers (-> sorted-couriers
                                    (nth (- @current-page 1)
@@ -446,6 +470,7 @@
            [:div {:class "btn-group"
                   :role "group"
                   :aria-label "refresh group"}
+            [couriers-filter selected-filter]
             [RefreshButton {:refresh-fn
                             refresh-fn}]]]]
          [:div {:class "table-responsive"}
