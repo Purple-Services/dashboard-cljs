@@ -44,7 +44,7 @@
   []
   (fn []
     ;; a link to the dash map
-    [:div {:class "panel panel-default"}
+    [:div {:class "panel panel-default hidden-xs"}
      [:div {:class "panel-body"}
       [:h2
        [:a {:href (str base-url "dash-map-couriers")

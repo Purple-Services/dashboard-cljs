@@ -16,12 +16,13 @@
 
 (def default-new-coupon
   {:code nil
-   :value "1.00"
+   :value "10.00"
    :expiration_time (-> (js/moment)
                         (.endOf "day")
                         (.unix))
    :only_for_first_orders true
    :errors nil
+   :expires? false
    :retrieving? false
    :alert-success ""})
 
@@ -32,130 +33,86 @@
                     default-new-coupon
                     :selected "active"}))
 
-(defn create-on-click
-  "on-click fn for creating a new coupon on the server"
-  [coupon]
-  (let [retrieving? (r/cursor coupon [:retrieving?])
-        errors      (r/cursor coupon [:errors])
-        code        (r/cursor coupon [:code])]
-    (fn [e]
-      (.preventDefault e)
-      ;; we are retrieving
-      (reset! retrieving? true)
-      ;; send response to server
-      (retrieve-url
-       (str base-url "coupon")
-       "POST"
-       (js/JSON.stringify
-        (clj->js (assoc @coupon
-                        :value
-                        (let [value (:value @coupon)]
-                          (if (parse-to-number? value)
-                            (dollars->cents
-                             value)
-                            value)))))
-       (partial
-        xhrio-wrapper
-        (fn [r]
-          (let [response (js->clj r
-                                  :keywordize-keys
-                                  true)]
-            (when (not (:success response))
-              (reset! retrieving? false)
-              ;; handle errors
-              (reset! errors (first
-                              (:validation response))))
-            (when (:success response)
-              ;; retrieve the new coupon
-              (retrieve-url
-               (str base-url "coupon/" @code)
-               "GET"
-               {}
-               (partial
-                xhrio-wrapper
-                (fn [r]
-                  (let [response
-                        (js->clj
-                         r :keywordize-keys true)]
-                    (put! datastore/modify-data-chan
-                          {:topic "coupons"
-                           :data response})
-                    (reset!
-                     coupon
-                     (assoc
-                      default-new-coupon
-                      :alert-success
-                      (str "Coupon '" @code
-                           "' successfully created!")))))))))))))))
-
-(defn edit-on-click
-  "on-click fn for updating a coupon on the server"
-  [coupon current-coupon]
-  (let [retrieving? (r/cursor coupon [:retrieving?])
-        errors      (r/cursor coupon [:errors])
-        code        (r/cursor coupon [:code])]
-    (fn [e]
-      (.preventDefault e)
-      ;; we are retrieving
-      (reset! retrieving? true)
-      ;; send response to server
-      (retrieve-url
-       (str base-url "coupon")
-       "PUT"
-       (js/JSON.stringify
-        (clj->js (assoc @coupon
-                        :value
-                        (let [value (:value @coupon)]
-                          (if (parse-to-number? value)
-                            (dollars->cents
-                             value)
-                            value)))))
-       (partial
-        xhrio-wrapper
-        (fn [r]
-          (let [response (js->clj r
-                                  :keywordize-keys
-                                  true)]
-            (when (not (:success response))
-              ;; we obviously have an error, there shouldn't
-              ;; be a success message!
-              (reset! (r/cursor coupon [:alert-success])
-                      ""
-                      )
-              (reset! retrieving? false)
-              ;; handle errors
-              (reset! errors (first
-                              (:validation response))))
-            (when (:success response)
-              ;; retrieve the new coupon
-              (retrieve-url
-               (str base-url "coupon/" @code)
-               "GET"
-               {}
-               (partial
-                xhrio-wrapper
-                (fn [r]
-                  (let [response
-                        (js->clj
-                         r :keywordize-keys true)]
-                    (put! datastore/modify-data-chan
-                          {:topic "coupons"
-                           :data response})
-                    ;; reset edit-coupon
-                    (reset!
-                     coupon
-                     (assoc
-                      @coupon
-                      :retrieving? false
-                      :errors nil
-                      ))
-                    ;; reset the current-coupon
-                    (reset! current-coupon (assoc
-                                            (first response)
-                                            :alert-success
-                                            (str "Coupon '" @code
-                                                 "' successfully updated!")))
-                    ))))))))))))
+(defn update-on-click
+  "on-click fn for updating a coupon on the server. Optionally provide
+  current-coupon when editing an existing coupon"
+  ([coupon] (update-on-click coupon nil))
+  ([coupon current-coupon]
+   (let [retrieving? (r/cursor coupon [:retrieving?])
+         errors      (r/cursor coupon [:errors])
+         code        (r/cursor coupon [:code])
+         method      (if (nil? current-coupon)
+                       "POST"
+                       "PUT")]
+     (fn [e]
+       (.preventDefault e)
+       ;; we are retrieving
+       (reset! retrieving? true)
+       ;; send response to server
+       (retrieve-url
+        (str base-url "coupon")
+        method
+        (js/JSON.stringify
+         (clj->js (assoc @coupon
+                         :value
+                         (let [value (:value @coupon)]
+                           (if (parse-to-number? value)
+                             (dollars->cents
+                              value)
+                             value))
+                         :expiration_time
+                         (if (:expires? @coupon)
+                           (:expiration_time @coupon)
+                           1999999999))))
+        (partial
+         xhrio-wrapper
+         (fn [r]
+           (let [response (js->clj r
+                                   :keywordize-keys
+                                   true)]
+             (when (not (:success response))
+               (when (not (nil? current-coupon))
+                 ;; we obviously have an error, there shouldn't
+                 ;; be a success message!
+                 (reset! (r/cursor coupon [:alert-success]) ""))
+               (reset! retrieving? false)
+               ;; handle errors
+               (reset! errors (first
+                               (:validation response))))
+             (when (:success response)
+               ;; retrieve the new coupon
+               (retrieve-url
+                (str base-url "coupon/" @code)
+                "GET"
+                {}
+                (partial
+                 xhrio-wrapper
+                 (fn [r]
+                   (let [response
+                         (js->clj
+                          r :keywordize-keys true)]
+                     (put! datastore/modify-data-chan
+                           {:topic "coupons"
+                            :data response})
+                     ;; reset edit-coupon
+                     (reset!
+                      coupon
+                      (if (nil? current-coupon)
+                        (assoc default-new-coupon
+                               :alert-success
+                               (str "Coupon '" @code
+                                    "' successfully created!"))
+                        (assoc @coupon
+                               :retrieving? false
+                               :errors nil)))
+                     ;; reset the current-coupon
+                     (when (not (nil? current-coupon))
+                       (reset! current-coupon
+                               (assoc
+                                (first response)
+                                :alert-success
+                                (str "Coupon '" @code
+                                     "' successfully updated!")))))))))))))))))
 
 (defn coupon-form-submit
   "Button for submitting a coupon form for coupon, using on-click
@@ -183,7 +140,8 @@
                                        [:only_for_first_orders])
         errors (r/cursor coupon [:errors])
         retrieving? (r/cursor coupon [:retrieving?])
-        alert-success (r/cursor coupon [:alert-success])]
+        alert-success (r/cursor coupon [:alert-success])
+        expires? (r/cursor coupon [:expires?])]
     (fn []
       [:form {:class "form-horizontal"}
        ;; promo code
@@ -228,10 +186,18 @@
        [:div {:class "form-group"}
         [:label {:for "amount"
                  :class "col-sm-2 control-label"}
-         "Expiration Date"]
+         "Expires?"]
         [:div {:class "col-sm-10"}
          [:div {:class "input-group"}
-          [DatePicker (r/cursor coupon [:expiration_time])]]
+          [:input {:type "checkbox"
+                   :checked @expires?
+                   :on-change #(reset!
+                                expires?
+                                (-> %
+                                    (aget "target")
+                                    (aget "checked")))}]
+          (when @expires?
+            [DatePicker (r/cursor coupon [:expiration_time])])]
          (when (:expiration_time @errors)
            [:div {:class "alert alert-danger"}
             (first (:expiration_time @errors))])]]
@@ -271,7 +237,7 @@
        [:div {:class "panel-body"}
         [:h3 "Create Coupon Code"]
         [coupon-form (r/cursor state [:new-coupon])
-         [coupon-form-submit coupon (create-on-click coupon) "Create"]]]])))
+         [coupon-form-submit coupon (update-on-click coupon) "Create"]]]])))
 
 (defn coupon-table-header
   "props is:
@@ -389,14 +355,19 @@
                                    (:only_for_first_orders
                                     @current-coupon)
                                    :alert-success (:alert-success
-                                                   @current-coupon)))
+                                                   @current-coupon)
+                                   :expires? (if (= (:expiration_time
+                                                     @current-coupon)
+                                                    1999999999)
+                                               false
+                                               true)))
         [:div {:class "panel panel-default"}
          (when (subset? #{{:uri "/coupon"
                            :method "PUT"}}
                         @accessible-routes)
            [:div {:class "panel-body"}
             [coupon-form edit-coupon
-             [coupon-form-submit edit-coupon (edit-on-click edit-coupon
+             [coupon-form-submit edit-coupon (update-on-click edit-coupon
                                                             current-coupon)
               "Update"]]])
          [:div {:class "panel-body"}
