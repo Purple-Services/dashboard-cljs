@@ -51,21 +51,29 @@ body {
     color: #fff !important;
 }
 
+.side-nav-color > li > a:hover {
+    background-color: #444 !important;
+    color: #fff !important;
+}
 .side-nav-color > li > a:focus,
 .side-nav-color > li > a.active {
     background-color: #fff !important;
     color: #444 !important;
-}
-.side-nav-color > li > a:hover {
-    background-color: #444 !important;
-    color: #fff !important;
 }
 
 .table-bordered {
     border: 1px solid #ddd !important;
 }
 .table-responsive {
+    margin-top: 15px;
     border-top: none !important;
+}
+.table-responsive > table {
+    margin-bottom: 0px;
+}
+
+.pagination {
+    margin: 10px 0 15px 0;
 }
 
 tbody > tr.active > td {
@@ -93,8 +101,4 @@ tbody > tr.active > td {
 
 .courier-inactive {
     color: #ff0000;
-}
-
-.table-responsive {
-    margin-top: 15px;
 }

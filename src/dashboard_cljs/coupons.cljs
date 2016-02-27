@@ -122,14 +122,15 @@
     (let [retrieving? (r/cursor coupon [:retrieving?])
           errors      (r/cursor coupon [:errors])
           code        (r/cursor coupon [:code])]
-      ;; submit
-      [:button {:type "submit"
-                :class "btn btn-default"
-                :on-click on-click
-                }
-       (if @retrieving?
-         [:i {:class "fa fa-lg fa-refresh fa-pulse "}]
-         label)])))
+      [:div {:class "form-group"}
+       [:div {:class "col-sm-2 control-label"}]
+       [:div {:class "col-sm-10"}
+        [:button {:type "submit"
+                  :class "btn btn-default"
+                  :on-click on-click}
+         (if @retrieving?
+           [:i {:class "fa fa-lg fa-refresh fa-pulse "}]
+           label)]]])))
 
 (defn coupon-form
   "Form for a new coupon using submit-button"
@@ -184,18 +185,18 @@
             (first (:value @errors))])]]
        ;; exp date
        [:div {:class "form-group"}
-        [:label {:for "amount"
+        [:label {:for "expires?"
                  :class "col-sm-2 control-label"}
-         "Expires?"]
+         "Expires? "
+         [:input {:type "checkbox"
+                  :checked @expires?
+                  :on-change #(reset!
+                               expires?
+                               (-> %
+                                   (aget "target")
+                                   (aget "checked")))}]]
         [:div {:class "col-sm-10"}
          [:div {:class "input-group"}
-          [:input {:type "checkbox"
-                   :checked @expires?
-                   :on-change #(reset!
-                                expires?
-                                (-> %
-                                    (aget "target")
-                                    (aget "checked")))}]
           (when @expires?
             [DatePicker (r/cursor coupon [:expiration_time])])]
          (when (:expiration_time @errors)
@@ -368,46 +369,42 @@
            [:div {:class "panel-body"}
             [coupon-form edit-coupon
              [coupon-form-submit edit-coupon (update-on-click edit-coupon
-                                                            current-coupon)
+                                                              current-coupon)
               "Update"]]])
          [:div {:class "panel-body"}
-          [:div [:h4 {:class "pull-left"} "Coupons"]
-           [:div {:class "btn-toolbar"
-                  :role "toolbar"
-                  :aria-label "Toolbar with button groups"}
-            [:div {:class "btn-group"
-                   :role "group"
-                   :aria-label "Select active, expired or all coupons"}
-             [:button {:type "button"
-                       :class (str "btn btn-default "
-                                   (when (= @selected
-                                            "all")
-                                     "active"))
-                       :on-click #(reset! selected "all")
-                       }
-              "Show All"]
-             [:button {:type "button"
-                       :class (str "btn btn-default "
-                                   (when (= @selected
-                                            "active")
-                                     "active"))
-                       :on-click #(reset! selected "active")}
-              "Active"]
-             [:button {:type "button"
-                       :class (str "btn btn-default "
-                                   (when (= @selected
-                                            "expired")
-                                     "active"))
-                       :on-click #(reset! selected "expired")
-                       }
-              "Expired"]
-             ]]]
-          [:div {:class "btn-toolbar"
-                 :role "toolbar"
-                 :aria-label "Toolbar with button groups"}
+          
+          [:div {:class "btn-toolbar pull-left"
+                 :role "toolbar"}
            [:div {:class "btn-group"
-                  :role "group"
-                  :aria-label "refresh group"}
+                  :role "group"}
+            [:button {:type "button"
+                      :class (str "btn btn-default "
+                                  (when (= @selected
+                                           "all")
+                                    "active"))
+                      :on-click #(reset! selected "all")
+                      }
+             "Show All"]
+            [:button {:type "button"
+                      :class (str "btn btn-default "
+                                  (when (= @selected
+                                           "active")
+                                    "active"))
+                      :on-click #(reset! selected "active")}
+             "Active"]
+            [:button {:type "button"
+                      :class (str "btn btn-default "
+                                  (when (= @selected
+                                           "expired")
+                                    "active"))
+                      :on-click #(reset! selected "expired")
+                      }
+             "Expired"]
+            ]]
+          [:div {:class "btn-toolbar"
+                 :role "toolbar"}
+           [:div {:class "btn-group"
+                  :role "group"}
             [RefreshButton {:refresh-fn
                             refresh-fn}]]]]
          [:div {:class "table-responsive"}

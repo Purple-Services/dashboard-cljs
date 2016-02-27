@@ -19,11 +19,9 @@
   "
   [props]
   (fn [props]
-    [:div {:class (str "panel " (:panel-class props))}
-     [:i {:class (str "fa fa-5x " (:icon-class props))}]]
-    [:div {:class "col-xs-9 text-right"}
-     [:div {:class "huge"} (count (:data props))]
-     [:div (:caption props)]]))
+    [:div
+     [:span {:class "huge"} (count (:data props))]
+     (str " " (:caption props))]))
 
 ;; Table components
 

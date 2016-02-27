@@ -132,13 +132,16 @@
     (let [retrieving? (r/cursor zone [:retrieving?])
           errors      (r/cursor zone [:errors])
           code        (r/cursor zone [:code])]
-      ;; submit
-      [:button {:type "submit"
-                :class "btn btn-default"
-                :on-click on-click}
-       (if @retrieving?
-         [:i {:class "fa fa-lg fa-refresh fa-pulse "}]
-         label)])))
+
+      [:div {:class "form-group"}
+       [:div {:class "col-sm-2 control-label"}]
+       [:div {:class "col-sm-10"}
+        [:button {:type "submit"
+                  :class "btn btn-default"
+                  :on-click on-click}
+         (if @retrieving?
+           [:i {:class "fa fa-lg fa-refresh fa-pulse "}]
+           label)]]])))
 
 (defn zone-form
   "Form for a zone using submit-button"
@@ -442,13 +445,14 @@
                                                         current-zone)
               "Update"]]])
          [:div {:class "panel-body"}
-          [:div [:h4 {:class "pull-left"} "Zones"]]
+          [:div [:h3 {:class "pull-left"
+                      :style {:margin-top "4px"
+                              :margin-bottom 0}}
+                 "Zones"]]
           [:div {:class "btn-toolbar"
-                 :role "toolbar"
-                 :aria-label "Toolbar with button groups"}
+                 :role "toolbar"}
            [:div {:class "btn-group"
-                  :role "group"
-                  :aria-label "refresh group"}
+                  :role "group"}
             [RefreshButton {:refresh-fn
                             refresh-fn}]]]]
          [:div {:class "table-responsive"}

@@ -136,39 +136,6 @@
               :toggle (:tab-content-toggle props)
               :side-bar-toggle (:side-bar-toggle props)}
          [:div "Home"]])
-      (when (subset? #{{:uri "/couriers"
-                        :method "POST"}}
-                     @accessible-routes)
-        [Tab {:default? false
-              :toggle-key :couriers-view
-              :toggle (:tab-content-toggle props)
-              :side-bar-toggle (:side-bar-toggle props)}
-         [:div
-          "Couriers"]])
-      (when (subset? #{{:uri "/users"
-                        :method "GET"}}
-                     @accessible-routes)
-        [Tab {:default? false
-              :toggle-key :users-view
-              :toggle (:tab-content-toggle props)
-              :side-bar-toggle (:side-bar-toggle props)}
-         [:div "Users"]])
-      (when (subset? #{{:uri "/coupons"
-                        :method "GET"}}
-                     @accessible-routes)
-        [Tab {:default? false
-              :toggle-key :coupons-view
-              :toggle (:tab-content-toggle props)
-              :side-bar-toggle (:side-bar-toggle props)}
-         [:div "Coupon Codes"]])
-      (when (subset? #{{:uri "/zones"
-                        :method "GET"}}
-                     @accessible-routes)
-        [Tab {:default? false
-              :toggle-key :zones-view
-              :toggle (:tab-content-toggle props)
-              :side-bar-toggle (:side-bar-toggle props)}
-         [:div "Zones"]])
       (when (subset? #{{:uri "/orders-since-date"
                         :method "POST"}}
                      @accessible-routes)
@@ -190,6 +157,39 @@
               (new-orders-count @datastore/orders
                                 @datastore/last-acknowledged-order)]])
           "Orders"]])
+      (when (subset? #{{:uri "/users"
+                        :method "GET"}}
+                     @accessible-routes)
+        [Tab {:default? false
+              :toggle-key :users-view
+              :toggle (:tab-content-toggle props)
+              :side-bar-toggle (:side-bar-toggle props)}
+         [:div "Users"]])
+      (when (subset? #{{:uri "/couriers"
+                        :method "POST"}}
+                     @accessible-routes)
+        [Tab {:default? false
+              :toggle-key :couriers-view
+              :toggle (:tab-content-toggle props)
+              :side-bar-toggle (:side-bar-toggle props)}
+         [:div
+          "Couriers"]])
+      (when (subset? #{{:uri "/coupons"
+                        :method "GET"}}
+                     @accessible-routes)
+        [Tab {:default? false
+              :toggle-key :coupons-view
+              :toggle (:tab-content-toggle props)
+              :side-bar-toggle (:side-bar-toggle props)}
+         [:div "Coupons"]])
+      (when (subset? #{{:uri "/zones"
+                        :method "GET"}}
+                     @accessible-routes)
+        [Tab {:default? false
+              :toggle-key :zones-view
+              :toggle (:tab-content-toggle props)
+              :side-bar-toggle (:side-bar-toggle props)}
+         [:div "Zones"]])
       (when (subset? #{{:uri "/generate-stats-csv"
                         :method "GET"}
                        {:uri "/download-stats-csv"
@@ -239,8 +239,6 @@
                             @accessible-routes)
                [:div
                 [home/orders-count-panel]
-                [home/orders-count-panel]
-                [home/orders-count-panel]
                 [home/current-orders-panel @datastore/orders]])]]]]
          ;; couriers page
          [TabContent
@@ -260,14 +258,14 @@
                               :method "GET"
                               }} @accessible-routes)
               [:div
+               [users/users-panel @datastore/users]
                (when (subset?
                       #{{:uri "/send-push-to-all-active-users"
                          :method "POST"}
                         {:uri "/send-push-to-users-list"
                          :method "POST"}}
                       @accessible-routes)
-                 [users/user-push-notification])
-               [users/users-panel @datastore/users]])]]]
+                 [users/user-push-notification])])]]]
          ;; coupon code page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:coupons-view])}

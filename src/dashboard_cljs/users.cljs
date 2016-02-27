@@ -74,7 +74,7 @@
        "Market"]
       [:th {:style {:font-size "16px"
                     :font-weight "normal"}}
-       "Total Orders"]
+       "Orders"]
       [TableHeadSortable
        (conj props {:keyword :email})
        "Email"] 
@@ -130,6 +130,7 @@
      ;; order address
      [:td [:i {:class "fa fa-circle"
                :style {:color (:zone-color order)}}]
+      " "
       (:address_street order)]
      ;; courier name
      [:td (:courier_name order)]
@@ -149,12 +150,11 @@
   [current-user]
   (let [sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
-        show-orders? (r/atom false)
+        show-orders? (r/atom true)
         current-page (r/atom 1)
         page-size 5]
     (fn [current-user]
-      (let [
-            sort-fn (if @sort-reversed?
+      (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
             
@@ -179,66 +179,59 @@
                                      first))]
         ;; populate the current user with additional information
         [:div {:class "panel-body"}
-         [:div [:h3 (:name @current-user)]]
-         ;; google map
          [:div {:class "row"}
-          ;; main display panel
-          [:div 
-           ;; email
-           [KeyVal "Email" (:email @current-user)]
-           ;; phone number
-           [KeyVal "Phone Number" (:phone_number @current-user)]
-           ;; date started
-           [KeyVal "Registered" (unix-epoch->fmt
-                                 (:timestamp_created @current-user)
-                                 "M/D/YYYY")]
-           ;; last active (last ping)
-           (let [most-recent-order-time (->> orders
-                                             (sort-by :target_time_start)
-                                             first
-                                             :target_time_start)]
-             (when (not (nil? most-recent-order-time))
-               [KeyVal "Last Active" (unix-epoch->fmt
-                                      most-recent-order-time
-                                      "M/D/YYYY")]))
-           (when (not (nil? default-card-info))
-             [KeyVal "Default Credit Card"
-              (str
-               (:brand default-card-info)
-               " "
-               (:last4 default-card-info)
-               " "
-               (when (not (empty? (:exp_month default-card-info)))
-                 (:exp_month default-card-info)
-                 "/"
-                 (:exp_year default-card-info)))])]]
-         ;; Table of orders for current user
-         (when (> (count paginated-orders)
-                  0)
-           [:div {:class "row"}
-            [:button {:type "button"
-                      :class "btn btn-sm btn-default"
-                      :on-click #(swap! show-orders? not)
-                      }
-             (if @show-orders?
-               "Hide Orders"
-               "Show Orders")]
-            [:div {:class "table-responsive"
-                   :style (if @show-orders?
-                            {}
-                            {:display "none"})}
-             [StaticTable
-              {:table-header [user-orders-header
-                              {:sort-keyword sort-keyword
-                               :sort-reversed? sort-reversed?}]
-               :table-row (user-orders-row)}
-              paginated-orders]]
-            [:div {:style (if @show-orders?
-                            {}
-                            {:display "none"})}
-             [TablePager
-              {:total-pages (count sorted-orders)
-               :current-page current-page}]]])]))))
+          [:div {:class "col-xs-3"}
+           [:div [:h3 (:name @current-user)]]
+           ;; main display panel
+           [:div 
+            ;; email
+            [KeyVal "Email" (:email @current-user)]
+            ;; phone number
+            [KeyVal "Phone" (:phone_number @current-user)]
+            ;; date started
+            [KeyVal "Registered" (unix-epoch->fmt
+                                  (:timestamp_created @current-user)
+                                  "M/D/YYYY")]
+            ;; last active (last ping)
+            (let [most-recent-order-time (->> orders
+                                              (sort-by :target_time_start)
+                                              first
+                                              :target_time_start)]
+              (when (not (nil? most-recent-order-time))
+                [KeyVal "Last Active" (unix-epoch->fmt
+                                       most-recent-order-time
+                                       "M/D/YYYY")]))
+            (when (not (nil? default-card-info))
+              [KeyVal "Default Card"
+               (str
+                (:brand default-card-info)
+                " "
+                (:last4 default-card-info)
+                " "
+                (when (not (empty? (:exp_month default-card-info)))
+                  (:exp_month default-card-info)
+                  "/"
+                  (:exp_year default-card-info)))])]]
+          ;; Table of orders for current user
+          (when (> (count paginated-orders)
+                   0)
+            [:div {:class "col-xs-9"}
+             [:div {:class "table-responsive"
+                    :style (if @show-orders?
+                             {}
+                             {:display "none"})}
+              [StaticTable
+               {:table-header [user-orders-header
+                               {:sort-keyword sort-keyword
+                                :sort-reversed? sort-reversed?}]
+                :table-row (user-orders-row)}
+               paginated-orders]]
+             [:div {:style (if @show-orders?
+                             {}
+                             {:display "none"})}
+              [TablePager
+               {:total-pages (count sorted-orders)
+                :current-page current-page}]]])]]))))
 
 (defn users-panel
   "Display a table of selectable coureirs with an indivdual user panel
@@ -288,13 +281,14 @@
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
           [user-panel current-user]
-          [:h3 "Users"]
+          [:div [:h3 {:class "pull-left"
+                      :style {:margin-top "4px"
+                              :margin-bottom 0}}
+                 "Users"]]
           [:div {:class "btn-toolbar"
-                 :role "toolbar"
-                 :aria-label "Toolbar with button groups"}
+                 :role "toolbar"}
            [:div {:class "btn-group"
-                  :role "group"
-                  :aria-label "refresh group"}
+                  :role "group"}
             [RefreshButton {:refresh-fn
                             refresh-fn}]]]]
          [:div {:class "table-responsive"}
@@ -392,25 +386,23 @@
          [:div {:class "panel-body"}
           [:div [:h4 {:class "pull-left"} "Send Push Notification"]
            [:div {:class "btn-toolbar"
-                  :role "toolbar"
-                  :aria-label "Toolbar with button groups"}
+                  :role "toolbar"}
             [:div {:class "btn-group"
-                   :role "group"
-                   :aria-label "Select all or some users"}
+                   :role "group"}
              [:button {:type "button"
                        :class (str "btn btn-default "
                                    (when @all-selected?
                                      "active"))
                        :on-click #(reset! all-selected? true)
                        }
-              "All"]
+              "All Converted Users"]
              [:button {:type "button"
                        :class (str "btn btn-default "
                                    (when (not @all-selected?)
                                      "active"))
                        :on-click #(reset! all-selected? false)
                        }
-              "Selected"]]]]
+              "Selected Users"]]]]
           (if @confirming?
             ;; confirmation
             [:div {:class "alert alert-danger alert-dismissible"}
@@ -423,7 +415,7 @@
                                (reset! message ""))}]]
              (str "Are you sure you want to send the following message to "
                   (if @all-selected?
-                    "all"
+                    "all converted"
                     "all selected")
                   " users?")
              [:h4 [:strong @message]]

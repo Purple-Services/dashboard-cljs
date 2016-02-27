@@ -464,13 +464,15 @@
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
           [courier-panel current-courier]
-          [:div {:class "btn-toolbar"
-                 :role "toolbar"
-                 :aria-label "Toolbar with button groups"}
+          [:div {:class "btn-toolbar pull-left"
+                 :role "toolbar"}
            [:div {:class "btn-group"
-                  :role "group"
-                  :aria-label "refresh group"}
-            [couriers-filter selected-filter]
+                  :role "group"}
+            [couriers-filter selected-filter]]]
+          [:div {:class "btn-toolbar"
+                 :role "toolbar"}
+           [:div {:class "btn-group"
+                  :role "group"}
             [RefreshButton {:refresh-fn
                             refresh-fn}]]]]
          [:div {:class "table-responsive"}
