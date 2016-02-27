@@ -135,8 +135,7 @@
               :toggle-key :dashboard-view
               :toggle (:tab-content-toggle props)
               :side-bar-toggle (:side-bar-toggle props)}
-         [:div
-          "Home"]])
+         [:div "Home"]])
       (when (subset? #{{:uri "/couriers"
                         :method "POST"}}
                      @accessible-routes)
@@ -153,8 +152,7 @@
               :toggle-key :users-view
               :toggle (:tab-content-toggle props)
               :side-bar-toggle (:side-bar-toggle props)}
-         [:div
-          "Users"]])
+         [:div "Users"]])
       (when (subset? #{{:uri "/coupons"
                         :method "GET"}}
                      @accessible-routes)
@@ -162,8 +160,7 @@
               :toggle-key :coupons-view
               :toggle (:tab-content-toggle props)
               :side-bar-toggle (:side-bar-toggle props)}
-         [:div
-          "Promo Codes"]])
+         [:div "Coupon Codes"]])
       (when (subset? #{{:uri "/zones"
                         :method "GET"}}
                      @accessible-routes)
@@ -171,8 +168,7 @@
               :toggle-key :zones-view
               :toggle (:tab-content-toggle props)
               :side-bar-toggle (:side-bar-toggle props)}
-         [:div
-          "Zones"]])
+         [:div "Zones"]])
       (when (subset? #{{:uri "/orders-since-date"
                         :method "POST"}}
                      @accessible-routes)
@@ -205,8 +201,14 @@
               :toggle-key :analytics-view
               :toggle (:tab-content-toggle props)
               :side-bar-toggle (:side-bar-toggle props)}
-         [:div
-          "Analytics"]])]]))
+         [:div "Analytics"]])
+      (when (subset? #{{:uri "/dash-map-couriers"
+                        :method "GET"}}
+                     @accessible-routes)
+        [:li {:class "hidden-xs"}
+         [:a {:href (str base-url "dash-map-couriers")
+              :target "_blank"}
+          "Real-time Map"]])]]))
 
 ;; based on https://github.com/IronSummitMedia/startbootstrap-sb-admin
 (defn app
@@ -228,20 +230,18 @@
         [:div {:class "container-fluid tab-content"}
          ;; home page
          [TabContent
-             {:toggle (r/cursor tab-content-toggle [:dashboard-view])}
-             [:div
-              [:div {:class "row"}
-               [:div {:class "col-lg-12"}
-                (when (subset? #{{:uri "/orders-since-date"
-                                  :method "POST"}}
-                               @accessible-routes)
-                  [:div
-                   [home/orders-count-panel]
-                   (when (subset? #{{:uri "/dash-map-couriers"
-                                     :method "GET"}}
-                                  @accessible-routes)
-                     [home/dash-map-link-panel])
-                   [home/current-orders-panel @datastore/orders]])]]]]
+          {:toggle (r/cursor tab-content-toggle [:dashboard-view])}
+          [:div
+           [:div {:class "row"}
+            [:div {:class "col-lg-12"}
+             (when (subset? #{{:uri "/orders-since-date"
+                               :method "POST"}}
+                            @accessible-routes)
+               [:div
+                [home/orders-count-panel]
+                [home/orders-count-panel]
+                [home/orders-count-panel]
+                [home/current-orders-panel @datastore/orders]])]]]]
          ;; couriers page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:couriers-view])}
@@ -268,7 +268,7 @@
                       @accessible-routes)
                  [users/user-push-notification])
                [users/users-panel @datastore/users]])]]]
-         ;; promo code page
+         ;; coupon code page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:coupons-view])}
           [:div {:class "row"}

@@ -30,26 +30,11 @@
                                                  (get "complete")))]
                          (->> orders
                               (filter #(= (:status %) "complete"))
-                              (map
-                               #(assoc % :time-completed
-                                       (complete-time %)))
-                              (filter #(>= (:time-completed %)
-                                           today-begin)))))]
+                              (map #(assoc % :time-completed (complete-time %)))
+                              (filter #(>= (:time-completed %) today-begin)))))]
       [CountPanel {:data (new-orders @datastore/orders)
-                   :description "completed orders today!"
+                   :caption "Completed Orders Today"
                    :panel-class "panel-primary"}])))
-
-(defn dash-map-link-panel
-  "A panel for displaying a link to the dash map"
-  []
-  (fn []
-    ;; a link to the dash map
-    [:div {:class "panel panel-default hidden-xs"}
-     [:div {:class "panel-body"}
-      [:h2
-       [:a {:href (str base-url "dash-map-couriers")
-            :target "_blank"}
-        "Open real-time map in new window"]]]]))
 
 (defn order-row
   "A table row for an order in a table. current-order is the one currently being
@@ -148,12 +133,10 @@
           (reset! current-order (first paginated-orders)))
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
-          (if (<= (count sorted-orders)
-                  0)
+          (if (= (count sorted-orders) 0)
             [:h3 "No Current Orders"]
             [:h3 "Current Orders"])]
-         [:div {:class (when (<= (count sorted-orders)
-                                 0)
+         [:div {:class (when (= (count sorted-orders) 0)
                          "hide")}
           [:div {:class "table-responsive"}
            [StaticTable

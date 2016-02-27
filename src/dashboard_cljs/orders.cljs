@@ -42,9 +42,10 @@
      ;; courier assigned
      [:td (:courier_name order)]
      ;; order placed
-     [:td (unix-epoch->hrf
-           (:target_time_start order))]
-     ;; delivery time
+     [:td (unix-epoch->hrf (:target_time_start order))]
+     ;; order dealine
+     [:td (unix-epoch->hrf (:target_time_end order))]
+     ;; delivery time (TODO: this should show minutes if non-zero)
      [:td (str (.diff (js/moment.unix (:target_time_end order))
                       (js/moment.unix (:target_time_start order))
                       "hours")
@@ -53,8 +54,6 @@
      [:td (:customer_name order)]
      ;; phone #
      [:td (:customer_phone_number order)]
-     ;; email #
-     [:td (:email order)]
      ;; street address
      [:td
       [:i {:class "fa fa-circle"
@@ -81,17 +80,18 @@
        ]
       [TableHeadSortable
        (conj props {:keyword :target_time_start})
-       "Order Placed"]
+       "Placed"]
+      [TableHeadSortable
+       (conj props {:keyword :target_time_end})
+       "Deadline"]
       [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "Delivery Time"]
+                    :font-weight "normal"}} "Limit"]
       [TableHeadSortable
        (conj props {:keyword :customer_name})
-       "Username"] 
+       "Name"] 
       [TableHeadSortable
        (conj props {:keyword :customer_phone_number})
-       "Phone #"] 
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "Email"]
+       "Phone"]
       [TableHeadSortable
        (conj props {:keyword :address_street})
        "Street Address"]]]))
