@@ -6,7 +6,8 @@
             [reagent.core :as r]
             [cljsjs.moment]
             [dashboard-cljs.utils :refer [base-url continuous-update get-by-id
-                                          accessible-routes parse-timestamp]]
+                                          accessible-routes oldest-current-order
+                                          parse-timestamp]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]))
 
 ;; This namespace contains the global state of the app and the fn's associated
@@ -24,7 +25,17 @@
 ;; core.async channels are used to modify data
 ;; r/atom <- sync-state! <- chan <- component, fn's, etc.
 ;;
-;; Currently, the chan used to modify these sets is 'modify-data-chan'
+;; Currently, new data is put! on 'modify-data-chan'
+;; as a map. :topic corresponds to the dataset atom to update.
+;; :data is a coll of maps.
+;;
+;; ex.:
+;; (put! modify-data-chan
+;;       {:topic "orders"
+;;        :data order})
+;;
+;; "orders" is the name of atom which contains the data set.
+;;  order   is a vector with one order map
 
 (defn set-ids
   "Given a set, return a set of just the vals for key :id"
@@ -129,16 +140,16 @@
                                        {:topic "orders"
                                         :data orders})
                                  ;; update the most recent order atom
-                                 (reset! most-recent-order
-                                         (last (sort-by
-                                                :target_time_start orders)))
+                                 (reset!
+                                  most-recent-order
+                                  (last (sort-by
+                                         :target_time_start orders)))
                                  ;; initialize the last-acknowledged-order atom
                                  (when initializing?
-                                   (reset! last-acknowledged-order
-                                           (last (sort-by
-                                                  :target_time_start orders))))
-
-                                 )))]
+                                   (reset!
+                                    last-acknowledged-order
+                                    (last (sort-by
+                                           :target_time_start orders)))))))]
     ;; orders
     (when (subset? #{{:uri "/orders-since-date"
                       :method "POST"}} @accessible-routes)
@@ -158,13 +169,16 @@
                 #(orders-response-fn % true)))
       ;; periodically check server for updates in orders
       (continuous-update
+       ;; prevent retrieval of more orders
+       ;; until init orders has completed
        #(when (:timestamp_created @most-recent-order)
           (retrieve-url
            (str base-url "orders-since-date")
            "POST"
            (js/JSON.stringify
             (clj->js
-             {:date (parse-timestamp (:timestamp_created @most-recent-order))
+             {:date (parse-timestamp (:timestamp_created (oldest-current-order
+                                                          @orders)))
               :unix-epoch? true}))
            (partial xhrio-wrapper
                     orders-response-fn)))
