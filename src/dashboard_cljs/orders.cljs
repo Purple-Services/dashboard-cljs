@@ -6,7 +6,7 @@
             [reagent.core :as r]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton ErrorComp
-                                               TablePager ConfirmOrCancelAlert]]
+                                               TablePager ConfirmationAlert]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->hrf base-url
                                           cents->$dollars json-string->clj
@@ -346,10 +346,8 @@
        (str status " ")
        (if @confirming?
          ;; confirmation
-         [ConfirmOrCancelAlert
-          {:dismiss-on-click (fn [e]
-                               (reset! confirming? false))
-           :cancel-on-click (fn [e]
+         [ConfirmationAlert
+          {:cancel-on-click (fn [e]
                               (reset! confirming? false))
            :confirm-on-click (fn [e]
                                (reset! retrieving? true)
@@ -362,7 +360,6 @@
                                                retrieving?
                                                confirming?)))
            :confirmation-message
-
            (fn [] [:div (str "Are you sure you want to "
                              (cond (= @confirm-action "advance")
                                    (str " advance this order's status to "
@@ -370,8 +367,7 @@
                                    (= @confirm-action "cancel")
                                    (str "cancel this order?")))
                    [:br]])
-           :retrieving? retrieving?
-           }]
+           :retrieving? retrieving?}]
          [:div {:style {:display "inline-block"}}
           ;; advance order button
           (when-not (contains? #{"complete" "cancelled" "unassigned"}
@@ -381,11 +377,7 @@
                       :on-click
                       #(when (not @retrieving?)
                          (reset! confirming? true)
-                         (reset! confirm-action "advance")
-                         ;; (reset! retrieving? true)
-                         ;; (update-status order status error-message
-                         ;;                retrieving?)
-                         )}
+                         (reset! confirm-action "advance"))}
              (if (not @retrieving?)
                ({"assigned" "Force Accept"
                  "accepted" "Start Route"
@@ -406,17 +398,13 @@
                       :class "btn btn-xs btn-default btn-danger"
                       :on-click #(when (not @retrieving?)
                                    (reset! confirming? true)
-                                   (reset! confirm-action "cancel")
-                                   ;; (reset! retrieving? true)
-                                   ;; (cancel-order order error-message retrieving?)
-                                   )}
+                                   (reset! confirm-action "cancel"))}
              (if @retrieving?
                [:i {:class "fa fa-spinner fa-pulse"}]
                "Cancel Order")])])
        (when (not (s/blank? @error-message))
          [ErrorComp (str "Order status could be not be changed! Reason: "
-                         @error-message)])
-       ])))
+                         @error-message)])])))
 
 (defn get-etas-button
   "Given an order atom, refresh it with values from the server"

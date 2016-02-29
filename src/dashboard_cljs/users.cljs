@@ -7,7 +7,7 @@
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton KeyVal StarRating
-                                               TablePager ConfirmOrCancelAlert]]
+                                               TablePager ConfirmationAlert]]
             [clojure.string :as s]))
 
 (def push-selected-users (r/atom (set nil)))
@@ -406,11 +406,8 @@
               "Selected Users"]]]]
           (if @confirming?
             ;; confirmation
-            [ConfirmOrCancelAlert
-             {:dismiss-on-click (fn [e]
-                                  (reset! confirming? false)
-                                  (reset! message ""))
-              :cancel-on-click (fn [e]
+            [ConfirmationAlert
+             {:cancel-on-click (fn [e]
                                  (reset! confirming? false)
                                  (reset! message ""))
               :confirm-on-click
@@ -453,8 +450,7 @@
                                   "all selected")
                                 " users?")
                       [:h4 [:strong @message]]])
-              :retrieving? retrieving?
-              }]
+              :retrieving? retrieving?}]
             ;; Message form
             [:form
              [:div {:class "form-group"}

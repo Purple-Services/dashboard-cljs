@@ -237,25 +237,25 @@
             ;; html character entity reference &raquo;
             "»"]]]]))))
 
-(defn ConfirmOrCancelAlert
+(defn ConfirmationAlert
   "An alert for confirming or cancelling an action.
   props is
   {
-  :dismiss-on-click     fn  ; dismiss this comp
-  :cancel-on-click      fn  ; user clicks cancel
+  :cancel-on-click      fn  ; user clicks cancel, same fn used for dismissing
+                            ; alert
   :confirm-on-click     fn  ; user clicks confirm
   :confirmation-message str ; message to display
   :retrieving?       r/atom ; boolean, are we still retrieving from the server?
   }"
   [props]
-  (fn [{:keys [dismiss-on-click cancel-on-click confirm-on-click
+  (fn [{:keys [cancel-on-click confirm-on-click
                confirmation-message retrieving?]} props]
     [:div {:class "alert alert-danger alert-dismissible"}
      [:button {:type "button"
                :class "close"
                :aria-label "Close"}
       [:i {:class "fa fa-times"
-           :on-click dismiss-on-click}]]
+           :on-click cancel-on-click}]]
      [:div
       [confirmation-message]
       (when (not @retrieving?)
