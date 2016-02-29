@@ -37,8 +37,7 @@
     (let [table-data data
           sort-fn   (if (nil? (:sort-fn props))
                       (partial sort-by :id)
-                      (:sort-fn props))
-          ]
+                      (:sort-fn props))]
       [:table {:class "table table-bordered table-hover table-striped"}
        (:table-header props)
        [:tbody
@@ -237,3 +236,37 @@
                             (reset! current-page total-pages))}
             ;; html character entity reference &raquo;
             "»"]]]]))))
+
+(defn ConfirmOrCancelAlert
+  "An alert for confirming or cancelling an action.
+  props is
+  {
+  :dismiss-on-click     fn  ; dismiss this comp
+  :cancel-on-click      fn  ; user clicks cancel
+  :confirm-on-click     fn  ; user clicks confirm
+  :confirmation-message str ; message to display
+  :retrieving?       r/atom ; boolean, are we still retrieving from the server?
+  }"
+  [props]
+  (fn [{:keys [dismiss-on-click cancel-on-click confirm-on-click
+               confirmation-message retrieving?]} props]
+    [:div {:class "alert alert-danger alert-dismissible"}
+     [:button {:type "button"
+               :class "close"
+               :aria-label "Close"}
+      [:i {:class "fa fa-times"
+           :on-click dismiss-on-click}]]
+     [:div
+      [confirmation-message]
+      (when (not @retrieving?)
+        [:div
+         [:button {:type "button"
+                   :class "btn btn-default"
+                   :on-click confirm-on-click}
+          "Confirm"]
+         [:button {:type "button"
+                   :class "btn btn-default"
+                   :on-click cancel-on-click}
+          "Cancel"]])
+      (when @retrieving?
+        [:i {:class "fa fa-spinner fa-pulse"}])]]))

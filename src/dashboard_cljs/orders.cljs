@@ -6,7 +6,7 @@
             [reagent.core :as r]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton ErrorComp
-                                               TablePager]]
+                                               TablePager ConfirmOrCancelAlert]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->hrf base-url
                                           cents->$dollars json-string->clj
@@ -18,6 +18,13 @@
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps]]))
 
+(def status->next-status {"unassigned"  "assigned"
+                          "assigned"    "accepted"
+                          "accepted"    "enroute"
+                          "enroute"     "servicing"
+                          "servicing"   "complete"
+                          "complete"    nil
+                          "cancelled"   nil})
 (defn EditButton
   "Button for toggling editing? button"
   [editing?]
@@ -142,7 +149,7 @@
                 (when (:success response)
                   (let [order-status (if (= (:status @order)
                                             "unassigned")
-                                       "accepted"
+                                       "assigned"
                                        (:status @order))
                         
                         updated-order  (assoc
@@ -200,8 +207,7 @@
                      :on-click #(reset! editing? true)}
             (if (nil? (:courier_name @order))
               "Assign Courier"
-              "Reassign Courier"
-              )])
+              "Reassign Courier")])
          ;; courier select
          (when (and @editing?
                     (subset? #{{:uri "/assign-order"
@@ -259,24 +265,17 @@
 
 (defn update-status
   "Update order with status on server. error-message is an r/atom to set
-  any associated error messages. retrieving? is an atom with a boolean
+  any associated error messages. retrieving? is an r/atom with a boolean
   to indicate whether or not the client is currently retrieving data
-  from the server"
-  [order status error-message retrieving?]
+  from the server. confirming? is a r/atom boolean"
+  [order status error-message retrieving? confirming?]
   (retrieve-url
    (str base-url "update-status")
    "POST"
    (js/JSON.stringify (clj->js {:order_id (:id @order)}))
    (partial xhrio-wrapper
             (fn [r]
-              (let [response (js->clj r :keywordize-keys true)
-                    status->next-status {"unassigned"  "assigned"
-                                         "assigned"    "accepted"
-                                         "accepted"    "enroute"
-                                         "enroute"     "servicing"
-                                         "servicing"   "complete"
-                                         "complete"    nil
-                                         "cancelled"   nil}]
+              (let [response (js->clj r :keywordize-keys true)]
                 (when (:success response)
                   (refresh-order! order
                                   (fn [new-order]
@@ -288,18 +287,22 @@
                                            :data #{new-order}})
                                     ;; no longer retrieving
                                     (reset! retrieving? false)
+                                    ;; no longer confirming
+                                    (reset! confirming? false)
                                     )))
                 (when (not (:success response))
                   ;; give an error message
                   (reset! error-message (:message response))
                   ;; no longer retrieving
-                  (reset! retrieving? false)))))))
+                  (reset! retrieving? false)
+                  ;; no longer confirming
+                  (reset! confirming? false)))))))
 
 (defn cancel-order
   "Cancel order on the server. Any resulting error messages
   will be put in the error-message atom. retrieving? is a boolean
-  r/atom"
-  [order error-message retrieving?]
+  r/atom. confirming? is a boolean r/atom."
+  [order error-message retrieving? confirming?]
   (retrieve-url
    (str base-url "cancel-order")
    "POST"
@@ -309,6 +312,7 @@
             (fn [r]
               (let [response (js->clj r :keywordize-keys true)]
                 (reset! retrieving? false)
+                (reset! confirming? false)
                 (when (:success response)
                   (let [updated-order
                         (assoc
@@ -320,8 +324,7 @@
                           {:topic "orders"
                            :data #{updated-order}})))
                 (when (not (:success response))
-                  (reset! error-message (:message response))
-                  ))))))
+                  (reset! error-message (:message response))))))))
 
 (defn status-comp
   "Component for the status field of an order
@@ -333,46 +336,83 @@
   }"
   [props]
   (let [error-message (r/atom "")
-        retrieving? (r/atom false)]
+        retrieving? (r/atom false)
+        confirming? (r/atom false)
+        confirm-action (r/atom "")
+        confirm-on-click (r/atom false)]
     (fn [{:keys [editing? status order]}
          props]
       [:h5 [:span {:class "info-window-label"} "Status: "]
        (str status " ")
-       ;; advance order button
-       ;; note: assigned should not be a status the server uses,
-       ;; see web-service/orders.clj
-       (when-not (contains? #{"complete" "cancelled" "unassigned"}
-                            status)
-         [:button {:type "button"
-                   :class "btn btn-xs btn-default"
-                   :on-click #(when (not @retrieving?)
-                                (reset! retrieving? true)
-                                (update-status order status error-message
-                                               retrieving?))}
-          (if (not @retrieving?)
-            ({"assigned" "Force Accept"
-              "accepted" "Start Route"
-              "enroute" "Begin Servicing"
-              "servicing" "Complete Order"}
-             status)
-            [:i {:class "fa fa-spinner fa-pulse"}])])
-       " "
-       ;; cancel button
-       (when
-           (and (not @editing?)
-                (not (contains? #{"complete" "cancelled"}
-                                status))
-                (subset? #{{:uri "/cancel-order"
-                            :method "POST"}}
-                         @accessible-routes))
-         [:button {:type "button"
-                   :class "btn btn-xs btn-default btn-danger"
-                   :on-click #(when (not @retrieving?)
-                                (reset! retrieving? true)
-                                (cancel-order order error-message retrieving?))}
-          (if @retrieving?
-            [:i {:class "fa fa-spinner fa-pulse"}]
-            "Cancel Order")])
+       (if @confirming?
+         ;; confirmation
+         [ConfirmOrCancelAlert
+          {:dismiss-on-click (fn [e]
+                               (reset! confirming? false))
+           :cancel-on-click (fn [e]
+                              (reset! confirming? false))
+           :confirm-on-click (fn [e]
+                               (reset! retrieving? true)
+                               (when (= @confirm-action "advance")
+                                 (update-status order status error-message
+                                                retrieving?
+                                                confirming?))
+                               (when (= @confirm-action "cancel")
+                                 (cancel-order order error-message
+                                               retrieving?
+                                               confirming?)))
+           :confirmation-message
+
+           (fn [] [:div (str "Are you sure you want to "
+                             (cond (= @confirm-action "advance")
+                                   (str " advance this order's status to "
+                                        (status->next-status status) "?")
+                                   (= @confirm-action "cancel")
+                                   (str "cancel this order?")))
+                   [:br]])
+           :retrieving? retrieving?
+           }]
+         [:div {:style {:display "inline-block"}}
+          ;; advance order button
+          (when-not (contains? #{"complete" "cancelled" "unassigned"}
+                               status)
+            [:button {:type "button"
+                      :class "btn btn-xs btn-default"
+                      :on-click
+                      #(when (not @retrieving?)
+                         (reset! confirming? true)
+                         (reset! confirm-action "advance")
+                         ;; (reset! retrieving? true)
+                         ;; (update-status order status error-message
+                         ;;                retrieving?)
+                         )}
+             (if (not @retrieving?)
+               ({"assigned" "Force Accept"
+                 "accepted" "Start Route"
+                 "enroute" "Begin Servicing"
+                 "servicing" "Complete Order"}
+                status)
+               [:i {:class "fa fa-spinner fa-pulse"}])])
+          " "
+          ;; cancel button
+          (when
+              (and (not @editing?)
+                   (not (contains? #{"complete" "cancelled"}
+                                   status))
+                   (subset? #{{:uri "/cancel-order"
+                               :method "POST"}}
+                            @accessible-routes))
+            [:button {:type "button"
+                      :class "btn btn-xs btn-default btn-danger"
+                      :on-click #(when (not @retrieving?)
+                                   (reset! confirming? true)
+                                   (reset! confirm-action "cancel")
+                                   ;; (reset! retrieving? true)
+                                   ;; (cancel-order order error-message retrieving?)
+                                   )}
+             (if @retrieving?
+               [:i {:class "fa fa-spinner fa-pulse"}]
+               "Cancel Order")])])
        (when (not (s/blank? @error-message))
          [ErrorComp (str "Order status could be not be changed! Reason: "
                          @error-message)])
