@@ -143,20 +143,21 @@
               :toggle-key :orders-view
               :toggle (:tab-content-toggle props)
               :side-bar-toggle (:side-bar-toggle props)}
-         [:div
-          ;; this correlates with orders/new-orders-button
-          (if (and
-                 (not (empty?
-                       (and @datastore/most-recent-order
-                            @datastore/last-acknowledged-order)))
-                 (not (same-timestamp? @datastore/most-recent-order
-                                       @datastore/last-acknowledged-order)))
-
-            (str "Orders ("
-                 (new-orders-count @datastore/orders
-                                   @datastore/last-acknowledged-order)
-                 ")")
-            "Orders")]])
+         ;; this correlates with orders/new-orders-button
+         (if (and (not (empty?
+                        (and @datastore/most-recent-order
+                             @datastore/last-acknowledged-order)))
+                  (not (same-timestamp? @datastore/most-recent-order
+                                        @datastore/last-acknowledged-order)))
+           (let [num-new (new-orders-count @datastore/orders
+                                           @datastore/last-acknowledged-order)
+                 _ (set! js/document.title (str "(" num-new ") Dashboard - Purple"))
+                 ]
+             [:div "Orders "
+              [:span {:style {:color "red"}}
+               "(" num-new ")"]])
+           (let [_ (set! js/document.title (str "Dashboard - Purple"))]
+             [:div "Orders"]))])
       (when (subset? #{{:uri "/users"
                         :method "GET"}}
                      @accessible-routes)
@@ -320,4 +321,3 @@
 (defn init-landing
   []
   (r/render-component [app] (.getElementById js/document "app")))
-

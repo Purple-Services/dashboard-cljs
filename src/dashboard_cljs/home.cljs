@@ -64,9 +64,9 @@
      ;; email #
      [:td (:email order)]
      ;; street address
-     [:td
-      [:i {:class "fa fa-circle"
-           :style {:color (:zone-color order)}}]
+     [:td [:i {:class "fa fa-circle"
+               :style {:color (:zone-color order)}}]
+      " "
       (:address_street order)]]))
 
 (defn order-table-header

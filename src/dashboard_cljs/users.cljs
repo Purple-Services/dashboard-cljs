@@ -181,7 +181,7 @@
         [:div {:class "panel-body"}
          [:div {:class "row"}
           [:div {:class "col-xs-3"}
-           [:div [:h3 (:name @current-user)]]
+           [:div [:h3 {:style {:margin-top 0}} (:name @current-user)]]
            ;; main display panel
            [:div 
             ;; email

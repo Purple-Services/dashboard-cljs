@@ -14,7 +14,9 @@
                                           new-orders-count
                                           parse-timestamp
                                           oldest-current-order
-                                          same-timestamp?]]
+                                          same-timestamp?
+                                          declined-payment?
+                                          current-order?]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps]]))
 
@@ -395,7 +397,7 @@
                                :method "POST"}}
                             @accessible-routes))
             [:button {:type "button"
-                      :class "btn btn-xs btn-default btn-danger"
+                      :class "btn btn-xs btn-default"
                       :on-click #(when (not @retrieving?)
                                    (reset! confirming? true)
                                    (reset! confirm-action "cancel"))}
@@ -479,11 +481,7 @@
             (cents->$dollars (:total_price @current-order))
             " "
             ;; declined payment?
-            (if (and (= (:status @current-order)
-                        "complete")
-                     (not= 0 (:total_price @current-order))
-                     (or (s/blank? (:stripe_charge_id @current-order))
-                         (not (:paid @current-order))))
+            (if (declined-payment? @current-order)
               [:span {:class "text-danger"} "Payment declined!"])]
            ;; payment info
            (let [payment-info (json-string->clj (:payment_info @current-order))]
@@ -627,7 +625,7 @@
   []
   (fn []
     [:button {:type "button"
-              :class "btn btn-default"
+              :class "btn btn-default btn-danger"
               :on-click
               #(reset! datastore/last-acknowledged-order
                        @datastore/most-recent-order)}
@@ -645,25 +643,13 @@
         sort-reversed? (r/atom false)
         selected-filter (r/atom "show-all")
         current-page (r/atom 1)
-        page-size 20]
+        page-size 15]
     (fn [orders]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
-            filter-fn (cond (= @selected-filter
-                               "declined")
-                            (fn [order]
-                              (and (not (:paid order))
-                                   (= (:status order) "complete")
-                                   (> (:total_price order))))
-                            (= @selected-filter
-                               "current")
-                            (fn [order]
-                              (contains? #{"unassigned"
-                                           "assigned"
-                                           "accepted"
-                                           "enroute"
-                                           "servicing"} (:status order)))
+            filter-fn (cond (= @selected-filter "declined") declined-payment?
+                            (= @selected-filter "current") current-order?
                             :else (fn [order] true))
             displayed-orders (filter #(<= (:target_time_start %)
                                           (:target_time_start

@@ -156,3 +156,20 @@
        (sort  #(compare (:timestamp_created %1)
                         (:timestamp_created %2)))
        first))
+
+(defn declined-payment?
+  "Was the payment (if any) on this order declined?"
+  [order]
+  (and (= (:status order) "complete")
+       (not= 0 (:total_price order))
+       (not (:paid order))))
+
+(defn current-order?
+  "Is this a order that is currently in process?"
+  [order]
+  (#{"unassigned"
+     "assigned"
+     "accepted"
+     "enroute"
+     "servicing"}
+   (:status order)))
