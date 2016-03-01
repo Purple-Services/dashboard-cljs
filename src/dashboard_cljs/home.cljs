@@ -110,7 +110,7 @@
         sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
         current-page (r/atom 1)
-        page-size 5]
+        page-size 15]
     (fn [orders]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
