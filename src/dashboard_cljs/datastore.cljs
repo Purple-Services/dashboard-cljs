@@ -177,8 +177,10 @@
            "POST"
            (js/JSON.stringify
             (clj->js
-             {:date (parse-timestamp (:timestamp_created (oldest-current-order
-                                                          @orders)))
+             {:date (if-let [timestamp (:timestamp_created
+                                        (oldest-current-order @orders))]
+                      (parse-timestamp timestamp)
+                      (parse-timestamp (:timestamp_created @most-recent-order)))
               :unix-epoch? true}))
            (partial xhrio-wrapper
                     orders-response-fn)))

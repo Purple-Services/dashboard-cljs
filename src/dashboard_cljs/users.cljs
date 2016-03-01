@@ -7,7 +7,7 @@
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton KeyVal StarRating
-                                               TablePager]]
+                                               TablePager ConfirmationAlert]]
             [clojure.string :as s]))
 
 (def push-selected-users (r/atom (set nil)))
@@ -364,6 +364,7 @@
   (let [all-selected? (r/atom true)
         approved?     (r/atom false)
         confirming?   (r/atom false)
+        retrieving?   (r/atom false)
         message       (r/atom (str))
         alert-success (r/atom (str))
         alert-error   (r/atom (str))
@@ -405,61 +406,51 @@
               "Selected Users"]]]]
           (if @confirming?
             ;; confirmation
-            [:div {:class "alert alert-danger alert-dismissible"}
-             [:button {:type "button"
-                       :class "close"
-                       :aria-label "Close"}
-              [:i {:class "fa fa-times"
-                   :on-click (fn [e]
-                               (reset! confirming? false)
-                               (reset! message ""))}]]
-             (str "Are you sure you want to send the following message to "
+            [ConfirmationAlert
+             {:cancel-on-click (fn [e]
+                                 (reset! confirming? false)
+                                 (reset! message ""))
+              :confirm-on-click
+              (fn [e]
+                (reset! retrieving? true)
+                (retrieve-url
+                 (if @all-selected?
+                   (str base-url "send-push-to-all-active-users")
+                   (str base-url "send-push-to-users-list"))
+                 "POST"
+                 (js/JSON.stringify
                   (if @all-selected?
-                    "all converted"
-                    "all selected")
-                  " users?")
-             [:h4 [:strong @message]]
-             [:button {
-                       :type "button"
-                       :class "btn btn-default"
-                       :on-click
-                       (fn [e]
-                         (retrieve-url
-                          (if @all-selected?
-                            (str base-url "send-push-to-all-active-users")
-                            (str base-url "send-push-to-users-list"))
-                          "POST"
-                          (js/JSON.stringify
-                           (if @all-selected?
-                             (clj->js {:message @message})
-                             (clj->js {:message @message
-                                       :user-ids @push-selected-users})))
-                          (partial
-                           xhrio-wrapper
-                           (fn [response]
-                             (let [success? (:success
-                                             (js->clj response
-                                                      :keywordize-keys
-                                                      true))]
-                               (when success?
-                                 ;; confirm message was sent
-                                 (reset! alert-success "Sent!"))
-                               (when (not success?)
-                                 (reset! alert-error
-                                         (str "Something went wrong."
-                                              " Push notifications may or may"
-                                              " not have been sent. Wait until"
-                                              " sure before trying again."))))
-                             (reset! confirming? false)
-                             (reset! message "")))))}
-              "Confirm"]
-             [:button {
-                       :type "button"
-                       :class "btn btn-default"
-                       :on-click (fn [e]
-                                   (reset! confirming? false)
-                                   (reset! message ""))}
-              "Cancel"]]
+                    (clj->js {:message @message})
+                    (clj->js {:message @message
+                              :user-ids @push-selected-users})))
+                 (partial
+                  xhrio-wrapper
+                  (fn [response]
+                    (reset! retrieving? false)
+                    (let [success? (:success
+                                    (js->clj response
+                                             :keywordize-keys
+                                             true))]
+                      (when success?
+                        ;; confirm message was sent
+                        (reset! alert-success "Sent!"))
+                      (when (not success?)
+                        (reset! alert-error
+                                (str "Something went wrong."
+                                     " Push notifications may or may"
+                                     " not have been sent. Wait until"
+                                     " sure before trying again."))))
+                    (reset! confirming? false)
+                    (reset! message "")))))
+              :confirmation-message
+              (fn [] [:div (str "Are you sure you want to send the following "
+                                "message to "
+                                (if @all-selected?
+                                  "all converted"
+                                  "all selected")
+                                " users?")
+                      [:h4 [:strong @message]]])
+              :retrieving? retrieving?}]
             ;; Message form
             [:form
              [:div {:class "form-group"}
