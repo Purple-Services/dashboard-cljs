@@ -12,6 +12,8 @@
 
 (def push-selected-users (r/atom (set nil)))
 
+(def state (r/atom {:confirming? false}))
+
 (defn user-row
   "A table row for an user in a table. current-user is the one currently 
   being viewed"
@@ -363,7 +365,7 @@
   []
   (let [all-selected? (r/atom true)
         approved?     (r/atom false)
-        confirming?   (r/atom false)
+        confirming?   (r/cursor state [:confirming?])
         retrieving?   (r/atom false)
         message       (r/atom (str))
         alert-success (r/atom (str))
@@ -394,15 +396,17 @@
                        :class (str "btn btn-default "
                                    (when @all-selected?
                                      "active"))
-                       :on-click #(reset! all-selected? true)
-                       }
+                       :on-click (fn [e]
+                                   (reset! all-selected? true)
+                                   (reset! confirming? false))}
               "All Converted Users"]
              [:button {:type "button"
                        :class (str "btn btn-default "
                                    (when (not @all-selected?)
                                      "active"))
-                       :on-click #(reset! all-selected? false)
-                       }
+                       :on-click (fn [e]
+                                   (reset! all-selected? false)
+                                   (reset! confirming? false))}
               "Selected Users"]]]]
           (if @confirming?
             ;; confirmation
