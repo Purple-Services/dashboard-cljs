@@ -151,6 +151,7 @@
                             @datastore/last-acknowledged-order)))
                  (not (same-timestamp? @datastore/most-recent-order
                                        @datastore/last-acknowledged-order)))
+
             (str "Orders ("
                  (new-orders-count @datastore/orders
                                    @datastore/last-acknowledged-order)
