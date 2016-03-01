@@ -155,7 +155,8 @@
              [:i {:class "fa fa-circle fa-stack-2x text-danger"}]
              [:i {:class "fa fa-stack-1x fa-inverse"}
               (new-orders-count @datastore/orders
-                                @datastore/last-acknowledged-order)]])
+                                @datastore/last-acknowledged-order)]]
+            " ")
           "Orders"]])
       (when (subset? #{{:uri "/users"
                         :method "GET"}}
