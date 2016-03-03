@@ -266,7 +266,8 @@
                         {:uri "/send-push-to-users-list"
                          :method "POST"}}
                       @accessible-routes)
-                 [users/user-push-notification])])]]]
+                 [users/user-push-notification])
+               [:div [users/search-panel]]])]]]
          ;; coupon code page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:coupons-view])}

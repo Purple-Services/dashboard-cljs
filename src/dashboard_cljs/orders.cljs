@@ -27,6 +27,9 @@
                           "servicing"   "complete"
                           "complete"    nil
                           "cancelled"   nil})
+
+(def state (r/atom {:confirming? false}))
+
 (defn EditButton
   "Button for toggling editing? button"
   [editing?]
@@ -339,7 +342,7 @@
   [props]
   (let [error-message (r/atom "")
         retrieving? (r/atom false)
-        confirming? (r/atom false)
+        confirming? (r/cursor state [:confirming?])
         confirm-action (r/atom "")
         confirm-on-click (r/atom false)]
     (fn [{:keys [editing? status order]}
@@ -460,6 +463,7 @@
                                (:id (first couriers)))
             order-status (:status @current-order)
             ]
+        (reset! (r/cursor state [:confirming?]) false)
         ;; create and insert order marker
         (when (:lat @current-order)
           (when @google-marker
@@ -467,10 +471,10 @@
           (reset! google-marker (js/google.maps.Marker.
                                  (clj->js {:position
                                            {:lat (:lat @current-order)
-                                            :lng (:lng @current-order)
-                                            }
-                                           :map (second (get-cached-gmaps :orders))
-                                           }))))
+                                            :lng (:lng @current-order)}
+                                           :map
+                                           (second (get-cached-gmaps :orders))}
+                                          ))))
         ;; populate the current order with additional information
         [:div {:class "panel-body"}
          [:div {:class "row"}
