@@ -167,9 +167,9 @@
 (defn current-order?
   "Is this a order that is currently in process?"
   [order]
-  (#{"unassigned"
-     "assigned"
-     "accepted"
-     "enroute"
-     "servicing"}
-   (:status order)))
+  (contains? #{"unassigned"
+               "assigned"
+               "accepted"
+               "enroute"
+               "servicing"}
+             (:status order)))

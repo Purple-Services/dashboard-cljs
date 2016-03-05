@@ -40,6 +40,23 @@ body {
     color: #fff;
 }
 
+/* skinnier side nav than sb-admin default */
+@media(min-width:768px) {
+    #wrapper {
+        padding-left: 140px;
+    }
+    
+    .side-nav {
+        left: 140px;
+        width: 140px;
+        margin-left: -140px;
+    }
+
+    .side-nav>li>a {
+        width: 140px;
+    }
+}
+
 .side-nav-color {
     background-color: #333;
     border: none;
