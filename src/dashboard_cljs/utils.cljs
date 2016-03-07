@@ -173,3 +173,9 @@
                "enroute"
                "servicing"}
              (:status order)))
+
+(defn expired-coupon?
+  [coupon]
+  (<= (:expiration_time coupon)
+      (-> (js/moment)
+          (.unix))))

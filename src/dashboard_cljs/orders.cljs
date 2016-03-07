@@ -6,6 +6,7 @@
             [reagent.core :as r]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton ErrorComp
+                                               TableFilterButtonGroup
                                                TablePager ConfirmationAlert]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->hrf base-url
@@ -591,39 +592,6 @@
                   :center {:lat (:lat @current-order)
                            :lng (:lng @current-order)}}]]]]))))
 
-(defn orders-filter
-  "A component for determing which orders to display. selected-filter is
-  an r/atom containing a string which describes what filter to use."
-  [selected-filter]
-  (fn [selected-filter]
-    [:div {:class "btn-group"
-           :role "group"
-           :aria-label "filter group"}
-     [:button {:type "button"
-               :class
-               (str "btn btn-default "
-                    (when (= @selected-filter
-                             "show-all")
-                      "active"))
-               :on-click #(reset! selected-filter "show-all")}
-      "Show All"]
-     [:button {:type "button"
-               :class
-               (str "btn btn-default "
-                    (when (= @selected-filter
-                             "current")
-                      "active"))
-               :on-click #(reset! selected-filter "current")}
-      "Current Orders"]
-     [:button {:type "button"
-               :class
-               (str "btn btn-default "
-                    (when (= @selected-filter
-                             "declined")
-                      "active"))
-               :on-click #(reset! selected-filter "declined")}
-      "Declined Payments"]]))
-
 (defn new-orders-button
   "A component for allowing the user to see new orders on the server"
   []
@@ -645,23 +613,23 @@
   (let [current-order (r/atom nil)
         sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
-        selected-filter (r/atom "show-all")
         current-page (r/atom 1)
-        page-size 15]
+        page-size 15
+        filters {"Show All" (constantly true)
+                 "Current Orders" current-order?
+                 "Declined Payments" declined-payment?}
+        selected-filter (r/atom "Current Orders")]
     (fn [orders]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
-            filter-fn (cond (= @selected-filter "declined") declined-payment?
-                            (= @selected-filter "current") current-order?
-                            :else (fn [order] true))
             displayed-orders (filter #(<= (:target_time_start %)
                                           (:target_time_start
                                            @datastore/last-acknowledged-order))
                                      orders)
             sorted-orders  (->> displayed-orders
                                 sort-fn
-                                (filter filter-fn)
+                                (filter (get filters @selected-filter))
                                 (partition-all page-size))
             paginated-orders  (-> sorted-orders
                                   (nth (- @current-page 1)
@@ -707,9 +675,9 @@
          [:div {:class "panel-body"
                 :style {:margin-top "15px"}}
           [:div {:class "btn-toolbar"
-                 :role "toolbar"
-                 :aria-label "Toolbar with button groups"}
-           [orders-filter selected-filter]
+                 :role "toolbar"}
+           [TableFilterButtonGroup {:hide-counts #{"Show All"}}
+            filters orders selected-filter]
            [:div {:class "btn-group"
                   :role "group"
                   :aria-label "refresh group"}

@@ -8,10 +8,10 @@
                                           json-string->clj cents->$dollars
                                           cents->dollars dollars->cents
                                           format-coupon-code parse-to-number?
-                                          accessible-routes]]
+                                          accessible-routes expired-coupon?]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton DatePicker
-                                               TablePager]]
+                                               TablePager TableFilterButtonGroup]]
             [clojure.string :as s]))
 
 (def default-new-coupon
@@ -30,8 +30,7 @@
                     :new-coupon
                     default-new-coupon
                     :edit-coupon
-                    default-new-coupon
-                    :selected "active"}))
+                    default-new-coupon}))
 
 (defn update-on-click
   "on-click fn for updating a coupon on the server. Optionally provide
@@ -300,27 +299,20 @@
         sort-reversed? (r/atom false)
         selected (r/cursor state [:selected])
         current-page (r/atom 1)
-        page-size 5]
+        page-size 15
+        filters {"Show All" (constantly true)
+                 "Active" (complement expired-coupon?)
+                 "Expired" expired-coupon?}
+        selected-filter (r/atom "Active")]
     (fn [coupons]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
-            filter-fn (condp = @selected
-                        "active" (fn [coupon]
-                                   (>= (:expiration_time coupon)
-                                       (-> (js/moment)
-                                           (.unix))))
-                        "expired" (fn [coupon]
-                                    (<= (:expiration_time coupon)
-                                        (-> (js/moment)
-                                            (.unix))))
-                        "all" (fn [coupon]
-                                true))
             displayed-coupons coupons
             sorted-coupons (->> displayed-coupons
                                 ;; remove all groupon coupons
                                 (filter #(not (re-matches #"GR.*" (:code %))))
-                                (filter filter-fn)
+                                (filter (get filters @selected-filter))
                                 sort-fn
                                 (partition-all page-size))
             paginated-coupons (-> sorted-coupons
@@ -340,8 +332,7 @@
                                    {:topic "coupons"
                                     :data (js->clj response :keywordize-keys
                                                    true)})
-                             (reset! refreshing? false)))))
-            ]
+                             (reset! refreshing? false)))))]
         (if (nil? @current-coupon)
           (reset! current-coupon (first paginated-coupons)))
         ;; set the edit-coupon values to match those of current-coupon
@@ -375,32 +366,8 @@
           
           [:div {:class "btn-toolbar pull-left"
                  :role "toolbar"}
-           [:div {:class "btn-group"
-                  :role "group"}
-            [:button {:type "button"
-                      :class (str "btn btn-default "
-                                  (when (= @selected
-                                           "all")
-                                    "active"))
-                      :on-click #(reset! selected "all")
-                      }
-             "Show All"]
-            [:button {:type "button"
-                      :class (str "btn btn-default "
-                                  (when (= @selected
-                                           "active")
-                                    "active"))
-                      :on-click #(reset! selected "active")}
-             "Active"]
-            [:button {:type "button"
-                      :class (str "btn btn-default "
-                                  (when (= @selected
-                                           "expired")
-                                    "active"))
-                      :on-click #(reset! selected "expired")
-                      }
-             "Expired"]
-            ]]
+           [TableFilterButtonGroup {:hide-counts #{"Show All"}}
+            filters coupons selected-filter]]
           [:div {:class "btn-toolbar"
                  :role "toolbar"}
            [:div {:class "btn-group"

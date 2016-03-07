@@ -6,7 +6,7 @@
             [cljs.reader :refer [read-string]]
             [reagent.core :as r]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
-                                               TableFilterButton
+                                               TableFilterButtonGroup
                                                RefreshButton KeyVal StarRating
                                                ErrorComp TablePager]]
             [dashboard-cljs.datastore :as datastore]
@@ -390,16 +390,16 @@
                   :current-page current-page}])
               ]))]))))
 
-(defn couriers-filter
-  "A component for determining which couriers to display. selected-filter is
-  an r/atom containing a string which describes what filter to use."
-  [filters data selected-filter]
-  (fn [filters data selected-filter]
-    [:div {:class "btn-group" :role "group"}
-     (for [f (map #(hash-map :text (key %)
-                             :filter-fn (val %))
-                  filters)]
-       ^{:key (:text f)} [TableFilterButton f data selected-filter])]))
+;; (defn couriers-filter
+;;   "A component for determining which couriers to display. selected-filter is
+;;   an r/atom containing a string which describes what filter to use."
+;;   [filters data selected-filter]
+;;   (fn [filters data selected-filter]
+;;     [:div {:class "btn-group" :role "group"}
+;;      (for [f (map #(hash-map :text (key %)
+;;                              :filter-fn (val %))
+;;                   filters)]
+;;        ^{:key (:text f)} [TableFilterButton f data selected-filter])]))
 
 (defn couriers-panel
   "Display a table of selectable couriers with an indivdual courier panel
@@ -450,7 +450,8 @@
           [courier-panel current-courier]
           [:div {:class "btn-toolbar pull-left"
                  :role "toolbar"}
-           [couriers-filter filters couriers selected-filter]]
+           [TableFilterButtonGroup {:hide-counts #{}}
+            filters couriers selected-filter]]
           [:div {:class "btn-toolbar"
                  :role "toolbar"}
            [:div {:class "btn-group"
