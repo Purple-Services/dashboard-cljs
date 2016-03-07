@@ -6,6 +6,7 @@
             [cljs.reader :refer [read-string]]
             [reagent.core :as r]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
+                                               TableFilterButton
                                                RefreshButton KeyVal StarRating
                                                ErrorComp TablePager]]
             [dashboard-cljs.datastore :as datastore]
@@ -390,29 +391,15 @@
               ]))]))))
 
 (defn couriers-filter
-  "A component for determing which coureirs to display. selected-filter is
+  "A component for determining which couriers to display. selected-filter is
   an r/atom containing a string which describes what filter to use."
-  [selected-filter]
-  (fn [selected-filter]
-    [:div {:class "btn-group"
-           :role "group"
-           :aria-label "filter group"}
-     [:button {:type "button"
-               :class
-               (str "btn btn-default "
-                    (when (= @selected-filter
-                             "show-all")
-                      "active"))
-               :on-click #(reset! selected-filter "show-all")}
-      "Show All"]
-     [:button {:type "button"
-               :class
-               (str "btn btn-default "
-                    (when (= @selected-filter
-                             "connected")
-                      "active"))
-               :on-click #(reset! selected-filter "connected")}
-      "Connected"]]))
+  [filters data selected-filter]
+  (fn [filters data selected-filter]
+    [:div {:class "btn-group" :role "group"}
+     (for [f (map #(hash-map :text (key %)
+                             :filter-fn (val %))
+                  filters)]
+       ^{:key (:text f)} [TableFilterButton f data selected-filter])]))
 
 (defn couriers-panel
   "Display a table of selectable couriers with an indivdual courier panel
@@ -421,22 +408,19 @@
   (let [current-courier (r/atom nil)
         sort-keyword (r/atom :timestamp_created)
         sort-reversed? (r/atom false)
-        selected-filter (r/atom "connected")
         current-page (r/atom 1)
-        page-size 5]
+        page-size 15
+        filters {"Show All" (constantly true)
+                 "Connected" :connected}
+        selected-filter (r/atom "Connected")]
     (fn [couriers]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
-            filter-fn  (cond (= @selected-filter
-                                "connected")
-                             (fn [courier]
-                               (:connected courier))
-                             :else (fn [courier] true))
             displayed-couriers couriers
             sorted-couriers (->> displayed-couriers
                                  sort-fn
-                                 (filter filter-fn)
+                                 (filter (get filters @selected-filter))
                                  (partition-all page-size))
             paginated-couriers (-> sorted-couriers
                                    (nth (- @current-page 1)
@@ -466,15 +450,12 @@
           [courier-panel current-courier]
           [:div {:class "btn-toolbar pull-left"
                  :role "toolbar"}
-           [:div {:class "btn-group"
-                  :role "group"}
-            [couriers-filter selected-filter]]]
+           [couriers-filter filters couriers selected-filter]]
           [:div {:class "btn-toolbar"
                  :role "toolbar"}
            [:div {:class "btn-group"
                   :role "group"}
-            [RefreshButton {:refresh-fn
-                            refresh-fn}]]]]
+            [RefreshButton {:refresh-fn refresh-fn}]]]]
          [:div {:class "table-responsive"}
           [StaticTable
            {:table-header [courier-table-header

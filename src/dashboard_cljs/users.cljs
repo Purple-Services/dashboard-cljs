@@ -240,7 +240,7 @@
                 :current-page current-page}]]])]]))))
 
 (defn users-panel
-  "Display a table of selectable coureirs with an indivdual user panel
+  "Display a table of selectable users with an indivdual user panel
   for the selected user"
   [users]
   (let [current-user (r/atom nil)
@@ -248,7 +248,7 @@
         sort-reversed? (r/atom false)
         selected-filter (r/atom "show-all")
         current-page (r/atom 1)
-        page-size 5]
+        page-size 15]
     (fn [users]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
