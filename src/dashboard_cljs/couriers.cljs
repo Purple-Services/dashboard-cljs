@@ -390,17 +390,6 @@
                   :current-page current-page}])
               ]))]))))
 
-;; (defn couriers-filter
-;;   "A component for determining which couriers to display. selected-filter is
-;;   an r/atom containing a string which describes what filter to use."
-;;   [filters data selected-filter]
-;;   (fn [filters data selected-filter]
-;;     [:div {:class "btn-group" :role "group"}
-;;      (for [f (map #(hash-map :text (key %)
-;;                              :filter-fn (val %))
-;;                   filters)]
-;;        ^{:key (:text f)} [TableFilterButton f data selected-filter])]))
-
 (defn couriers-panel
   "Display a table of selectable couriers with an indivdual courier panel
   for the selected courier. couriers is set of couriers"
