@@ -3,36 +3,25 @@
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt
                                           unix-epoch->hrf cents->$dollars
-                                          markets]]
+                                          markets get-event-time]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton CountPanel
                                                TablePager]]
             [clojure.string :as s]))
 
-
 (def state (r/atom {:current-order nil}))
 
 (defn orders-count-panel
-  "Component for displaying today's complete orders count"
+  "Component for displaying today's complete orders count."
   []
   (fn []
-    ;; todays order count panel
-    (let [new-orders (fn [orders]
-                       (let [today-begin (-> (js/moment)
-                                             (.startOf "day")
-                                             (.unix))
-                             complete-time (fn [order]
-                                             (-> (str
-                                                  "kludgeFix 1|"
-                                                  (:event_log order))
-                                                 (s/split #"\||\s")
-                                                 (->> (apply hash-map))
-                                                 (get "complete")))]
-                         (->> orders
-                              (filter #(= (:status %) "complete"))
-                              (map #(assoc % :time-completed (complete-time %)))
-                              (filter #(>= (:time-completed %) today-begin)))))]
-      [CountPanel {:data (new-orders @datastore/orders)
+    (let [today-begin-unix (-> (js/moment) (.startOf "day") (.unix))
+          todays-orders
+          (fn [orders]
+            (filter #(>= (or (get-event-time (:event_log %) "complete") 0)
+                         today-begin-unix)
+                    orders))]
+      [CountPanel {:data (todays-orders @datastore/orders)
                    :caption "Completed Orders Today"
                    :panel-class "panel-primary"}])))
 

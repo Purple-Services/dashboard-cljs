@@ -392,7 +392,7 @@
 
 (defn couriers-panel
   "Display a table of selectable couriers with an indivdual courier panel
-  for the selected courier. couriers is set of couriers"
+  for the selected courier. couriers is set of couriers."
   [couriers]
   (let [current-courier (r/atom nil)
         sort-keyword (r/atom :timestamp_created)

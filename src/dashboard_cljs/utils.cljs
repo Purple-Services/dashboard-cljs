@@ -179,3 +179,14 @@
   (<= (:expiration_time coupon)
       (-> (js/moment)
           (.unix))))
+
+(defn get-event-time
+  "Get time of event from event log as unix timestamp Integer.
+  If event hasn't occurred yet, then nil."
+  [event-log event]
+  (some-> event-log
+          (#(if (s/blank? %) nil %))
+          (s/split #"\||\s")
+          (->> (apply hash-map))
+          (get event)
+          (Integer.)))
