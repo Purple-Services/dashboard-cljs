@@ -6,7 +6,8 @@
             [reagent.core :as r]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton ErrorComp
-                                               TablePager ConfirmationAlert]]
+                                               TablePager ConfirmationAlert
+                                               ProcessingIcon]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->hrf base-url
                                           cents->$dollars json-string->clj
@@ -235,7 +236,7 @@
                                         error-message))
                      }
             (if @retrieving?
-              [:i {:class "fa fa-spinner fa-pulse"}]
+              [ProcessingIcon]
               "Save assignment")
             ])
          (when (not (s/blank? @error-message))

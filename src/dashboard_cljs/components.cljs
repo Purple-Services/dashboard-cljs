@@ -270,3 +270,70 @@
           "Cancel"]])
       (when @retrieving?
         [:i {:class "fa fa-spinner fa-pulse"}])]]))
+
+(defn AlertSuccess
+  "An alert for when an action is successfully completed
+  props is
+  {
+  :message str ; message to display
+  :dismiss fn  ; user dismisses this dialgoue
+  }"
+  [props]
+  (fn [{:keys [message dismiss]} props]
+    [:div {:class "alert alert-success alert-dismissible"}
+     [:button {:type "button"
+               :class "close"
+               :aria-label "Close"}
+      [:i {:class "fa fa-times"
+           :on-click dismiss}]]
+     [:strong message]]))
+
+(defn TextInput
+  "props is:
+  {
+  :value          ; str
+  :default-value  ; str
+  :placeholder    ; str, optional
+  :on-change      ; fn, fn to execute on change
+  }
+  "
+  [props]
+  (fn [{:keys [value default-value placeholder on-change]} props]
+    [:input {:type "text"
+             :class "form-control"
+             :value value
+             :defaultValue default-value
+             :placeholder placeholder
+             :on-change on-change}]))
+
+(defn FormGroup
+  "props is:
+  {
+  :label     ; str
+  :label-for ; str
+  :errors    ; str
+  }
+  "
+  [props input]
+  (fn [props input]
+    (let [{:keys [label label-for errors]} props]
+      [:div {:class "form-group"}
+       [:label {:for label-for
+                :class "col-sm-2 control-label"}
+        label]
+       [:div {:class "col-sm-10"}
+        input
+        (when errors
+          [:div {:class "alert alert-danger"}
+           (first errors)])]])))
+
+(defn FormSubmit
+  [button]
+  (fn [button]
+    [:div {:class "form-group"}
+     button]))
+
+(defn ProcessingIcon
+  []
+  (fn []
+    [:i {:class "fa fa-lg fa-spinner fa-pulse "}]))

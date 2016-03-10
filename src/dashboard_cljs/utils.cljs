@@ -1,6 +1,7 @@
 (ns dashboard-cljs.utils
   (:require [cljsjs.moment]
             [cljs.reader :refer [read-string]]
+            [clojure.data :refer [diff]]
             [clojure.string :as s]
             [reagent.core :as r]))
 
@@ -156,3 +157,11 @@
        (sort  #(compare (:timestamp_created %1)
                         (:timestamp_created %2)))
        first))
+
+(defn diff-message
+  "Given a "
+  [old new key-str]
+  (let [[new-map old-map unchanged] (diff old new)
+        concern (into [] (keys key-str))]
+    (map #(when-not (contains? unchanged %)
+            (str (% key-str) " : " (% old-map) " -> " (% new-map))) concern)))
