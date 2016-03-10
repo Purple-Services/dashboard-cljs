@@ -76,7 +76,7 @@
   (reduce (fn [r [k v]] (assoc r k (apply f v args))) {} m))
 
 (defn get-by-id
-  "Get an element by its id from coll"
+  "Get an element by its id from coll."
   [coll id]
   (first (filter #(= (:id %) id) coll)))
 
@@ -181,7 +181,7 @@
           (.unix))))
 
 (defn get-event-time
-  "Get time of event from event log as unix timestamp Integer.
+  "Get time of event from event log as unix timestamp integer.
   If event hasn't occurred yet, then nil."
   [event-log event]
   (some-> event-log
@@ -189,4 +189,4 @@
           (s/split #"\||\s")
           (->> (apply hash-map))
           (get event)
-          (Integer.)))
+          js/parseInt))
