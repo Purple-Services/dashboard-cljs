@@ -14,35 +14,108 @@
 /*     padding: 0 !important; */
 /* } */
 
+body {
+    background-color: #fff;
+}
+
 .nav-bar-color {
-    background-color: #261535;
+    background-color: #4E4084;
+    border-color: #4E4084;
 }
 
 .page-wrapper-color {
-    background-color: #E0E0E0;
+    background-color: #FFF;
+}
+
+.panel {
+    border: none;
+    box-shadow: none;
+}
+
+.panel-body {
+    padding: 0px;
+}
+
+.top-nav>li>a {
+    color: #fff;
+}
+
+/* skinnier side nav than sb-admin default */
+@media(min-width:768px) {
+    #wrapper {
+        padding-left: 140px;
+    }
+    
+    .side-nav {
+        left: 140px;
+        width: 140px;
+        margin-left: -140px;
+    }
+
+    .side-nav>li>a {
+        width: 140px;
+    }
 }
 
 .side-nav-color {
-    background-color: #8B8D8E;
+    background-color: #333;
+    border: none;
+    color: #fff;
 }
 
 .side-nav-color > li > a  {
     /* need to override bootstrap.min.css */
-    color: #E0E0E0 !important;
+    color: #fff !important;
 }
 
-.side-nav-color > li > a:hover,
+.side-nav-color > li > a:hover {
+    background-color: #444 !important;
+    color: #fff !important;
+}
 .side-nav-color > li > a:focus,
 .side-nav-color > li > a.active {
-    background-color: #e0e0e0 !important;
-    color: #8B8D8E !important;
+    background-color: #fff !important;
+    color: #444 !important;
 }
 
+.table-bordered {
+    border: 1px solid #ddd !important;
+}
+.table-responsive {
+    margin-top: 15px;
+    border-top: none !important;
+}
+.table-responsive > table {
+    margin-bottom: 0px;
+}
 
+.pagination {
+    margin: 10px 0 15px 0;
+}
+
+tbody > tr.active > td {
+    background-color: #efefff !important;
+    /* border-left: 2px solid #4E4084; */
+    /* border-bottom: 2px solid #4E4084; */
+}
 
 .purple-logo {
-    width: 3.5em;
+    width: 4.5em;
+    margin-top: -8px;
 }
 
+.fake-link {
+    font-size: 16px;
+    color: #3498db;
+    font-weight: normal;
+    cursor: pointer;
+    text-decoration: none;
+}
 
+.courier-active {
+    color: #00ff00;
+}
 
+.courier-inactive {
+    color: #ff0000;
+}

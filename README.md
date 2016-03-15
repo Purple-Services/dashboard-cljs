@@ -1,6 +1,6 @@
 # dashboard-cljs
 
-Clojurescript version of the web-service dashboard
+Clojurescript frontend of Purple internal dashboard
 
 ## Setup
 
@@ -25,17 +25,13 @@ Production code should use the output from advanced compilation. When developing
 
 A common workflow is that a new feature is implemented and tested in basic mode. Once it is working to your satisfaction, test that the advanced compilation of the code works the same way.
 
-There are two scripts which will watch your "src" dir and recompile if there are any changes made to the clojurescript source file.
+Use cljsbuild to build both dev and prod environments together.
 
-Currently, these scripts must be run in two separate terminal instances. In one terminal:
+```bash
+$ lein cljsbuild auto
+```
 
-	./scripts/watch
-
-In another terminal:
-
-	./scripts/watch_release
-
-Open both `index.html` and `index_release.html` in your browser. Use the following chrome command:
+Open both `index.html` with the following chrome command:
 
 	/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --disable-web-security --user-data-dir=/tmp/chrome2/ \ index.html
 
@@ -51,7 +47,8 @@ chmod +x this script and put it on your $PATH. You can then open the files with:
 
 	chrome-open-file index.html
 
-	chrome-open-file index_release.html
+The production build is setup to be exported to dashboard-service. Run the server locally
+and test the prod build there.
 
 Check both browser tabs as you are developing to ensure that each compilation results in expected behavior. 
 
@@ -59,32 +56,32 @@ Check both browser tabs as you are developing to ensure that each compilation re
 The code depends on setting a base-url in the html file that it is served from. For example, index.html and index_release.html both have this div:
 
 ```html
-<div id="base-url" value="http://localhost:3000/dashboard/" style="display: none;"></div>
+<div id="base-url" value="http://localhost:3001/dashboard/" style="display: none;"></div>
 ```
 
 where the attribute 'value' is the base-url. The clojurescript code pulls the value attribute from div#base-url in order to set the base-url used in server calls.
 
-The web-service server should be running when developing. Start it in the web-service dir:
+The dashboard-service server should be running when developing. Start it in the dashboard-service dir:
 
 	lein ring server
 
-The base-url defined in the div above assumes the server is running on the default port of 3000
+The base-url defined in the div above assumes the server is running on the default port of 3001
 
 ## exporting to the server
 
-The dashboard-cljs repository contains a script that will do an advanced compilation of the clojurescript code and copy it to the appropriate location in web-service
+The dashboard-cljs repository contains a script that will do an advanced compilation of the clojurescript code and copy it to the appropriate location in dashboard-service
 
-	 ./scripts/export_to_web-service
+	 ./scripts/export_to_dashboard-service
 
-This script assumes that you are developing in a root dir which contains both the web-service and dashboard-cljs repositories. For example, the dir structure that I use for development on my local machine is:
+This script assumes that you are developing in a root dir which contains both the dashboard-service and dashboard-cljs repositories. For example, the dir structure that I use for development on my local machine is:
 
 	PurpleInc
 	|
-	|- web-service
+	|- dashboard-service
 	|
 	 - dashboard-cljs
 
 
 ## License
 
-Copyright © 2015 Purple Services Inc
+Copyright © 2016 Purple Services Inc

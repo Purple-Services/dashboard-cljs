@@ -1,0 +1,11 @@
+#!/bin/bash
+# scripts/release
+# echo "copying release/dashboard_cljs.js to ../dashboard-service/src/public/js/"
+# cp release/dashboard_cljs.js ../dashboard-service/src/public/js/
+
+echo "copying resources/css/dashmap.css to ../dashboard-service/src/public/css/"
+cp resources/css/dashmap.css ../dashboard-service/src/public/css/
+echo "copying resources/css/dashboard.css to ../dashboard-service/src/public/css/"
+cp resources/css/dashboard.css ../dashboard-service/src/public/css/
+echo "copying resources/images/* to ../dashboard-service/src/public/images/"
+cp -r resources/images/* ../dashboard-service/src/public/images/

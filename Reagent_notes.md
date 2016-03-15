@@ -156,3 +156,100 @@ will not work
 ```clojure
 [Tab [users-component]]
 ```
+
+# Component Conventions
+
+When designing components for this app, the following conventions are used:
+
+1. A generic component uses upper camel case.
+   ex: StaticTable, TableHeadSortable
+
+2. Components with more than one argument are passed vars as a map named
+   props.
+   ex:
+
+```clojure
+(defn side-navbar-comp [props]
+  "Props contains:
+{:tab-content-toggle ; reagent atom, toggles the visibility of tab-content
+ :side-bar-toggle    ; reagent atom, toggles visibility of sidebar
+ :toggle             ; reagent atom, toggles if tab is active
+ :toggle-key         ; keyword, the keyword associated with tab in :toggle
+"
+  (fn []
+    [:div {:class (str "collapse navbar-collapse navbar-ex1-collapse "
+                       (when @(:side-bar-toggle props) "in"))}
+    ...)
+```
+
+3. Components who take both vars and child components should have the first
+   argument be props and the second argument the child component.
+   ex:
+
+```clojure
+(defn Tab [props child]
+  "Tab component inserts child into its anchor element. props is a map of the
+following form:
+{:toggle (reagent/atom map) ; required
+ :toggle-key keyword        ; required
+ :side-bar-toggle boolean   ; required, used to show/hide sidebar
+ :default? boolean          ; optional
+}
+
+The anchor elements action when clicked is to set the val associated with
+:toggle-key to true, while setting all other vals of :toggle to false. It will
+also mark the current anchor as active."
+  (when (:default? props)
+    (swap! (:toggle props) assoc (:toggle-key props) true))
+  (fn []
+    [:li [:a {:on-click
+              #(do
+                 (.preventDefault %)
+                 (swap! (:toggle props) update-values (fn [el] false))
+                 (swap! (:toggle props) assoc (:toggle-key props) true)
+                 (reset! (:side-bar-toggle props) false))
+              :href "#"
+              :class
+              (str (when ((:toggle-key props) @(:toggle props)) "active"))
+              } child]]))
+```
+
+In general, a components calling signature is:
+
+self-contained component:
+[component]
+
+component that should be given vars:
+[component {:keyword val, ...}]
+
+component with a chid component:
+[component child]
+
+component with props and a child component:
+[component {:keyword val, ...} child]
+
+Note: A child can not be composed of multiple values like with bare hiccup
+
+This is valid:
+
+```clojure
+[:ul [:li "foo"] [:li "bar"] [:li "baz"]]
+```
+
+This is not:
+```clojure
+(defn UL [child]
+	[:ul child])
+
+[UL [:li "foo"] [:li "bar"] [:li "baz"]]
+```
+
+# Managing component state
+
+If you would like a particular piece of state to change, while other one is
+constant, you will have to make a sub component that deals only with that
+bit of state. A let statement in the render fn of the parent component
+can contain the state that the sub component utilizes. Now, instead of the
+whole parent component re-rendering on change, only the state encapsulated by
+the sub-component will affect a change in the sub-component as opposed to the
+parent component.

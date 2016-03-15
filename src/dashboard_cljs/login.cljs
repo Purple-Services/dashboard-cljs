@@ -2,12 +2,10 @@
   (:require [crate.core :as crate]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.cookies :as cookies]
-            ))
-
-(def base-url (-> (.getElementById js/document "base-url")
-                  (.getAttribute "value")))
+            [dashboard-cljs.utils :refer [base-url]]))
 
 (defn process-login
+  "Process the response used when logging in"
   [response]
   (let [error-div (.querySelector js/document "#error-message")
         cljs-response (js->clj response :keywordize-keys true)]
@@ -21,17 +19,34 @@
             (str "Error: " (:message cljs-response))))))
 
 (defn login-form
+  "A form for logging into the dashboard"
   []
   (let [submit-button (crate/html
-                       [:input {:id "login" :type "submit" :value "Login"}])
+                       [:button {:id "login"
+                                 :type "submit"
+                                 :class "btn btn-default"
+                                 } "Login"])
         login-form (crate/html
                     [:div {:id "login-form"}
-                     [:div "Email Address: " [:input
-                                              {:id "email" :type "text"}]]
-                     [:div "Password: " [:input
-                                         {:id "password" :type "password"}]]
+                     [:div {:class "form-group"}
+                      [:label {:for "email-address"}
+                       "Email Address"]
+                      [:input
+                       {:id "email"
+                        :type "text"
+                        :class "form-control"
+                        :placeholder "Email"}]]
+                     [:div {:class "form-group"}
+                      [:label {:for "password"} "Password"]
+                      [:input
+                       {:id "password"
+                        :type "password"
+                        :class "form-control"
+                        :placeholder "Password"}]]
                      submit-button
-                     [:div {:id "error-message"}]])]
+                     [:div {:class "has-error"}
+                      [:div {:id "error-message"
+                             :class "control-label"}]]])]
     (.addEventListener
      submit-button
      "click"
@@ -48,6 +63,14 @@
     login-form))
 
 (defn login
+  "Set up the login form"
   []
   (let [login-div (.getElementById js/document "login")]
-    (.appendChild login-div (login-form))))
+    (.appendChild login-div
+                  (crate/html
+                   [:div {:class "container-fluid"}
+                    [:div {:class "row"}
+                     [:div {:class "col-lg-6"}
+                      [:div {:class "panel panel-default"}
+                       [:div {:class "panel-body"}
+                        (login-form)]]]]]))))
