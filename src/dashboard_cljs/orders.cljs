@@ -7,7 +7,8 @@
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton ErrorComp
                                                TableFilterButtonGroup
-                                               TablePager ConfirmationAlert]]
+                                               TablePager ConfirmationAlert
+                                               KeyVal]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->hrf base-url
                                           cents->$dollars json-string->clj
@@ -17,7 +18,8 @@
                                           oldest-current-order
                                           same-timestamp?
                                           declined-payment?
-                                          current-order?]]
+                                          current-order?
+                                          get-event-time]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps]]))
 
@@ -462,8 +464,7 @@
                                                        (:name % )) couriers)))
                                ;; no courier, assign the first one
                                (:id (first couriers)))
-            order-status (:status @current-order)
-            ]
+            order-status (:status @current-order)]
         (reset! (r/cursor state [:confirming?]) false)
         ;; create and insert order marker
         (when (:lat @current-order)
@@ -509,6 +510,10 @@
            ;; time order was placed
            [:h5 [:span {:class "info-window-label"} "Order Placed: "]
             (unix-epoch->hrf (:target_time_start @current-order))]
+           ;; completion time
+           (when-let [completion-time (get-event-time
+                                       (:event_log @current-order) "complete")]
+             [KeyVal "Completion Time" (unix-epoch->hrf completion-time)])
            ;; delivery time
            [:h5 [:span {:class "info-window-label"} "Delivery Time: "]
             (str (.diff (js/moment.unix (:target_time_end @current-order))
