@@ -19,8 +19,7 @@
                                           same-timestamp?
                                           declined-payment?
                                           current-order?
-                                          get-event-time
-                                          ]]
+                                          get-event-time]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps]]))
 
