@@ -293,3 +293,21 @@
                              :hide-count (contains? hide-counts (key %)))
                   filters)]
        ^{:key (:text f)} [TableFilterButton f data selected-filter])]))
+
+(defn LoadScreen
+  ""
+  []
+  (fn []
+    [:div {:style {:width "100%"
+                   :height "100%"
+                   :color "white"
+                   :z-index "999"
+                   :position "fixed"}}
+     [:div {:style {:left "40%"
+                    :top "40%"
+                    :height "2em"
+                    :position "fixed"}}
+      [:h2 {:style {:display "inline-block"
+                    :color "black"}}
+       "Loading   " [:i {:class "fa fa-spinner fa-pulse"
+                      :style {:color "black"}}]]]]))

@@ -101,7 +101,8 @@
   (go-loop [data (:data (<! chan))]
     (let [old-state @atom
           new-state (sync-sets old-state data)]
-      (reset! atom new-state))
+      (reset! atom new-state)
+      (reset-meta! atom {:processed true}))
     (recur (:data (<! chan)))))
 
 ;; below are the definitions for the app's datastore
