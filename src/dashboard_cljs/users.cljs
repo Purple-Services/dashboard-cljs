@@ -16,7 +16,19 @@
                     :search-term ""
                     :recent-search-term ""
                     :search-results #{}
-                    :search-retrieving? false}))
+                    :search-retrieving? false
+                    :users-count 0}))
+(defonce
+  users-count-result
+  (retrieve-url
+   (str base-url "users-count")
+   "GET"
+   {}
+   (partial
+    xhrio-wrapper
+    (fn [response]
+      (let [res (js->clj response :keywordize-keys true)]
+        (reset! (r/cursor state [:users-count]) (:total (first res))))))))
 
 (defn user-row
   "A table row for an user in a table. current-user is the one currently 
@@ -290,7 +302,7 @@
           [:div [:h3 {:class "pull-left"
                       :style {:margin-top "4px"
                               :margin-bottom 0}}
-                 "Users"]]
+                 (str "Users (" @(r/cursor state [:users-count]) ")")]]
           [:div {:class "btn-toolbar"
                  :role "toolbar"}
            [:div {:class "btn-group"
