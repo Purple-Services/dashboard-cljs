@@ -190,3 +190,12 @@
           (->> (apply hash-map))
           (get event)
           js/parseInt))
+
+;; http://stackoverflow.com/questions/2901102/how-to-print-a-number-with-commas-as-thousands-separators-in-javascript
+(defn integer->comma-sep-string
+  "Insert commas into an integer number and return a string representation"
+  [number]
+  (-> number .toString
+      (.split ".")
+      first
+      (clojure.string/replace #"\B(?=(\d{3})+(?!\d))" ",")))
