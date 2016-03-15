@@ -15,8 +15,7 @@
             [dashboard-cljs.zones :as zones]
             [dashboard-cljs.orders :as orders]
             [dashboard-cljs.analytics :as analytics]
-            [dashboard-cljs.googlemaps :refer [get-cached-gmaps]]
-            ))
+            [dashboard-cljs.googlemaps :refer [get-cached-gmaps]]))
 
 (defn top-navbar-comp
   "Props contains:
@@ -42,8 +41,7 @@
               :class "purple-logo"}]]]
      [:ul {:class "nav navbar-right top-nav"}
       [:li {:class "dropdown"}
-       [:a {:href (str base-url "logout")} "Logout"]]]
-     ]))
+       [:a {:href (str base-url "logout")} "Logout"]]]]))
 
 (defn Tab
   "Tab component inserts child into its anchor element. props is a map of the
@@ -113,6 +111,7 @@
     [:div {:class (str "tab-pane "
                        (when @(:toggle props) "active"))}
      content]))
+
 
 (defn side-navbar-comp
   "Props contains:
@@ -211,6 +210,23 @@
               :target "_blank"}
           "Real-time Map"]])]]))
 
+(defn LoadScreen
+  []
+  (fn []
+    [:div {:style {:width "100%"
+                   :height "100%"
+                   :color "white"
+                   :z-index "999"
+                   :position "fixed"}}
+     [:div {:style {:left "40%"
+                    :top "40%"
+                    :height "2em"
+                    :position "fixed"}}
+      [:h2 {:style {:display "inline-block"
+                    :color "black"}}
+       "Loading   " [:i {:class "fa fa-spinner fa-pulse"
+                         :style {:color "black"}}]]]]))
+
 ;; based on https://github.com/IronSummitMedia/startbootstrap-sb-admin
 (defn app
   []
@@ -220,104 +236,107 @@
                                     :orders-view false})
         side-bar-toggle (r/atom false)]
     (fn []
-      [:div {:id "wrapper"}
-       [:nav {:class "navbar navbar-inverse navbar-fixed-top nav-bar-color"
-              :role "navigation"}
-        [top-navbar-comp {:side-bar-toggle side-bar-toggle}]
-        [side-navbar-comp {:tab-content-toggle tab-content-toggle
-                           :side-bar-toggle side-bar-toggle}]]
-       [:div {:id "page-wrapper"
-              :class "page-wrapper-color"}
-        [:div {:class "container-fluid tab-content"}
-         ;; home page
-         [TabContent
-          {:toggle (r/cursor tab-content-toggle [:dashboard-view])}
-          [:div
-           [:div {:class "row"}
-            [:div {:class "col-lg-12"}
-             (when (subset? #{{:uri "/orders-since-date"
-                               :method "POST"}}
-                            @accessible-routes)
-               [:div
-                [home/orders-count-panel]
-                [home/current-orders-panel @datastore/orders]])]]]]
-         ;; couriers page
-         [TabContent
-          {:toggle (r/cursor tab-content-toggle [:couriers-view])}
-          [:div {:class "row"}
-           [:div {:class "col-lg-12"}
-            (when (subset? #{{:uri "/couriers"
-                              :method "POST"}}
-                           @accessible-routes)
-              [couriers/couriers-panel @datastore/couriers])]]]
-         ;; users page
-         [TabContent
-          {:toggle (r/cursor tab-content-toggle [:users-view])}
-          [:div {:class "row"}
-           [:div {:class "col-lg-12"}
-            (when (subset? #{{:uri "/users"
-                              :method "GET"
-                              }} @accessible-routes)
-              [:div
-               [users/users-panel @datastore/users]
-               (when (subset?
-                      #{{:uri "/send-push-to-all-active-users"
-                         :method "POST"}
-                        {:uri "/send-push-to-users-list"
-                         :method "POST"}}
-                      @accessible-routes)
-                 [users/user-push-notification])
-               [:div [users/search-panel]]])]]]
-         ;; coupon code page
-         [TabContent
-          {:toggle (r/cursor tab-content-toggle [:coupons-view])}
-          [:div {:class "row"}
-           [:div {:class "col-lg-12"}
-            (when (subset? #{{:uri "/coupons"
-                              :method "GET"}}
-                           @accessible-routes)
-              [:div
-               (when (subset? #{{:uri "/coupon"
+      (if-not (and @datastore/orders
+                   (:processed (meta datastore/orders)))
+        [LoadScreen]
+        [:div {:id "wrapper"}
+         [:nav {:class "navbar navbar-inverse navbar-fixed-top nav-bar-color"
+                :role "navigation"}
+          [top-navbar-comp {:side-bar-toggle side-bar-toggle}]
+          [side-navbar-comp {:tab-content-toggle tab-content-toggle
+                             :side-bar-toggle side-bar-toggle}]]
+         [:div {:id "page-wrapper"
+                :class "page-wrapper-color"}
+          [:div {:class "container-fluid tab-content"}
+           ;; home page
+           [TabContent
+            {:toggle (r/cursor tab-content-toggle [:dashboard-view])}
+            [:div
+             [:div {:class "row"}
+              [:div {:class "col-lg-12"}
+               (when (subset? #{{:uri "/orders-since-date"
                                  :method "POST"}}
                               @accessible-routes)
-                 [coupons/new-coupon-panel])
-               [coupons/coupons-panel @datastore/coupons]])]]]
-         ;; zones page
-         [TabContent
-          {:toggle (r/cursor tab-content-toggle [:zones-view])}
-          [:div {:class "row"}
-           [:div {:class "col-lg-12"}
-            (when (subset? #{{:uri "/zones"
-                              :method "GET"}}
-                           @accessible-routes)
-              [:div
-               [zones/zones-panel @datastore/zones]])]]]
-         ;; orders page
-         [TabContent
-          {:toggle (r/cursor tab-content-toggle [:orders-view])}
-          [:div
-           [:div {:class "row"}
-            [:div {:class "col-lg-12"}
-             (when (subset? #{{:uri "/orders-since-date"
-                               :method "POST"}}
-                            @accessible-routes)
-               [:div
-                [orders/orders-panel @datastore/orders]])]]]]
-         ;; analytics page
-         [TabContent
-          {:toggle (r/cursor tab-content-toggle [:analytics-view])}
-          [:div
-           [:div {:class "row"}
-            [:div {:class "col-lg-12"}
-             (when (subset? #{{:uri "/generate-stats-csv"
-                               :method "GET"}
-                              {:uri "/download-stats-csv"
-                               :method "GET"}
-                              {:uri "/status-stats-csv"
-                               :method "GET"}}
-                            @accessible-routes)
-               [:div
-                [analytics/stats-panel]])]]]]]]])))
+                 [:div
+                  [home/orders-count-panel]
+                  [home/current-orders-panel @datastore/orders]])]]]]
+           ;; couriers page
+           [TabContent
+            {:toggle (r/cursor tab-content-toggle [:couriers-view])}
+            [:div {:class "row"}
+             [:div {:class "col-lg-12"}
+              (when (subset? #{{:uri "/couriers"
+                                :method "POST"}}
+                             @accessible-routes)
+                [couriers/couriers-panel @datastore/couriers])]]]
+           ;; users page
+           [TabContent
+            {:toggle (r/cursor tab-content-toggle [:users-view])}
+            [:div {:class "row"}
+             [:div {:class "col-lg-12"}
+              (when (subset? #{{:uri "/users"
+                                :method "GET"
+                                }} @accessible-routes)
+                [:div
+                 [users/users-panel @datastore/users]
+                 (when (subset?
+                        #{{:uri "/send-push-to-all-active-users"
+                           :method "POST"}
+                          {:uri "/send-push-to-users-list"
+                           :method "POST"}}
+                        @accessible-routes)
+                   [users/user-push-notification])
+                 [:div [users/search-panel]]])]]]
+           ;; coupon code page
+           [TabContent
+            {:toggle (r/cursor tab-content-toggle [:coupons-view])}
+            [:div {:class "row"}
+             [:div {:class "col-lg-12"}
+              (when (subset? #{{:uri "/coupons"
+                                :method "GET"}}
+                             @accessible-routes)
+                [:div
+                 (when (subset? #{{:uri "/coupon"
+                                   :method "POST"}}
+                                @accessible-routes)
+                   [coupons/new-coupon-panel])
+                 [coupons/coupons-panel @datastore/coupons]])]]]
+           ;; zones page
+           [TabContent
+            {:toggle (r/cursor tab-content-toggle [:zones-view])}
+            [:div {:class "row"}
+             [:div {:class "col-lg-12"}
+              (when (subset? #{{:uri "/zones"
+                                :method "GET"}}
+                             @accessible-routes)
+                [:div
+                 [zones/zones-panel @datastore/zones]])]]]
+           ;; orders page
+           [TabContent
+            {:toggle (r/cursor tab-content-toggle [:orders-view])}
+            [:div
+             [:div {:class "row"}
+              [:div {:class "col-lg-12"}
+               (when (subset? #{{:uri "/orders-since-date"
+                                 :method "POST"}}
+                              @accessible-routes)
+                 [:div
+                  [orders/orders-panel @datastore/orders]])]]]]
+           ;; analytics page
+           [TabContent
+            {:toggle (r/cursor tab-content-toggle [:analytics-view])}
+            [:div
+             [:div {:class "row"}
+              [:div {:class "col-lg-12"}
+               (when (subset? #{{:uri "/generate-stats-csv"
+                                 :method "GET"}
+                                {:uri "/download-stats-csv"
+                                 :method "GET"}
+                                {:uri "/status-stats-csv"
+                                 :method "GET"}}
+                              @accessible-routes)
+                 [:div
+                  [analytics/stats-panel]])]]]]]]]))))
 
 (defn init-landing
   []
