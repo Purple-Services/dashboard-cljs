@@ -3,7 +3,8 @@
             [cljs.core.async :refer [put!]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt markets
-                                          json-string->clj pager-helper!]]
+                                          json-string->clj pager-helper!
+                                          integer->comma-sep-string]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton KeyVal StarRating
@@ -18,8 +19,9 @@
                     :search-results #{}
                     :search-retrieving? false
                     :users-count 0}))
-(defonce
-  users-count-result
+
+(defn update-user-count
+  []
   (retrieve-url
    (str base-url "users-count")
    "GET"
@@ -28,7 +30,12 @@
     xhrio-wrapper
     (fn [response]
       (let [res (js->clj response :keywordize-keys true)]
-        (reset! (r/cursor state [:users-count]) (:total (first res))))))))
+        (reset! (r/cursor state [:users-count]) (integer->comma-sep-string
+                                                 (:total (first res)))))))))
+
+(defonce
+  users-count-result
+  (update-user-count))
 
 (defn user-row
   "A table row for an user in a table. current-user is the one currently 
@@ -281,6 +288,7 @@
                                      '()))
             refresh-fn (fn [saving?]
                          (reset! saving? true)
+                         (update-user-count)
                          (retrieve-url
                           (str base-url "users")
                           "GET"
