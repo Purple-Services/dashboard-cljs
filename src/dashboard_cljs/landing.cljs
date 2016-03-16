@@ -279,7 +279,8 @@
                (when (subset? #{{:uri "/coupon"
                                  :method "POST"}}
                               @accessible-routes)
-                 [coupons/new-coupon-panel])
+                 ;;[coupons/new-coupon-panel]
+                 )
                [coupons/coupons-panel @datastore/coupons]])]]]
          ;; zones page
          [TabContent

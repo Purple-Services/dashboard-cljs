@@ -13,7 +13,9 @@
                                                RefreshButton KeyVal StarRating
                                                TablePager ConfirmationAlert
                                                FormGroup TextInput
-                                               ProcessingIcon AlertSuccess]]
+                                               ProcessingIcon AlertSuccess
+                                               EditFormSubmit DismissButton
+                                               SubmitDismissGroup]]
             [clojure.string :as s]))
 
 (def push-selected-users (r/atom (set nil)))
@@ -187,6 +189,21 @@
                                                   @edit-user)
                                                  (:id %)))
                                      first))
+            submit-on-click (fn [e]
+                              (.preventDefault e)
+                              (if @editing?
+                                (if (every? nil? (diff-message
+                                                  @edit-user @current-user
+                                                  diff-key-str))
+                                  ;; there isn't a diff message, no changes
+                                  ;; do nothing
+                                  (reset! editing? (not @editing?))
+                                  ;; there is a diff message, confirm changes
+                                  (reset! confirming? true))
+                                (do
+                                  ;; get rid of alert-success
+                                  (reset! alert-success "")
+                                  (reset! editing? (not @editing?)))))
             dismiss-fn (fn [e]
                          ;; reset any errors
                          (reset! errors nil)
@@ -232,7 +249,8 @@
          (if @editing?
            [FormGroup {:label "Referral Gallons"
                        :label-for "referral gallons"
-                       :errors (:referral_gallons @errors)}
+                       :errors (:referral_gallons @errors)
+                       :input-container-class "col-sm-3"}
             [TextInput {:value (:referral_gallons @edit-user)
                         :default-value (:referral_gallons @edit-user)
                         :on-change #(reset!
@@ -242,42 +260,12 @@
                                          (aget "value")))}]]
            [KeyVal "Referral Gallons" (:referral_gallons ;;@user
                                        @user)])
-         (when-not @confirming?
-           [:div {:class "btn-toolbar"}
-            ;; edit button
-            [:div {:class "btn-group"}
-             [:button {:type "submit"
-                       :class "btn btn-sm btn-default"
-                       :disabled @retrieving?
-                       :on-click
-                       (fn [e]
-                         (.preventDefault e)
-                         (if @editing?
-                           (if (every? nil? (diff-message
-                                               @edit-user @current-user
-                                               diff-key-str))
-                             ;; there isn't a diff message, no changes
-                             ;; do nothing
-                             (reset! editing? (not @editing?))
-                             ;; there is a diff message, confirm changes
-                             (reset! confirming? true))
-                           (do
-                             ;; get rid of alert-success
-                             (reset! alert-success "")
-                             (reset! editing? (not @editing?)))))}
-              (cond @retrieving?
-                    [ProcessingIcon]
-                    @editing?
-                    "Save"
-                    (not @editing?)
-                    "Edit")]]
-            [:div {:class "btn-group"}
-             ;; dismiss button
-             (when-not (or @retrieving? (not @editing?))
-               [:button {:type "button"
-                         :class "btn btn-sm btn-default"
-                         :on-click dismiss-fn}
-                "Dismiss"])]])
+         [SubmitDismissGroup
+          {:confirming? confirming?
+           :editing? editing?
+           :retrieving? retrieving?
+           :submit-fn submit-on-click
+           :dismiss-fn dismiss-fn}]
          (when (and @confirming?
                     (not-every? nil? (diff-message
                                       @edit-user @current-user

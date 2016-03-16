@@ -309,20 +309,29 @@
 (defn FormGroup
   "props is:
   {
-  :label     ; str
-  :label-for ; str
-  :errors    ; str
+  :label                 ; str
+  :label-for             ; str
+  :errors                ; str
+  :input-group-addon     ; optional, hiccup vector
+  :input-container-class ; optional, str
   }
+  input is hiccup-stype reagent input
   "
   [props input]
   (fn [props input]
-    (let [{:keys [label label-for errors]} props]
+    (let [{:keys [label label-for errors input-group-addon
+                  input-container-class]} props]
       [:div {:class "form-group"}
        [:label {:for label-for
                 :class "col-sm-2 control-label"}
         label]
-       [:div {:class "col-sm-10"}
-        input
+       [:div {:class (if input-container-class
+                       input-container-class
+                       "col-sm-2")}
+        [:div {:class "input-group"}
+         (when input-group-addon
+           input-group-addon)
+         input]
         (when errors
           [:div {:class "alert alert-danger"}
            (first errors)])]])))
@@ -337,3 +346,49 @@
   []
   (fn []
     [:i {:class "fa fa-lg fa-spinner fa-pulse "}]))
+
+(defn EditFormSubmit
+  [props]
+  (fn [{:keys [retrieving? editing? on-click]} props]
+    [:button {:type "submit"
+              :class "btn btn-sm btn-default"
+              :disabled @retrieving?
+              :on-click on-click}
+     (cond @retrieving?
+           [ProcessingIcon]
+           @editing?
+           "Save"
+           (not @editing?)
+           "Edit")]))
+
+(defn DismissButton
+  [props]
+  (fn [{:keys [dismiss-fn]} props]
+    [:button {:type "button"
+              :class "btn btn-sm btn-default"
+              :on-click dismiss-fn}
+     "Dismiss"]))
+
+(defn SubmitDismiss
+  [props submit dismiss]
+  (fn [{:keys [confirming? editing? retrieving?]} props]
+    (when-not @confirming?
+      [:div {:class "btn-toolbar"}
+       ;; edit button
+       [:div {:class "btn-group"}
+        submit]
+       [:div {:class "btn-group"}
+        ;; dismiss button
+        (when-not (or @retrieving? (not @editing?))
+          dismiss)]])))
+
+(defn SubmitDismissGroup
+  [props]
+  (fn [{:keys [confirming? editing? retrieving? submit-fn dismiss-fn]} props]
+    [SubmitDismiss {:confirming? confirming?
+                    :editing? editing?
+                    :retrieving? retrieving?}
+     [EditFormSubmit {:retrieving? retrieving?
+                      :editing? editing?
+                      :on-click submit-fn}]
+     [DismissButton {:dismiss-fn dismiss-fn}]]))
