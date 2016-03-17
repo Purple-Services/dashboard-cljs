@@ -31,34 +31,40 @@
                     :edit-zone default-zone
                     :selected "active"}))
 
+(defn displayed-zone
+  [zone]
+  (assoc zone
+         :price-87 (cents->dollars
+                    (-> zone
+                        :fuel_prices
+                        :87))
+         :price-91 (cents->dollars
+                    (-> zone
+                        :fuel_prices
+                        :91))
+         :service-fee-60 (cents->dollars
+                          (-> zone
+                              :service_fees
+                              :60))
+         :service-fee-180 (cents->dollars
+                           (-> zone
+                               :service_fees
+                               :180))
+         :service-time-bracket-begin
+         (-> zone
+             :service_time_bracket
+             first
+             str)
+         :service-time-bracket-end
+         (-> zone
+             :service_time_bracket
+             second
+             str)))
+
 (defn reset-edit-zone!
   [edit-zone current-zone]
   (reset! edit-zone
-          (assoc @current-zone
-                 :price-87 (cents->dollars
-                            (-> @current-zone
-                                :fuel_prices
-                                :87))
-                 :price-91 (cents->dollars
-                            (-> @current-zone
-                                :fuel_prices
-                                :91))
-                 :service-fee-60 (cents->dollars
-                                  (-> @current-zone
-                                      :service_fees
-                                      :60))
-                 :service-fee-180 (cents->dollars
-                                   (-> @current-zone
-                                       :service_fees
-                                       :180))
-                 :service-time-bracket-begin
-                 (-> @current-zone
-                     :service_time_bracket
-                     first)
-                 :service-time-bracket-end
-                 (-> @current-zone
-                     :service_time_bracket
-                     second))))
+          (displayed-zone @current-zone)))
 
 (defn zone->server-req
   [zone]
@@ -141,14 +147,16 @@
                       :service-fee-60 "1 Hour Fee"
                       :service-fee-180 "3 Hour Fee"
                       :service-time-bracket-begin "Service Starts"
-                      :service-time-bracket-end "Service Ends"}]
+                      :service-time-bracket-end "Service Ends"}
+        diff-msg-gen (fn [edit current] (diff-message edit
+                                                      (displayed-zone current)
+                                                      diff-key-str))]
     (fn [zone]
       (let [submit-on-click (fn [e]
                               (.preventDefault e)
                               (if @editing?
-                                (if (every? nil? (diff-message
-                                                  @edit-zone @current-zone
-                                                  diff-key-str))
+                                (if (every? nil? (diff-msg-gen @edit-zone
+                                                               @current-zone))
                                   ;; there isn't a diff message, no changes
                                   ;; do nothing
                                   (reset! editing? (not @editing?))
@@ -266,10 +274,9 @@
                               :retrieving? retrieving?
                               :submit-fn submit-on-click
                               :dismiss-fn dismiss-fn}]
-         (when (and @confirming?
-                    (not-every? nil? (diff-message
-                                      @edit-zone @current-zone
-                                      diff-key-str)))
+         (if (and @confirming?
+                  (not-every? nil? (diff-msg-gen
+                                    @edit-zone @current-zone)))
            [ConfirmationAlert
             {:confirmation-message
              (fn []
@@ -278,9 +285,8 @@
                 (map (fn [el]
                        ^{:key el}
                        [:h4 el])
-                     (diff-message
-                      @edit-zone @current-zone
-                      diff-key-str))])
+                     (diff-msg-gen
+                      @edit-zone @current-zone))])
              :cancel-on-click dismiss-fn
              :confirm-on-click (fn [_]
                                  (entity-save
@@ -295,7 +301,8 @@
                                   (edit-on-error edit-zone
                                                  :aux-fn
                                                  #(reset! confirming? false))))
-             :retrieving? retrieving?}])
+             :retrieving? retrieving?}]
+           (reset! confirming? false))
          (when-not (empty? @alert-success)
            [AlertSuccess {:message @alert-success
                           :dismiss #(reset! alert-success "")}])]))))

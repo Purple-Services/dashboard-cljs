@@ -161,7 +161,10 @@
 (defn diff-message
   "Given a "
   [old new key-str]
-  (let [[new-map old-map unchanged] (diff old new)
+  (let [[new-map old-map unchanged] (clojure.data/diff old new)
         concern (into [] (keys key-str))]
-    (map #(when-not (contains? unchanged %)
-            (str (% key-str) " : " (% old-map) " -> " (% new-map))) concern)))
+    (filter
+     (comp not nil?)
+     (map #(when-not (contains? unchanged %)
+             (str (% key-str) " : " (% old-map) " -> " (% new-map)))
+          concern))))

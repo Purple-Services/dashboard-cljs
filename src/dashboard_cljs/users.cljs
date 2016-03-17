@@ -34,6 +34,27 @@
                     :edit-user default-user
                     :alert-success ""}))
 
+(defn displayed-user
+  [user]
+  (let [{:keys [referral_gallons]} user]
+    (assoc user
+           :referral_gallons
+           (str referral_gallons))))
+
+(defn user->server-req
+  [user]
+  (let [{:keys [referral_gallons]} user]
+    (assoc user
+           :referral_gallons
+           (if (parse-to-number? referral_gallons)
+             (js/Number referral_gallons)
+             referral_gallons))))
+
+(defn reset-edit-user!
+  [edit-user current-user]
+  (reset! edit-user
+          (displayed-user @current-user)))
+
 (defn user-row
   "A table row for an user in a table. current-user is the one currently 
   being viewed"
@@ -179,7 +200,10 @@
         errors   (r/cursor edit-user [:errors])
         referral-gallons (r/cursor edit-user [:referral_gallons])
         alert-success (r/cursor state [:alert-success])
-        diff-key-str {:referral_gallons "Referral Gallons"}]
+        diff-key-str {:referral_gallons "Referral Gallons"}
+        diff-msg-gen (fn [edit current] (diff-message edit
+                                                      (displayed-user current)
+                                                      diff-key-str))]
     (fn [user]
       (let [default-card-info (if (empty? (:stripe_cards @edit-user))
                                 nil
@@ -192,9 +216,9 @@
             submit-on-click (fn [e]
                               (.preventDefault e)
                               (if @editing?
-                                (if (every? nil? (diff-message
-                                                  @edit-user @current-user
-                                                  diff-key-str))
+                                (if (every? nil?
+                                            (diff-msg-gen @edit-user
+                                                          @current-user))
                                   ;; there isn't a diff message, no changes
                                   ;; do nothing
                                   (reset! editing? (not @editing?))
@@ -210,28 +234,22 @@
                          ;; no longer editing
                          (reset! editing? false)
                          ;; reset current user
-                         (reset! edit-user @current-user)
+                         (reset-edit-user! edit-user current-user)
                          ;; reset confirming
                          (reset! confirming? false))]
         [:form {:class "form-horizontal"}
          ;; email
          [KeyVal "Email" (:email @user)]
          ;; phone number
-         [KeyVal "Phone" (:phone_number ;;@user
-                          @user
-                          )]
+         [KeyVal "Phone" (:phone_number @user)]
          ;; date started
          [KeyVal "Registered" (unix-epoch->fmt
-                               (:timestamp_created ;;@user
-                                @user
-                                )
+                               (:timestamp_created @user)
                                "M/D/YYYY")]
          ;; last active (last ping)
-         (when-not (nil? (:last_active ;;@user
-                          @user))
+         (when-not (nil? (:last_active @user))
            [KeyVal "Last Active" (unix-epoch->fmt
-                                  (:last_active ;;@user
-                                   @user)
+                                  (:last_active @user)
                                   "M/D/YYYY")])
          ;; default card
          (when (not (nil? default-card-info))
@@ -250,11 +268,14 @@
            [FormGroup {:label "Referral Gallons"
                        :label-for "referral gallons"
                        :errors (:referral_gallons @errors)
-                       :input-container-class "col-sm-3"}
-            [TextInput {:value (:referral_gallons @edit-user)
-                        :default-value (:referral_gallons @edit-user)
+                       :input-container-class "col-sm-7"}
+            [TextInput {:value @referral-gallons
+                        ;;(:referral_gallons @edit-user)
+                        :default-value ;;(:referral_gallons @edit-user)
+                        @referral-gallons
                         :on-change #(reset!
-                                     (r/cursor edit-user [:referral_gallons])
+                                     ;;(r/cursor edit-user [:referral_gallons])
+                                     referral-gallons
                                      (-> %
                                          (aget "target")
                                          (aget "value")))}]]
@@ -266,10 +287,9 @@
            :retrieving? retrieving?
            :submit-fn submit-on-click
            :dismiss-fn dismiss-fn}]
-         (when (and @confirming?
-                    (not-every? nil? (diff-message
-                                      @edit-user @current-user
-                                      diff-key-str)))
+         (if (and @confirming?
+                    (not-every? nil?
+                                (diff-msg-gen @edit-user @current-user)))
            [ConfirmationAlert
             {:confirmation-message
              (fn []
@@ -278,18 +298,11 @@
                 (map (fn [el]
                        ^{:key el}
                        [:h4 el])
-                     (diff-message
-                      @edit-user @current-user
-                      {:referral_gallons "Referral Gallons"}))])
+                     (diff-msg-gen @edit-user @current-user))])
              :cancel-on-click dismiss-fn
              :confirm-on-click (fn [_]
                                  (entity-save
-                                  (assoc
-                                   @user
-                                   :referral_gallons
-                                   (if (parse-to-number? @referral-gallons)
-                                     (js/Number @referral-gallons)
-                                     @referral-gallons))
+                                  (user->server-req @edit-user)
                                   "user"
                                   "PUT"
                                   retrieving?
@@ -300,7 +313,8 @@
                                   (edit-on-error edit-user
                                                  :aux-fn
                                                  #(reset! confirming? false))))
-             :retrieving? retrieving?}])
+             :retrieving? retrieving?}]
+           (reset! confirming? false))
          ;; success alert
          (when-not (empty? @alert-success)
            [AlertSuccess {:message @alert-success
@@ -419,7 +433,8 @@
                              (reset! saving? false)))))]
         (when (nil? @current-user)
           (reset! current-user (first paginated-users)))
-        (reset! edit-user @current-user)
+        ;;(reset! edit-user @current-user)
+        (reset-edit-user! edit-user current-user)
         ;; set the edit-user values to match those of current-user 
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
