@@ -276,11 +276,11 @@
                               :method "GET"}}
                            @accessible-routes)
               [:div
+               [coupons/coupons-panel @datastore/coupons]
                (when (subset? #{{:uri "/coupon"
                                  :method "POST"}}
                               @accessible-routes)
-                 [coupons/new-coupon-panel])
-               [coupons/coupons-panel @datastore/coupons]])]]]
+                 [coupons/create-coupon-comp])])]]]
          ;; zones page
          [TabContent
           {:toggle (r/cursor tab-content-toggle [:zones-view])}

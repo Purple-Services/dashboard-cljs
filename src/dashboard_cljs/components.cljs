@@ -349,7 +349,7 @@
 
 (defn EditFormSubmit
   [props]
-  (fn [{:keys [retrieving? editing? on-click]} props]
+  (fn [{:keys [retrieving? editing? on-click edit-btn-content]} props]
     [:button {:type "submit"
               :class "btn btn-sm btn-default"
               :disabled @retrieving?
@@ -359,7 +359,7 @@
            @editing?
            "Save"
            (not @editing?)
-           "Edit")]))
+           edit-btn-content)]))
 
 (defn DismissButton
   [props]
@@ -384,11 +384,15 @@
 
 (defn SubmitDismissGroup
   [props]
-  (fn [{:keys [confirming? editing? retrieving? submit-fn dismiss-fn]} props]
+  (fn [{:keys [confirming? editing? retrieving? submit-fn dismiss-fn
+               edit-btn-content]} props]
     [SubmitDismiss {:confirming? confirming?
                     :editing? editing?
                     :retrieving? retrieving?}
      [EditFormSubmit {:retrieving? retrieving?
                       :editing? editing?
-                      :on-click submit-fn}]
+                      :on-click submit-fn
+                      :edit-btn-content (if edit-btn-content
+                                          edit-btn-content
+                                          "Edit")}]
      [DismissButton {:dismiss-fn dismiss-fn}]]))
