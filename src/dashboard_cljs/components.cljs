@@ -306,6 +306,27 @@
              :placeholder placeholder
              :on-change on-change}]))
 
+(defn TextAreaInput
+  "props is:
+  {
+  :value          ; str
+  :default-value  ; str
+  :placeholder    ; str, optional
+  :on-change      ; fn, fn to execute on change
+  :rows           ; number
+  :cols           : number
+  }
+  "
+  [props]
+  (fn [{:keys [value default-value placeholder on-change rows cols]} props]
+    [:textarea {:class "form-control"
+                :rows rows
+                :cols cols
+                :value value
+                :defaultValue default-value
+                :placeholder placeholder
+                :on-change on-change}]))
+
 (defn FormGroup
   "props is:
   {
@@ -396,3 +417,23 @@
                                           edit-btn-content
                                           "Edit")}]
      [DismissButton {:dismiss-fn dismiss-fn}]]))
+
+(defn ViewHideButton
+  "A button toggling view/hide of information
+  prop is:
+  {
+  :class        ; str, class for the button
+  :view-content ; str, display when @view? is true
+  :hide-content ; str, display when @view? is false
+  :on-click     ; fn
+  :view?        ; r/atom, boolean
+  }
+  "
+  [props]
+  (fn [{:keys [class view-content hide-content on-click view?]} props]
+    [:button {:type "button"
+              :class class
+              :on-click on-click}
+     (if @view?
+       hide-content
+       view-content)]))

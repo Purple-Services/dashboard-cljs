@@ -15,13 +15,16 @@
                                                FormGroup TextInput
                                                ProcessingIcon AlertSuccess
                                                EditFormSubmit DismissButton
-                                               SubmitDismissGroup]]
+                                               SubmitDismissGroup
+                                               TextAreaInput
+                                               ViewHideButton]]
             [clojure.string :as s]))
 
 (def push-selected-users (r/atom (set nil)))
 
 (def default-user {:editing? false
                    :retrieving? false
+                   :referral_comment ""
                    :errors nil})
 
 (def state (r/atom {:confirming? false
@@ -32,14 +35,16 @@
                     :search-retrieving? false
                     :current-user nil
                     :edit-user default-user
-                    :alert-success ""}))
+                    :alert-success ""
+                    :view-log? false}))
 
 (defn displayed-user
   [user]
   (let [{:keys [referral_gallons]} user]
     (assoc user
            :referral_gallons
-           (str referral_gallons))))
+           (str referral_gallons)
+           :referral-comment "")))
 
 (defn user->server-req
   [user]
@@ -189,6 +194,42 @@
         (when number-rating
           [StarRating number-rating]))]]))
 
+(defn user-history-header
+  "props
+  {
+  :sort-keyword   ; r/atom, keyword
+  :sort-reversed? ; r/atom, boolean
+  }"
+  [props]
+  (fn [props]
+    [:thead
+     [:tr
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}}
+       "Date"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}}
+       "Admin"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}}
+       "Adjustment"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}}
+       "Comment"]]]))
+
+(defn user-history-row
+  []
+  (fn [user-log]
+    [:tr
+     ;; Date
+     [:td (unix-epoch->fmt (:timestamp user-log) "M/D/YYYY h:mm A")]
+     ;; Admin
+     [:td (:admin_name user-log)]
+     ;; Gallon adjustment
+     [:td (str (:previous_value user-log) " -> " (:new_value user-log))]
+     ;; comment
+     [:td (:comment user-log)]]))
+
 (defn user-form
   "Form for editing a user"
   [user]
@@ -199,6 +240,7 @@
         confirming? (r/cursor state [:confirming-edit?])
         errors   (r/cursor edit-user [:errors])
         referral-gallons (r/cursor edit-user [:referral_gallons])
+        comment (r/cursor edit-user [:referral_comment])
         alert-success (r/cursor state [:alert-success])
         diff-key-str {:referral_gallons "Referral Gallons"}
         diff-msg-gen (fn [edit current] (diff-message edit
@@ -265,20 +307,29 @@
                (:exp_year default-card-info)))])
          ;; Referral Gallons
          (if @editing?
-           [FormGroup {:label "Referral Gallons"
-                       :label-for "referral gallons"
-                       :errors (:referral_gallons @errors)
-                       :input-container-class "col-sm-7"}
-            [TextInput {:value @referral-gallons
-                        ;;(:referral_gallons @edit-user)
-                        :default-value ;;(:referral_gallons @edit-user)
-                        @referral-gallons
-                        :on-change #(reset!
-                                     ;;(r/cursor edit-user [:referral_gallons])
-                                     referral-gallons
-                                     (-> %
-                                         (aget "target")
-                                         (aget "value")))}]]
+           [:div
+            [FormGroup {:label "Referral Gallons"
+                        :label-for "referral gallons"
+                        :errors (:referral_gallons @errors)
+                        :input-container-class "col-sm-7"}
+             [TextInput {:value @referral-gallons
+                         :default-value @referral-gallons
+                         :on-change #(reset!
+                                      referral-gallons
+                                      (-> %
+                                          (aget "target")
+                                          (aget "value")))}]]
+            [FormGroup {:label "Referral Gallons Comment"
+                        :label-for "referral gallons comment"
+                        :input-container-class "col-sm-7"}
+             [TextAreaInput {:value @comment
+                             :rows 2
+                             :cols 50
+                             :on-change #(reset!
+                                          comment
+                                          (-> %
+                                              (aget "target")
+                                              (aget "value")))}]]]
            [KeyVal "Referral Gallons" (:referral_gallons ;;@user
                                        @user)])
          [SubmitDismissGroup
@@ -329,7 +380,8 @@
         show-orders? (r/atom true)
         current-page (r/atom 1)
         page-size 5
-        edit-user    (r/cursor state [:edit-user])]
+        edit-user    (r/cursor state [:edit-user])
+        view-log?    (r/cursor state [:view-log?])]
     (fn [current-user]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -365,7 +417,28 @@
           [:div {:class "col-xs-3"}
            [:div [:h3 (:name @current-user)]]
            ;; main display panel
-           [user-form current-user]]
+           [user-form current-user]
+           ;; below is for showing user logs,
+           ;; implemented, but not used yet
+           ;; [:br]
+           ;; [ViewHideButton {:class "btn btn-sm btn-default"
+           ;;                  :view-content "View Logs"
+           ;;                  :hide-content "Hide Logs"
+           ;;                  :on-click #(swap! view-log? not)
+           ;;                  :view? view-log?}]
+           ;; (when @view-log?
+           ;;   [:div {:class "table-responsive"
+           ;;          :style (if @view-log?
+           ;;                   {}
+           ;;                   {:display "none"})}
+           ;;    [StaticTable
+           ;;     {:table-header [user-history-header
+           ;;                     {;;:sort-keyword sort-keyword-logs
+           ;;                      ;;:sort-reversed? sort-reversed-logs?
+           ;;                      }]
+           ;;      :table-row (user-history-row)}
+           ;;     (sort-by :timestamp (:admin_event_log @current-user))]])
+           ]
           ;; Table of orders for current user
           (when (> (count paginated-orders)
                    0)
