@@ -1,6 +1,7 @@
 (ns dashboard-cljs.utils
   (:require [cljsjs.moment]
             [cljs.reader :refer [read-string]]
+            [clojure.data :refer [diff]]
             [clojure.string :as s]
             [reagent.core :as r]))
 
@@ -199,3 +200,15 @@
       (.split ".")
       first
       (clojure.string/replace #"\B(?=(\d{3})+(?!\d))" ",")))
+
+(defn diff-message
+  "Given a "
+  [old new key-str]
+  (let [[new-map old-map unchanged] (clojure.data/diff old new)
+        concern (into [] (keys key-str))]
+    (filter
+     (comp not nil?)
+     (map #(when-not (contains? unchanged %)
+             (str (% key-str) " : " (% old-map) " -> " (% new-map)))
+          concern))))
+

@@ -311,3 +311,171 @@
                     :color "black"}}
        "Loading   " [:i {:class "fa fa-spinner fa-pulse"
                       :style {:color "black"}}]]]]))
+
+(defn AlertSuccess
+  "An alert for when an action is successfully completed
+  props is
+  {
+  :message str ; message to display
+  :dismiss fn  ; user dismisses this dialgoue
+  }"
+  [props]
+  (fn [{:keys [message dismiss]} props]
+    [:div {:class "alert alert-success alert-dismissible"}
+     [:button {:type "button"
+               :class "close"
+               :aria-label "Close"}
+      [:i {:class "fa fa-times"
+           :on-click dismiss}]]
+     [:strong message]]))
+
+(defn TextInput
+  "props is:
+  {
+  :value          ; str
+  :default-value  ; str
+  :placeholder    ; str, optional
+  :on-change      ; fn, fn to execute on change
+  }
+  "
+  [props]
+  (fn [{:keys [value default-value placeholder on-change]} props]
+    [:input {:type "text"
+             :class "form-control"
+             :value value
+             :defaultValue default-value
+             :placeholder placeholder
+             :on-change on-change}]))
+
+(defn TextAreaInput
+  "props is:
+  {
+  :value          ; str
+  :default-value  ; str
+  :placeholder    ; str, optional
+  :on-change      ; fn, fn to execute on change
+  :rows           ; number
+  :cols           : number
+  }
+  "
+  [props]
+  (fn [{:keys [value default-value placeholder on-change rows cols]} props]
+    [:textarea {:class "form-control"
+                :rows rows
+                :cols cols
+                :value value
+                :defaultValue default-value
+                :placeholder placeholder
+                :on-change on-change}]))
+
+(defn FormGroup
+  "props is:
+  {
+  :label                 ; str
+  :label-for             ; str
+  :errors                ; str
+  :input-group-addon     ; optional, hiccup vector
+  :input-container-class ; optional, str
+  }
+  input is hiccup-stype reagent input
+  "
+  [props input]
+  (fn [props input]
+    (let [{:keys [label label-for errors input-group-addon
+                  input-container-class]} props]
+      [:div {:class "form-group"}
+       [:label {:for label-for
+                :class "col-sm-2 control-label"}
+        label]
+       [:div {:class (if input-container-class
+                       input-container-class
+                       "col-sm-2")}
+        [:div {:class "input-group"}
+         (when input-group-addon
+           input-group-addon)
+         input]
+        (when errors
+          [:div {:class "alert alert-danger"}
+           (first errors)])]])))
+
+(defn FormSubmit
+  [button]
+  (fn [button]
+    [:div {:class "form-group"}
+     button]))
+
+(defn ProcessingIcon
+  []
+  (fn []
+    [:i {:class "fa fa-lg fa-spinner fa-pulse "}]))
+
+(defn EditFormSubmit
+  [props]
+  (fn [{:keys [retrieving? editing? on-click edit-btn-content]} props]
+    [:button {:type "submit"
+              :class "btn btn-sm btn-default"
+              :disabled @retrieving?
+              :on-click on-click}
+     (cond @retrieving?
+           [ProcessingIcon]
+           @editing?
+           "Save"
+           (not @editing?)
+           edit-btn-content)]))
+
+(defn DismissButton
+  [props]
+  (fn [{:keys [dismiss-fn]} props]
+    [:button {:type "button"
+              :class "btn btn-sm btn-default"
+              :on-click dismiss-fn}
+     "Dismiss"]))
+
+(defn SubmitDismiss
+  [props submit dismiss]
+  (fn [{:keys [confirming? editing? retrieving?]} props]
+    (when-not @confirming?
+      [:div {:class "btn-toolbar"}
+       ;; edit button
+       [:div {:class "btn-group"}
+        submit]
+       [:div {:class "btn-group"}
+        ;; dismiss button
+        (when-not (or @retrieving? (not @editing?))
+          dismiss)]])))
+
+(defn SubmitDismissGroup
+  [props]
+  (fn [{:keys [confirming? editing? retrieving? submit-fn dismiss-fn
+               edit-btn-content]} props]
+    [SubmitDismiss {:confirming? confirming?
+                    :editing? editing?
+                    :retrieving? retrieving?}
+     [EditFormSubmit {:retrieving? retrieving?
+                      :editing? editing?
+                      :on-click submit-fn
+                      :edit-btn-content (if edit-btn-content
+                                          edit-btn-content
+                                          "Edit")}]
+     [DismissButton {:dismiss-fn dismiss-fn}]]))
+
+(defn ViewHideButton
+  "A button toggling view/hide of information
+  prop is:
+  {
+  :class        ; str, class for the button
+  :view-content ; str, display when @view? is true
+  :hide-content ; str, display when @view? is false
+  :on-click     ; fn
+  :view?        ; r/atom, boolean
+  }
+  "
+  [props]
+  (fn [{:keys [class view-content hide-content on-click view?]} props]
+    [:button {:type "button"
+              :class class
+              :on-click on-click}
+     (if @view?
+       hide-content
+       view-content)]))
+

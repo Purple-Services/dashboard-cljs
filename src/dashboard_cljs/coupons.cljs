@@ -3,6 +3,8 @@
             [cljs.core.async :refer [put!]]
             [clojure.set :refer [subset?]]
             [dashboard-cljs.datastore :as datastore]
+            [dashboard-cljs.forms :refer [entity-save retrieve-entity
+                                          edit-on-error edit-on-success]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt markets
                                           json-string->clj cents->$dollars
@@ -11,7 +13,11 @@
                                           accessible-routes expired-coupon?]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton DatePicker
-                                               TablePager TableFilterButtonGroup]]
+                                               TablePager TableFilterButtonGroup
+                                               FormGroup TextInput
+                                               KeyVal FormSubmit AlertSuccess
+                                               SubmitDismissGroup
+                                               ConfirmationAlert]]
             [clojure.string :as s]))
 
 (def default-new-coupon
@@ -20,100 +26,68 @@
    :expiration_time (-> (js/moment)
                         (.endOf "day")
                         (.unix))
-   :only_for_first_orders true
-   :errors nil
-   :expires? false
+   :only_for_first_orders true})
+
+(def default-edit-coupon
+  {:errors nil
    :retrieving? false
-   :alert-success ""})
+   :editing? false})
+
 
 (def state (r/atom {:current-coupon nil
-                    :new-coupon
-                    default-new-coupon
+                    :confirming-edit? false
+                    :confirming-create? false
+                    :alert-success ""
+                    :new-coupon-alert-success ""
+                    :new-coupon (merge default-new-coupon
+                                       default-edit-coupon)
                     :edit-coupon
-                    default-new-coupon}))
+                    default-edit-coupon
+                    :selected "active"}))
 
-(defn update-on-click
-  "on-click fn for updating a coupon on the server. Optionally provide
-  current-coupon when editing an existing coupon"
-  ([coupon] (update-on-click coupon nil))
-  ([coupon current-coupon]
-   (let [retrieving? (r/cursor coupon [:retrieving?])
-         errors      (r/cursor coupon [:errors])
-         code        (r/cursor coupon [:code])
-         method      (if (nil? current-coupon)
-                       "POST"
-                       "PUT")]
-     (fn [e]
-       (.preventDefault e)
-       ;; we are retrieving
-       (reset! retrieving? true)
-       ;; send response to server
-       (retrieve-url
-        (str base-url "coupon")
-        method
-        (js/JSON.stringify
-         (clj->js (assoc @coupon
-                         :value
-                         (let [value (:value @coupon)]
-                           (if (parse-to-number? value)
-                             (dollars->cents
-                              value)
-                             value))
-                         :expiration_time
-                         (if (:expires? @coupon)
-                           (:expiration_time @coupon)
-                           1999999999))))
-        (partial
-         xhrio-wrapper
-         (fn [r]
-           (let [response (js->clj r
-                                   :keywordize-keys
-                                   true)]
-             (when (not (:success response))
-               (when (not (nil? current-coupon))
-                 ;; we obviously have an error, there shouldn't
-                 ;; be a success message!
-                 (reset! (r/cursor coupon [:alert-success]) ""))
-               (reset! retrieving? false)
-               ;; handle errors
-               (reset! errors (first
-                               (:validation response))))
-             (when (:success response)
-               ;; retrieve the new coupon
-               (retrieve-url
-                (str base-url "coupon/" @code)
-                "GET"
-                {}
-                (partial
-                 xhrio-wrapper
-                 (fn [r]
-                   (let [response
-                         (js->clj
-                          r :keywordize-keys true)]
-                     (put! datastore/modify-data-chan
-                           {:topic "coupons"
-                            :data response})
-                     ;; reset edit-coupon
-                     (reset!
-                      coupon
-                      (if (nil? current-coupon)
-                        (assoc default-new-coupon
-                               :alert-success
-                               (str "Coupon '" @code
-                                    "' successfully created!"))
-                        (assoc @coupon
-                               :retrieving? false
-                               :errors nil)))
-                     ;; reset the current-coupon
-                     (when (not (nil? current-coupon))
-                       (reset! current-coupon
-                               (assoc
-                                (first response)
-                                :alert-success
-                                (str "Coupon '" @code
-                                     "' successfully updated!")))))))))))))))))
+(defn displayed-coupon
+  [coupon]
+  (let [{:keys [code value expiration_time only_for_first_orders expires?]}
+        coupon]
+    (assoc coupon
+           :code
+           code
+           :value (cents->dollars
+                   (.abs js/Math
+                         value))
+           :expiration_time (unix-epoch->fmt expiration_time "M/D/YYYY")
+           :only_for_first_orders only_for_first_orders
+           :expires? (not= expiration_time 1999999999))))
 
-(defn coupon-form-submit
+(defn reset-edit-coupon!
+  [edit-coupon current-coupon]
+  (reset! edit-coupon
+          ;; expiration_time is displayed automatically in the correct
+          ;; format by DatePicker, but it needs unix-epoch
+          (assoc (displayed-coupon @current-coupon)
+                 :expiration_time (:expiration_time @current-coupon))))
+
+(defn reset-new-coupon!
+  []
+  (reset! (r/cursor state [:new-coupon])
+          (merge default-new-coupon
+                 default-edit-coupon)))
+
+(defn coupon->server-req
+  [coupon]
+  (let [{:keys [value expiration_time expires?]} coupon]
+    (assoc coupon
+           :value
+           (if (parse-to-number? value)
+             (dollars->cents
+              value)
+             value)
+           :expiration_time
+           (if expires?
+             expiration_time
+             1999999999))))
+
+(defn coupon-form-submit-button
   "Button for submitting a coupon form for coupon, using on-click
   and label for submit button"
   [coupon on-click label]
@@ -121,123 +95,295 @@
     (let [retrieving? (r/cursor coupon [:retrieving?])
           errors      (r/cursor coupon [:errors])
           code        (r/cursor coupon [:code])]
-      [:div {:class "form-group"}
-       [:div {:class "col-sm-2 control-label"}]
-       [:div {:class "col-sm-10"}
-        [:button {:type "submit"
-                  :class "btn btn-default"
-                  :on-click on-click}
-         (if @retrieving?
-           [:i {:class "fa fa-lg fa-refresh fa-pulse "}]
-           label)]]])))
+      [:button {:type "submit"
+                :class "btn btn-default"
+                :on-click on-click
+                :disabled @retrieving?}
+       (if @retrieving?
+         [:i {:class "fa fa-lg fa-refresh fa-pulse "}]
+         label)])))
 
-(defn coupon-form
-  "Form for a new coupon using submit-button"
-  [coupon submit-button]
-  (let [code (r/cursor coupon [:code])
-        value (r/cursor coupon [:value])
-        only-for-first-order (r/cursor coupon
-                                       [:only_for_first_orders])
-        errors (r/cursor coupon [:errors])
-        retrieving? (r/cursor coupon [:retrieving?])
-        alert-success (r/cursor coupon [:alert-success])
-        expires? (r/cursor coupon [:expires?])]
-    (fn []
-      [:form {:class "form-horizontal"}
-       ;; promo code
-       [:div {:class "form-group"}
-        [:label {:for "promo code"
-                 :class "col-sm-2 control-label"}
-         "Code"]
-        [:div {:class "col-sm-10"}
-         [:input {:type "text"
-                  :class "form-control"
+(defn coupon-form-render
+  [props]
+  (fn [{:keys [errors code value expires? expiration-time only-for-first-order]}
+       props]
+    [:div
+     ;; promo code
+     [FormGroup {:label "Code"
+                 :label-for "promo code"
+                 :errors (:code @errors)}
+      [TextInput {:value @code
+                  :default-value @code
                   :placeholder "Code"
-                  :defaultValue @code
-                  :value @code
-                  :on-change #(reset! code (-> %
-                                               (aget "target")
-                                               (aget "value")
-                                               (format-coupon-code)
-                                               ))}]
-         (when (:code @errors)
-           [:div {:class "alert alert-danger"}
-            (first (:code @errors))])]]
-       ;; amount
-       [:div {:class "form-group"}
-        [:label {:for "amount"
-                 :class "col-sm-2 control-label"}
-         "Amount"]
-        [:div {:class "col-sm-10"}
-         [:div {:class "input-group"}
-          [:div {:class "input-group-addon"}
-           "$"]
-          [:input {:type "text"
-                   :class "form-control"
-                   :placeholder "Amount"
-                   :value @value
-                   :on-change #(reset! value (-> %
-                                                 (aget "target")
-                                                 (aget "value")))}]]
-         (when (:value @errors)
-           [:div {:class "alert alert-danger"}
-            (first (:value @errors))])]]
-       ;; exp date
-       [:div {:class "form-group"}
-        [:label {:for "expires?"
-                 :class "col-sm-2 control-label"}
-         "Expires? "
-         [:input {:type "checkbox"
-                  :checked @expires?
                   :on-change #(reset!
-                               expires?
+                               code
                                (-> %
                                    (aget "target")
-                                   (aget "checked")))}]]
-        [:div {:class "col-sm-10"}
-         [:div {:class "input-group"}
-          (when @expires?
-            [DatePicker (r/cursor coupon [:expiration_time])])]
-         (when (:expiration_time @errors)
-           [:div {:class "alert alert-danger"}
-            (first (:expiration_time @errors))])]]
-       ;; first time only?
-       [:div {:class "form-group"}
-        [:label {:for "first time only?"
-                 :class "col-sm-2 control-label"}
-         "First Time Only?"]
-        [:div {:class "col-sm-10"}
-         [:div {:class "input-group"}
-          [:input {:type "checkbox"
-                   :checked @only-for-first-order
-                   :on-change #(reset!
-                                only-for-first-order
-                                (-> %
-                                    (aget "target")
-                                    (aget "checked")))}]]]]
-       submit-button
-       (when (not (empty? @alert-success))
-         [:div {:class "alert alert-success alert-dismissible"}
-          [:button {:type "button"
-                    :class "close"
-                    :aria-label "Close"}
-           [:i {:class "fa fa-times"
-                :on-click #(reset! alert-success "")}]]
-          [:strong @alert-success]])])))
+                                   (aget "value")
+                                   (format-coupon-code)))}]]
+     ;; amount
+     [FormGroup {:label "Amount"
+                 :label-for "amount"
+                 :errors (:value @errors)}
+      [TextInput {:value @value
+                  :placeholder "Amount"
+                  :on-change #(reset!
+                               value (-> %
+                                         (aget "target")
+                                         (aget "value")))}]]
+     ;; exp date
+     [:div {:class "form-group"}
+      [:label {:for "expires?"
+               :class "col-sm-2 control-label"}
+       "Expires? "
+       [:input {:type "checkbox"
+                :checked @expires?
+                :on-change (fn [e]
+                             (reset!
+                              expires?
+                              (-> e
+                                  (aget "target")
+                                  (aget "checked")))
+                             (when-not @expires?
+                               (reset! expiration-time
+                                       1999999999)))}]]
+      [:div {:class "col-sm-10"}
+       [:div {:class "input-group"}
+        (when @expires?
+          [DatePicker expiration-time])]
+       (when (:expiration_time @errors)
+         [:div {:class "alert alert-danger"}
+          (first (:expiration_time @errors))])]]
+     ;; first tine only?
+     [:div {:class "form-group"}
+      [:label {:for "first time only?"
+               :class "col-sm-2 control-label"}
+       "First Order Only?"]
+      [:div {:class "col-sm-10"}
+       [:div {:class "input-group"}
+        [:input {:type "checkbox"
+                 :checked @only-for-first-order
+                 :on-change #(reset!
+                              only-for-first-order
+                              (-> %
+                                  (aget "target")
+                                  (aget "checked")))}]]]]]))
 
-(defn new-coupon-panel
+(defn edit-coupon-comp
+  [coupon]
+  (let [edit-coupon (r/cursor state [:edit-coupon])
+        
+        code (r/cursor edit-coupon [:code])
+        value (r/cursor edit-coupon [:value])
+        expiration-time (r/cursor edit-coupon [:expiration_time])
+        expires? (r/cursor edit-coupon [:expires?])
+        only-for-first-order (r/cursor edit-coupon
+                                       [:only_for_first_orders])
+        editing? (r/cursor edit-coupon [:editing?])
+        retrieving? (r/cursor edit-coupon [:retrieving?])
+        errors (r/cursor edit-coupon [:errors])
+        
+        current-coupon (r/cursor state [:current-coupon])
+        alert-success (r/cursor state [:alert-success])
+        confirming? (r/cursor state [:confirming-edit?])
+        
+        diff-key-str {:code "Code"
+                      :value "Value"
+                      :only_for_first_orders "First Order Only?"
+                      :expiration_time "Expiration Date"}
+        diff-msg-gen (fn [edit current]
+                       (diff-message
+                        (assoc edit :expiration_time
+                               (unix-epoch->fmt (:expiration_time edit)
+                                                "M/D/YYYY"))
+                        (displayed-coupon current)
+                        diff-key-str))]
+    (fn [coupon]
+      (let [submit-on-click (fn [e]
+                              (.preventDefault e)
+                              (if @editing?
+                                (if (every? nil? (diff-msg-gen @edit-coupon
+                                                               @current-coupon))
+                                  ;; there isn't a diff message, no changes
+                                  ;; do nothing
+                                  (reset! editing? (not @editing?))
+                                  ;; there is a diff message, confirm changes
+                                  (reset! confirming? true))
+                                (do
+                                  ;; get rid of alert-success
+                                  (reset! alert-success "")
+                                  (reset! editing? (not @editing?)))))
+            dismiss-fn (fn [e]
+                         ;; reset any errors
+                         (reset! errors nil)
+                         ;; no longer editing
+                         (reset! editing? false)
+                         ;; reset current coupon
+                         (reset-edit-coupon! edit-coupon current-coupon)
+                         ;; reset confirming
+                         (reset! confirming? false))]
+        [:form {:class "form-horizontal"}
+         (cond @editing?
+               [coupon-form-render {:errors errors
+                                    :code code
+                                    :value value
+                                    :expires? expires?
+                                    :expiration-time expiration-time
+                                    :only-for-first-order only-for-first-order}]
+               (and (not @editing?)
+                    (not (s/blank? @code)))
+               [:div
+                [KeyVal "Code" (-> @coupon
+                                   :code)]
+                [KeyVal "Amount" (->> @coupon
+                                      :value
+                                     (.abs js/Math)
+                                     (cents->$dollars))]
+                [KeyVal "Expiration Date" (-> @coupon
+                                              :expiration_time
+                                              (unix-epoch->fmt "M/D/YYYY"))]
+                [KeyVal "First Order Only?" (if (:only_for_first_orders @coupon)
+                                              "Yes"
+                                              "No")]])
+         ;;submit-button
+         [SubmitDismissGroup {:confirming? confirming?
+                              :editing? editing?
+                              :retrieving? retrieving?
+                              :submit-fn submit-on-click
+                              :dismiss-fn dismiss-fn}]
+         (if (and @confirming?
+                    (not-every? nil? (diff-msg-gen
+                                      @edit-coupon @current-coupon)))
+           [ConfirmationAlert
+            {:confirmation-message
+             (fn []
+               [:div (str "The following changes will be made to "
+                          (:code @current-coupon))
+                (map (fn [el]
+                       ^{:key el}
+                       [:h4 el])
+                     (diff-msg-gen
+                      @edit-coupon @current-coupon))])
+             :cancel-on-click dismiss-fn
+             :confirm-on-click (fn [_]
+                                 (entity-save
+                                  (coupon->server-req @edit-coupon)
+                                  "coupon"
+                                  "PUT"
+                                  retrieving?
+                                  (edit-on-success "coupon"
+                                                   edit-coupon
+                                                   current-coupon
+                                                   alert-success
+                                                   :aux-fn
+                                                   #(reset! confirming? false))
+                                  (edit-on-error edit-coupon
+                                                 :aux-fn
+                                                 #(reset! confirming? false))))
+             :retrieving? retrieving?}]
+           (reset! confirming? false))
+         (when-not (empty? @alert-success)
+           [AlertSuccess {:message @alert-success
+                          :dismiss #(reset! alert-success "")}])]))))
+
+(defn create-coupon-comp
   "The panel for creating a new coupon"
   []
   (fn []
-    (let [coupon (r/cursor state [:new-coupon])
-          retrieving? (r/cursor coupon [:retrieving?])
-          errors      (r/cursor coupon [:errors])
-          code        (r/cursor coupon [:code])]
+    (let [new-coupon (r/cursor state [:new-coupon])
+
+          code (r/cursor new-coupon [:code])
+          value (r/cursor new-coupon [:value])
+          expiration-time (r/cursor new-coupon [:expiration_time])
+          expires? (r/cursor new-coupon [:expires?])
+          only-for-first-order (r/cursor new-coupon [:only_for_first_orders])
+
+          editing?    (r/cursor new-coupon [:editing?])
+          retrieving? (r/cursor new-coupon [:retrieving?])
+          errors      (r/cursor new-coupon [:errors])
+
+          alert-success (r/cursor state [:new-coupon-alert-success])
+          confirming? (r/cursor state [:confirming-create?])
+
+          confirm-msg (fn [coupon]
+                        (let [{:keys [code value expiration_time
+                                      only_for_first_orders]} @new-coupon]
+                          [:div
+                           (str "Are you sure you want to create a new coupon "
+                                "with the following values?")
+                           [:h4 "Code: " code]
+                           [:h4 "Amount: " value]
+                           [:h4 "Expiration Date: " (unix-epoch->fmt
+                                                     expiration_time
+                                                     "M/D/YYYY")]
+                           [:h4 "First Order Only?: " (if only_for_first_orders
+                                                         "Yes"
+                                                         "No")]]))
+          submit-on-click (fn [e]
+                            (.preventDefault e)
+                            (if @editing?
+                              (do
+                                ;; confirm
+                                (reset! confirming? true))
+                              (do
+                                ;; get rid of alert-success
+                                (reset! alert-success "")
+                                (reset! editing? (not @editing?)))))
+          dismiss-fn (fn [e]
+                         ;; reset any errors
+                         (reset! errors nil)
+                         ;; no longer editing
+                         (reset! editing? false)
+                         ;; reset new coupon
+                         (reset-new-coupon!)
+                         ;; reset confirming
+                         (reset! confirming? false))]
       [:div {:class "panel panel-default"}
        [:div {:class "panel-body"}
-        [:h3 "Create Coupon Code"]
-        [coupon-form (r/cursor state [:new-coupon])
-         [coupon-form-submit coupon (update-on-click coupon) "Create"]]]])))
+        [:form {:class "form-horizontal"}
+         (when @editing?
+           [coupon-form-render {:errors errors
+                                :code code
+                                :value value
+                                :expires? expires?
+                                :expiration-time expiration-time
+                                :only-for-first-order only-for-first-order}])
+         [SubmitDismissGroup {:confirming? confirming?
+                              :editing? editing?
+                              :retrieving? retrieving?
+                              :submit-fn submit-on-click
+                              :dismiss-fn dismiss-fn
+                              :edit-btn-content "Create a New Coupon"}]
+         (when @confirming?
+           [ConfirmationAlert
+            {:confirmation-message (fn [] (confirm-msg @new-coupon))
+             :cancel-on-click dismiss-fn
+             :confirm-on-click
+             (fn [_]
+               (entity-save
+                (coupon->server-req @new-coupon)
+                "coupon"
+                "POST"
+                retrieving?
+                (edit-on-success "coupon"
+                                 new-coupon
+                                 (r/atom {})
+                                 alert-success
+                                 :aux-fn
+                                 (fn [_]
+                                   (reset! confirming? false)
+                                   ;; this must be before new-coupon is reset
+                                   (reset!
+                                    alert-success
+                                    (str @code " was successfully created!"))
+                                   (reset-new-coupon!)))
+                (edit-on-error new-coupon
+                               :aux-fn
+                               #(reset! confirming? false))))
+             :retrieving? retrieving?}])
+         (when-not (empty? @alert-success)
+           [AlertSuccess {:message @alert-success
+                          :dismiss #(reset! alert-success "")}])]]])))
 
 (defn coupon-table-header
   "props is:
@@ -274,7 +420,9 @@
     [:tr {:class (when (= (:id coupon)
                           (:id @current-coupon))
                    "active")
-          :on-click #(reset! current-coupon coupon)}
+          :on-click (fn [_]
+                      (reset! current-coupon coupon)
+                      (reset! (r/cursor state [:alert-success]) ""))}
      ;; code
      [:td (:code coupon)]
      ;; amount
@@ -336,34 +484,15 @@
         (if (nil? @current-coupon)
           (reset! current-coupon (first paginated-coupons)))
         ;; set the edit-coupon values to match those of current-coupon
-        (reset! edit-coupon (assoc default-new-coupon
-                                   :code (:code @current-coupon)
-                                   :value (cents->dollars
-                                           (.abs js/Math
-                                                 (:value @current-coupon)))
-                                   :expiration_time (:expiration_time
-                                                     @current-coupon)
-                                   :only_for_first_orders
-                                   (:only_for_first_orders
-                                    @current-coupon)
-                                   :alert-success (:alert-success
-                                                   @current-coupon)
-                                   :expires? (if (= (:expiration_time
-                                                     @current-coupon)
-                                                    1999999999)
-                                               false
-                                               true)))
+        (reset-edit-coupon! edit-coupon current-coupon)
         [:div {:class "panel panel-default"}
          (when (subset? #{{:uri "/coupon"
                            :method "PUT"}}
                         @accessible-routes)
            [:div {:class "panel-body"}
-            [coupon-form edit-coupon
-             [coupon-form-submit edit-coupon (update-on-click edit-coupon
-                                                              current-coupon)
-              "Update"]]])
+            [edit-coupon-comp current-coupon]
+            [:br]])
          [:div {:class "panel-body"}
-          
           [:div {:class "btn-toolbar pull-left"
                  :role "toolbar"}
            [TableFilterButtonGroup {:hide-counts #{"Show All"}}
@@ -383,5 +512,4 @@
            paginated-coupons]]
          [TablePager
           {:total-pages (count sorted-coupons)
-           :current-page  current-page}]
-         ]))))
+           :current-page  current-page}]]))))

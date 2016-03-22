@@ -7,122 +7,99 @@
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt markets
                                           json-string->clj cents->$dollars
                                           cents->dollars dollars->cents
-                                          parse-to-number? accessible-routes]]
+                                          parse-to-number? accessible-routes
+                                          diff-message]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
-                                               RefreshButton TablePager]]
+                                               RefreshButton TablePager
+                                               FormGroup TextInput KeyVal
+                                               EditFormSubmit DismissButton
+                                               ConfirmationAlert AlertSuccess
+                                               SubmitDismissGroup]]
+            [dashboard-cljs.forms :refer [entity-save edit-on-success
+                                          edit-on-error]]
             [clojure.string :as s]))
 
-(def default-new-zone
-  {:price-87 nil
-   :price-91 nil
-   :service-fee-60 nil
-   :service-fee-180 nil
-   :service-time-bracket-begin nil
-   :service-time-bracket-end nil
-   :errors nil
+(def default-zone
+  {:errors nil
    :retrieving? false
-   :alert-success ""})
+   :editing? false})
 
 (def state (r/atom {:current-zone nil
-                    :edit-zone
-                    default-new-zone
+                    :confirming-edit? false
+                    :alert-success ""
+                    ;; :editing? false
+                    :edit-zone default-zone
                     :selected "active"}))
 
-(defn edit-on-click
-  "on-click fn for editing zone. current-zone is an r/atom"
-  [zone current-zone]
-  (let [retrieving? (r/cursor zone [:retrieving?])
-        errors      (r/cursor zone [:errors])
-        zone->server-req
-        (fn [zone]
-          (let [{:keys [price-87 price-91 service-fee-60 service-fee-180
-                        service-time-bracket-begin service-time-bracket-end]}
-                zone]
-            (assoc zone
-                   :price-87
-                   (if (parse-to-number? price-87)
-                     (dollars->cents
-                      price-87)
-                     price-87)
-                   :price-91
-                   (if (parse-to-number? price-91)
-                     (dollars->cents
-                      price-91)
-                     price-91)
-                   :service-fee-60
-                   (if (parse-to-number? service-fee-60)
-                     (dollars->cents
-                      service-fee-60)
-                     service-fee-60)
-                   :service-fee-180
-                   (if (parse-to-number? service-fee-180)
-                     (dollars->cents
-                      service-fee-180)
-                     service-fee-180)
-                   :service-time-bracket-begin
-                   (if (parse-to-number? service-time-bracket-begin)
-                     (js/Number service-time-bracket-begin)
-                     service-time-bracket-begin)
-                   :service-time-bracket-end
-                   (if (parse-to-number? service-time-bracket-end)
-                     (js/Number service-time-bracket-end)
-                     service-time-bracket-end))))]
-    (fn [e]
-      (.preventDefault e)
-      ;; we are retrieving
-      (reset! retrieving? true)
-      ;; send response to server
-      (retrieve-url
-       (str base-url "zone")
-       "PUT"
-       (js/JSON.stringify
-        (clj->js (zone->server-req @zone)))
-       (partial
-        xhrio-wrapper
-        (fn [r]
-          (let [response (js->clj r
-                                  :keywordize-keys
-                                  true)]
-            (when (not (:success response))
-              ;; we obviously have an error, there shouldn't
-              ;; be a success message!
-              (reset! (r/cursor zone [:alert-success])
-                      ""
-                      )
-              (reset! retrieving? false)
-              ;; handle errors
-              (reset! errors (first
-                              (:validation response))))
-            (when (:success response)
-              ;; retrieve the new zone
-              (retrieve-url
-               (str base-url "zone/" (:id @zone))
-               "GET"
-               {}
-               (partial
-                xhrio-wrapper
-                (fn [r]
-                  (let [response
-                        (js->clj
-                         r :keywordize-keys true)]
-                    (put! datastore/modify-data-chan
-                          {:topic "zones"
-                           :data response})
-                    ;; reset  edit-zone
-                    (reset!
-                     zone
-                     (assoc
-                      @zone
-                      :retrieving? false
-                      :errors nil
-                      ))
-                    ;; reset the current-zone
-                    (reset! current-zone (assoc
-                                          (first response)
-                                          :alert-success
-                                          (str "Zone"
-                                               " successfully updated!")))
-                    ))))))))))))
+(defn displayed-zone
+  [zone]
+  (assoc zone
+         :price-87 (cents->dollars
+                    (-> zone
+                        :fuel_prices
+                        :87))
+         :price-91 (cents->dollars
+                    (-> zone
+                        :fuel_prices
+                        :91))
+         :service-fee-60 (cents->dollars
+                          (-> zone
+                              :service_fees
+                              :60))
+         :service-fee-180 (cents->dollars
+                           (-> zone
+                               :service_fees
+                               :180))
+         :service-time-bracket-begin
+         (-> zone
+             :service_time_bracket
+             first
+             str)
+         :service-time-bracket-end
+         (-> zone
+             :service_time_bracket
+             second
+             str)))
+
+(defn reset-edit-zone!
+  [edit-zone current-zone]
+  (reset! edit-zone
+          (displayed-zone @current-zone)))
+
+(defn zone->server-req
+  [zone]
+  (let [{:keys [price-87 price-91 service-fee-60 service-fee-180
+                service-time-bracket-begin service-time-bracket-end]}
+        zone]
+    (assoc zone
+           :price-87
+           (if (parse-to-number? price-87)
+             (dollars->cents
+              price-87)
+             price-87)
+           :price-91
+           (if (parse-to-number? price-91)
+             (dollars->cents
+              price-91)
+             price-91)
+           :service-fee-60
+           (if (parse-to-number? service-fee-60)
+             (dollars->cents
+              service-fee-60)
+             service-fee-60)
+           :service-fee-180
+           (if (parse-to-number? service-fee-180)
+             (dollars->cents
+              service-fee-180)
+             service-fee-180)
+           :service-time-bracket-begin
+           (if (parse-to-number? service-time-bracket-begin)
+             (js/Number service-time-bracket-begin)
+             service-time-bracket-begin)
+           :service-time-bracket-end
+           (if (parse-to-number? service-time-bracket-end)
+             (js/Number service-time-bracket-end)
+             service-time-bracket-end))))
 
 (defn zone-form-submit
   "A submit button for the zone using on-click and label for
@@ -145,140 +122,190 @@
 
 (defn zone-form
   "Form for a zone using submit-button"
-  [zone submit-button]
-  (let [price-87 (r/cursor zone [:price-87])
-        price-91 (r/cursor zone [:price-91])
-        service-fee-60 (r/cursor zone [:service-fee-60])
-        service-fee-180 (r/cursor zone [:service-fee-180])
-        service-time-bracket-begin (r/cursor zone [:service-time-bracket-begin])
-        service-time-bracket-end   (r/cursor zone [:service-time-bracket-end])
-        errors (r/cursor zone [:errors])
-        retrieving? (r/cursor zone [:retrieving?])
-        alert-success (r/cursor zone [:alert-success])]
-    (fn []
-      [:form {:class "form-horizontal"}
-       ;; 87 Price
-       [:div {:class "form-group"}
-        [:label {:for "87 price"
-                 :class "col-sm-2 control-label"}
-         "87 Octane"]
-        [:div {:class "col-sm-10"}
-         [:div {:class "input-group"}
-          [:div {:class "input-group-addon"}
-           "$"]
-          [:input {:type "text"
-                   :class "form-control"
-                   :placeholder "87 Price"
-                   :value @price-87
-                   :on-change #(reset! price-87 (-> %
-                                                    (aget "target")
-                                                    (aget "value")))}]]
-         (when (:price-87 @errors)
-           [:div {:class "alert alert-danger"}
-            (first (:price-87 @errors))])]]
-       ;; 91 Price
-       [:div {:class "form-group"}
-        [:label {:for "91 price"
-                 :class "col-sm-2 control-label"}
-         "91 Octane"]
-        [:div {:class "col-sm-10"}
-         [:div {:class "input-group"}
-          [:div {:class "input-group-addon"}
-           "$"]
-          [:input {:type "text"
-                   :class "form-control"
-                   :placeholder "91 Price"
-                   :value @price-91
-                   :on-change #(reset! price-91 (-> %
-                                                    (aget "target")
-                                                    (aget "value")))}]]
-         (when (:price-91 @errors)
-           [:div {:class "alert alert-danger"}
-            (first (:price-91 @errors))])]]
-       ;; 1 Hour Fee
-       [:div {:class "form-group"}
-        [:label {:for "1 Hour Fee"
-                 :class "col-sm-2 control-label"}
-         "1 Hour Fee"]
-        [:div {:class "col-sm-10"}
-         [:div {:class "input-group"}
-          [:div {:class "input-group-addon"}
-           "$"]
-          [:input {:type "text"
-                   :class "form-control"
-                   :placeholder "91 Price"
-                   :value @service-fee-60
-                   :on-change #(reset! service-fee-60 (-> %
+  [zone]
+  (let [
+        edit-zone (r/cursor state [:edit-zone])
+        
+        price-87 (r/cursor edit-zone [:price-87])
+        price-91 (r/cursor edit-zone [:price-91])
+        service-fee-60 (r/cursor edit-zone [:service-fee-60])
+        service-fee-180 (r/cursor edit-zone [:service-fee-180])
+        service-time-bracket-begin (r/cursor edit-zone
+                                             [:service-time-bracket-begin])
+        service-time-bracket-end   (r/cursor edit-zone
+                                             [:service-time-bracket-end])
+        editing? (r/cursor edit-zone [:editing?])
+        retrieving? (r/cursor edit-zone [:retrieving?])
+        errors (r/cursor edit-zone [:errors])
+
+        current-zone (r/cursor state [:current-zone])
+        alert-success (r/cursor state [:alert-success])
+        confirming?   (r/cursor state [:confirming-edit?])
+
+        diff-key-str {:price-87 "87 Octane"
+                      :price-91 "91 Octane"
+                      :service-fee-60 "1 Hour Fee"
+                      :service-fee-180 "3 Hour Fee"
+                      :service-time-bracket-begin "Service Starts"
+                      :service-time-bracket-end "Service Ends"}
+        diff-msg-gen (fn [edit current] (diff-message edit
+                                                      (displayed-zone current)
+                                                      diff-key-str))]
+    (fn [zone]
+      (let [submit-on-click (fn [e]
+                              (.preventDefault e)
+                              (if @editing?
+                                (if (every? nil? (diff-msg-gen @edit-zone
+                                                               @current-zone))
+                                  ;; there isn't a diff message, no changes
+                                  ;; do nothing
+                                  (reset! editing? (not @editing?))
+                                  ;; there is a diff message, confirm changes
+                                  (reset! confirming? true))
+                                (do
+                                  ;; get rid of alert-success
+                                  (reset! alert-success "")
+                                  (reset! editing? (not @editing?)))))
+            dismiss-fn (fn [e]
+                         ;; reset any errors
+                         (reset! errors nil)
+                         ;; no longer editing
+                         (reset! editing? false)
+                         ;; reset current zone
+                         (reset-edit-zone! edit-zone current-zone)
+                         ;; reset confirming
+                         (reset! confirming? false))]
+        [:form {:class "form-horizontal"}
+         (if @editing?
+           [:div
+            ;; 87 Price
+            [FormGroup {:label-for "87 price"
+                        :label "87 Octane"
+                        :errors (:price-87 @errors)
+                        :input-group-addon [:div {:class "input-group-addon"}
+                                            "$"]}
+             [TextInput {:value @price-87
+                         :on-change #(reset! price-87 (-> %
                                                           (aget "target")
                                                           (aget "value")))}]]
-         (when (:service-fee-60 @errors)
-           [:div {:class "alert alert-danger"}
-            (first (:service-fee-60 @errors))])]]
-       ;; 3 Hour Fee
-       [:div {:class "form-group"}
-        [:label {:for "3 Hour Fee"
-                 :class "col-sm-2 control-label"}
-         "3 Hour Fee"]
-        [:div {:class "col-sm-10"}
-         [:div {:class "input-group"}
-          [:div {:class "input-group-addon"}
-           "$"]
-          [:input {:type "text"
-                   :class "form-control"
-                   :placeholder "91 Price"
-                   :value @service-fee-180
-                   :on-change #(reset! service-fee-180 (-> %
-                                                           (aget "target")
-                                                           (aget "value")))}]]
-         (when (:service-fee-180 @errors)
-           [:div {:class "alert alert-danger"}
-            (first (:service-fee-180 @errors))])]]
-       ;; Service Starts
-       [:div {:class "form-group"}
-        [:label {:for "Service Starts"
-                 :class "col-sm-2 control-label"}
-         "Service Starts"]
-        [:div {:class "col-sm-10"}
-         [:div {:class "input-group"}
-          [:input {:type "text"
-                   :class "form-control"
-                   :placeholder "Service Starts"
-                   :value @service-time-bracket-begin
-                   :on-change #(reset! service-time-bracket-begin
-                                       (-> %
-                                           (aget "target")
-                                           (aget "value")))}]]
-         (when (:service-time-bracket-begin @errors)
-           [:div {:class "alert alert-danger"}
-            (first (:service-time-bracket-begin @errors))])]]
-       ;; Service Ends
-       [:div {:class "form-group"}
-        [:label {:for "Service Ends"
-                 :class "col-sm-2 control-label"}
-         "Service Ends"]
-        [:div {:class "col-sm-10"}
-         [:div {:class "input-group"}
-          [:input {:type "text"
-                   :class "form-control"
-                   :placeholder "Service Ends"
-                   :value @service-time-bracket-end
-                   :on-change #(reset! service-time-bracket-end
-                                       (-> %
-                                           (aget "target")
-                                           (aget "value")))}]]
-         (when (:service-time-bracket-end @errors)
-           [:div {:class "alert alert-danger"}
-            (first (:service-time-bracket-end @errors))])]]
-       ;; submit button
-       submit-button
-       (when (not (empty? @alert-success))
-         [:div {:class "alert alert-success alert-dismissible"}
-          [:button {:type "button"
-                    :class "close"
-                    :aria-label "Close"}
-           [:i {:class "fa fa-times"
-                :on-click #(reset! alert-success "")}]]
-          [:strong @alert-success]])])))
+            ;; 91 price
+            [FormGroup {:label-for "91 price"
+                        :label "91 Octane"
+                        :errors (:price-91 @errors)
+                        :input-group-addon [:div {:class "input-group-addon"}
+                                            "$"]}
+             [TextInput {:value @price-91
+                         :on-change #(reset! price-91 (-> %
+                                                          (aget "target")
+                                                          (aget "value")))}]]
+            ;; 1 hour fee
+            [FormGroup {:label-for "1 Hour Fee"
+                        :label "1 Hour Fee"
+                        :errors  (:service-fee-60 @errors)
+                        :input-group-addon [:div {:class "input-group-addon"}
+                                            "$"]}
+             [TextInput {:value @service-fee-60
+                         :on-change #(reset! service-fee-60
+                                             (-> %
+                                                 (aget "target")
+                                                 (aget "value")))}]]
+            ;; 3 hour fee
+            [FormGroup {:label-for "3 Hour Fee"
+                        :label "3 Hour Fee"
+                        :errors  (:service-fee-180 @errors)
+                        :input-group-addon [:div {:class "input-group-addon"}
+                                            "$"]}
+             [TextInput {:value @service-fee-180
+                         :on-change #(reset! service-fee-180
+                                             (-> %
+                                                 (aget "target")
+                                                 (aget "value")))}]]
+            ;; service starts
+            [FormGroup {:label-for "Service Starts"
+                        :label "service starts"
+                        :errors (:service-time-bracket-begin @errors)}
+             [TextInput {:value @service-time-bracket-begin
+                         :on-change #(reset! service-time-bracket-begin
+                                             (-> %
+                                                 (aget "target")
+                                                 (aget "value")))}]]
+            ;; service ends
+            [FormGroup {:label-for "Service Ends"
+                        :label "service ends"
+                        :errors (:service-time-bracket-end @errors)}
+             [TextInput {:value @service-time-bracket-end
+                         :on-change #(reset! service-time-bracket-end
+                                             (-> %
+                                                 (aget "target")
+                                                 (aget "value")))}]]]
+           ;; not editing
+           [:div
+            ;;87 price
+            [KeyVal "87 Octane" (-> @zone
+                                   :fuel_prices
+                                   :87
+                                   (cents->$dollars))]
+            ;; 91 price
+            [KeyVal "91 Octane" (-> @zone
+                                   :fuel_prices
+                                   :91
+                                   (cents->$dollars))]
+            ;; 1 hour fee
+            [KeyVal "1 Hour Fee" (-> @zone
+                                    :service_fees
+                                    :60
+                                    (cents->$dollars))]
+            ;; 3 hour fee
+            [KeyVal "3 Hour Fee" (-> @zone
+                                    :service_fees
+                                    :180
+                                    (cents->$dollars))]
+            ;; service starts
+            [KeyVal "Service Starts" (-> @zone
+                                        :service_time_bracket
+                                        first)]
+            ;; service ends
+            [KeyVal "Service Ends" (-> @zone
+                                      :service_time_bracket
+                                      second)]])
+         ;; submit button
+         [SubmitDismissGroup {:confirming? confirming?
+                              :editing? editing?
+                              :retrieving? retrieving?
+                              :submit-fn submit-on-click
+                              :dismiss-fn dismiss-fn}]
+         (if (and @confirming?
+                  (not-every? nil? (diff-msg-gen
+                                    @edit-zone @current-zone)))
+           [ConfirmationAlert
+            {:confirmation-message
+             (fn []
+               [:div (str "The following changes will be made to "
+                          (:name @current-zone))
+                (map (fn [el]
+                       ^{:key el}
+                       [:h4 el])
+                     (diff-msg-gen
+                      @edit-zone @current-zone))])
+             :cancel-on-click dismiss-fn
+             :confirm-on-click (fn [_]
+                                 (entity-save
+                                  (zone->server-req @edit-zone)
+                                  "zone"
+                                  "PUT"
+                                  retrieving?
+                                  (edit-on-success "zone" edit-zone current-zone
+                                                   alert-success
+                                                   :aux-fn
+                                                   #(reset! confirming? false))
+                                  (edit-on-error edit-zone
+                                                 :aux-fn
+                                                 #(reset! confirming? false))))
+             :retrieving? retrieving?}]
+           (reset! confirming? false))
+         (when-not (empty? @alert-success)
+           [AlertSuccess {:message @alert-success
+                          :dismiss #(reset! alert-success "")}])]))))
 
 (defn zone-table-header
   "props is:
@@ -325,7 +352,9 @@
     [:tr {:class (when (= (:id zone)
                           (:id @current-zone))
                    "active")
-          :on-click #(reset! current-zone zone)}
+          :on-click (fn [_]
+                      (reset! current-zone zone)
+                      (reset! (r/cursor state [:alert-success]) ""))}
      ;; market
      [:td (-> zone
               :id
@@ -401,36 +430,7 @@
                              (reset! refreshing? false)))))]
         (if (nil? @current-zone)
           (reset! current-zone (first paginated-zones)))
-        ;; set the edit-zone values to match those of current-zone
-        (reset! edit-zone (assoc default-new-zone
-                                 :price-87 (cents->dollars
-                                            (-> @current-zone
-                                                :fuel_prices
-                                                :87))
-                                 :price-91 (cents->dollars
-                                            (-> @current-zone
-                                                :fuel_prices
-                                                :91))
-                                 :service-fee-60 (cents->dollars
-                                                  (-> @current-zone
-                                                      :service_fees
-                                                      :60))
-                                 :service-fee-180 (cents->dollars
-                                                   (-> @current-zone
-                                                       :service_fees
-                                                       :180))
-                                 :service-time-bracket-begin
-                                 (-> @current-zone
-                                     :service_time_bracket
-                                     first)
-                                 :service-time-bracket-end
-                                 (-> @current-zone
-                                     :service_time_bracket
-                                     second)
-                                 :id
-                                 (:id @current-zone)
-                                 :alert-success (:alert-success
-                                                 @current-zone)))
+        (reset-edit-zone! edit-zone current-zone)
         [:div {:class "panel panel-default"}
          (when (subset? #{{:uri "/zone"
                            :method "PUT"}}
@@ -440,10 +440,7 @@
                       :style {:color
                               (:color @current-zone)}}]
              (str " " (:name @current-zone))]
-            [zone-form edit-zone
-             [zone-form-submit edit-zone (edit-on-click edit-zone
-                                                        current-zone)
-              "Update"]]])
+            [zone-form current-zone]])
          [:div {:class "panel-body"}
           [:div [:h3 {:class "pull-left"
                       :style {:margin-top "4px"

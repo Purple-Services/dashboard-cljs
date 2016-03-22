@@ -2,22 +2,41 @@
   (:require [reagent.core :as r]
             [cljs.core.async :refer [put!]]
             [dashboard-cljs.datastore :as datastore]
+            [dashboard-cljs.forms :refer [entity-save retrieve-entity
+                                          edit-on-success edit-on-error]]
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt markets
                                           json-string->clj pager-helper!
-                                          integer->comma-sep-string]]
+                                          integer->comma-sep-string
+                                          parse-to-number? diff-message]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton KeyVal StarRating
-                                               TablePager ConfirmationAlert]]
+                                               TablePager ConfirmationAlert
+                                               FormGroup TextInput
+                                               ProcessingIcon AlertSuccess
+                                               EditFormSubmit DismissButton
+                                               SubmitDismissGroup
+                                               TextAreaInput
+                                               ViewHideButton]]
             [clojure.string :as s]))
 
 (def push-selected-users (r/atom (set nil)))
 
+(def default-user {:editing? false
+                   :retrieving? false
+                   :referral_comment ""
+                   :errors nil})
+
 (def state (r/atom {:confirming? false
+                    :confirming-edit? false
                     :search-term ""
                     :recent-search-term ""
                     :search-results #{}
                     :search-retrieving? false
+                    :current-user nil
+                    :edit-user default-user
+                    :alert-success ""
+                    :view-log? false
                     :users-count 0}))
 
 (defn update-user-count
@@ -37,6 +56,29 @@
   users-count-result
   (update-user-count))
 
+
+(defn displayed-user
+  [user]
+  (let [{:keys [referral_gallons]} user]
+    (assoc user
+           :referral_gallons
+           (str referral_gallons)
+           :referral-comment "")))
+
+(defn user->server-req
+  [user]
+  (let [{:keys [referral_gallons]} user]
+    (assoc user
+           :referral_gallons
+           (if (parse-to-number? referral_gallons)
+             (js/Number referral_gallons)
+             referral_gallons))))
+
+(defn reset-edit-user!
+  [edit-user current-user]
+  (reset! edit-user
+          (displayed-user @current-user)))
+
 (defn user-row
   "A table row for an user in a table. current-user is the one currently 
   being viewed"
@@ -50,7 +92,9 @@
       [:tr {:class (when (= (:id user)
                             (:id @current-user))
                      "active")
-            :on-click #(reset! current-user user)}
+            :on-click (fn [_]
+                        (reset! current-user user)
+                        (reset! (r/cursor state [:alert-success]) ""))}
        ;; name
        [:td (:name user)]
        ;; market
@@ -169,6 +213,183 @@
         (when number-rating
           [StarRating number-rating]))]]))
 
+(defn user-history-header
+  "props
+  {
+  :sort-keyword   ; r/atom, keyword
+  :sort-reversed? ; r/atom, boolean
+  }"
+  [props]
+  (fn [props]
+    [:thead
+     [:tr
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}}
+       "Date"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}}
+       "Admin"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}}
+       "Adjustment"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}}
+       "Comment"]]]))
+
+(defn user-history-row
+  []
+  (fn [user-log]
+    [:tr
+     ;; Date
+     [:td (unix-epoch->fmt (:timestamp user-log) "M/D/YYYY h:mm A")]
+     ;; Admin
+     [:td (:admin_name user-log)]
+     ;; Gallon adjustment
+     [:td (str (:previous_value user-log) " -> " (:new_value user-log))]
+     ;; comment
+     [:td (:comment user-log)]]))
+
+(defn user-form
+  "Form for editing a user"
+  [user]
+  (let [edit-user (r/cursor state [:edit-user])
+        current-user (r/cursor state [:current-user])
+        retrieving? (r/cursor edit-user [:retrieving?])
+        editing? (r/cursor edit-user [:editing?])
+        confirming? (r/cursor state [:confirming-edit?])
+        errors   (r/cursor edit-user [:errors])
+        referral-gallons (r/cursor edit-user [:referral_gallons])
+        comment (r/cursor edit-user [:referral_comment])
+        alert-success (r/cursor state [:alert-success])
+        diff-key-str {:referral_gallons "Referral Gallons"}
+        diff-msg-gen (fn [edit current] (diff-message edit
+                                                      (displayed-user current)
+                                                      diff-key-str))]
+    (fn [user]
+      (let [default-card-info (if (empty? (:stripe_cards @edit-user))
+                                nil
+                                (->> (:stripe_cards @edit-user)
+                                     json-string->clj
+                                     (filter #(= (:stripe_default_card
+                                                  @edit-user)
+                                                 (:id %)))
+                                     first))
+            submit-on-click (fn [e]
+                              (.preventDefault e)
+                              (if @editing?
+                                (if (every? nil?
+                                            (diff-msg-gen @edit-user
+                                                          @current-user))
+                                  ;; there isn't a diff message, no changes
+                                  ;; do nothing
+                                  (reset! editing? (not @editing?))
+                                  ;; there is a diff message, confirm changes
+                                  (reset! confirming? true))
+                                (do
+                                  ;; get rid of alert-success
+                                  (reset! alert-success "")
+                                  (reset! editing? (not @editing?)))))
+            dismiss-fn (fn [e]
+                         ;; reset any errors
+                         (reset! errors nil)
+                         ;; no longer editing
+                         (reset! editing? false)
+                         ;; reset current user
+                         (reset-edit-user! edit-user current-user)
+                         ;; reset confirming
+                         (reset! confirming? false))]
+        [:form {:class "form-horizontal"}
+         ;; email
+         [KeyVal "Email" (:email @user)]
+         ;; phone number
+         [KeyVal "Phone" (:phone_number @user)]
+         ;; date started
+         [KeyVal "Registered" (unix-epoch->fmt
+                               (:timestamp_created @user)
+                               "M/D/YYYY")]
+         ;; last active (last ping)
+         (when-not (nil? (:last_active @user))
+           [KeyVal "Last Active" (unix-epoch->fmt
+                                  (:last_active @user)
+                                  "M/D/YYYY")])
+         ;; default card
+         (when (not (nil? default-card-info))
+           [KeyVal "Default Card"
+            (str
+             (:brand default-card-info)
+             " "
+             (:last4 default-card-info)
+             " "
+             (when (not (empty? (:exp_month default-card-info)))
+               (:exp_month default-card-info)
+               "/"
+               (:exp_year default-card-info)))])
+         ;; Referral Gallons
+         (if @editing?
+           [:div
+            [FormGroup {:label "Referral Gallons"
+                        :label-for "referral gallons"
+                        :errors (:referral_gallons @errors)
+                        :input-container-class "col-sm-7"}
+             [TextInput {:value @referral-gallons
+                         :default-value @referral-gallons
+                         :on-change #(reset!
+                                      referral-gallons
+                                      (-> %
+                                          (aget "target")
+                                          (aget "value")))}]]
+            [FormGroup {:label "Referral Gallons Comment"
+                        :label-for "referral gallons comment"
+                        :input-container-class "col-sm-7"}
+             [TextAreaInput {:value @comment
+                             :rows 2
+                             :cols 50
+                             :on-change #(reset!
+                                          comment
+                                          (-> %
+                                              (aget "target")
+                                              (aget "value")))}]]]
+           [KeyVal "Referral Gallons" (:referral_gallons ;;@user
+                                       @user)])
+         [SubmitDismissGroup
+          {:confirming? confirming?
+           :editing? editing?
+           :retrieving? retrieving?
+           :submit-fn submit-on-click
+           :dismiss-fn dismiss-fn}]
+         (if (and @confirming?
+                    (not-every? nil?
+                                (diff-msg-gen @edit-user @current-user)))
+           [ConfirmationAlert
+            {:confirmation-message
+             (fn []
+               [:div (str "The following changes will be made to "
+                          (:name @current-user))
+                (map (fn [el]
+                       ^{:key el}
+                       [:h4 el])
+                     (diff-msg-gen @edit-user @current-user))])
+             :cancel-on-click dismiss-fn
+             :confirm-on-click (fn [_]
+                                 (entity-save
+                                  (user->server-req @edit-user)
+                                  "user"
+                                  "PUT"
+                                  retrieving?
+                                  (edit-on-success "user" edit-user current-user
+                                                   alert-success
+                                                   :aux-fn
+                                                   #(reset! confirming? false))
+                                  (edit-on-error edit-user
+                                                 :aux-fn
+                                                 #(reset! confirming? false))))
+             :retrieving? retrieving?}]
+           (reset! confirming? false))
+         ;; success alert
+         (when-not (empty? @alert-success)
+           [AlertSuccess {:message @alert-success
+                          :dismiss #(reset! alert-success "")}])]))))
+
 (defn user-panel
   "Display detailed and editable fields for an user. current-user is an
   r/atom"
@@ -177,7 +398,9 @@
         sort-reversed? (r/atom false)
         show-orders? (r/atom true)
         current-page (r/atom 1)
-        page-size 5]
+        page-size 5
+        edit-user    (r/cursor state [:edit-user])
+        view-log?    (r/cursor state [:view-log?])]
     (fn [current-user]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -194,49 +417,47 @@
                                sort-fn
                                (partition-all page-size))
             paginated-orders (pager-helper! sorted-orders current-page)
-            default-card-info (if (empty? (:stripe_cards @current-user))
-                                nil
-                                (->> (:stripe_cards @current-user)
-                                     json-string->clj
-                                     (filter #(= (:stripe_default_card
-                                                  @current-user)
-                                                 (:id %)))
-                                     first))]
+            most-recent-order (->> orders
+                                   (sort-by :target_time_start)
+                                   first)]
+        ;; edit-user should correspond to current-user
+        (when-not (:editing? @edit-user)
+          (reset! edit-user (assoc @edit-user
+                                   :last_active (:target_time_start
+                                                 most-recent-order))))
+        (when-not (nil? @current-user)
+          (reset! current-user
+                  (assoc @current-user
+                         :last_active (:target_time_start
+                                       most-recent-order))))
         ;; populate the current user with additional information
         [:div {:class "panel-body"}
          [:div {:class "row"}
           [:div {:class "col-xs-3"}
            [:div [:h3 {:style {:margin-top 0}} (:name @current-user)]]
            ;; main display panel
-           [:div 
-            ;; email
-            [KeyVal "Email" (:email @current-user)]
-            ;; phone number
-            [KeyVal "Phone" (:phone_number @current-user)]
-            ;; date started
-            [KeyVal "Registered" (unix-epoch->fmt
-                                  (:timestamp_created @current-user)
-                                  "M/D/YYYY")]
-            ;; last active (last ping)
-            (let [most-recent-order-time (->> orders
-                                              (sort-by :target_time_start)
-                                              first
-                                              :target_time_start)]
-              (when (not (nil? most-recent-order-time))
-                [KeyVal "Last Active" (unix-epoch->fmt
-                                       most-recent-order-time
-                                       "M/D/YYYY")]))
-            (when (not (nil? default-card-info))
-              [KeyVal "Default Card"
-               (str
-                (:brand default-card-info)
-                " "
-                (:last4 default-card-info)
-                " "
-                (when (not (empty? (:exp_month default-card-info)))
-                  (:exp_month default-card-info)
-                  "/"
-                  (:exp_year default-card-info)))])]]
+           [user-form current-user]
+           ;; below is for showing user logs,
+           ;; implemented, but not used yet
+           ;; [:br]
+           ;; [ViewHideButton {:class "btn btn-sm btn-default"
+           ;;                  :view-content "View Logs"
+           ;;                  :hide-content "Hide Logs"
+           ;;                  :on-click #(swap! view-log? not)
+           ;;                  :view? view-log?}]
+           ;; (when @view-log?
+           ;;   [:div {:class "table-responsive"
+           ;;          :style (if @view-log?
+           ;;                   {}
+           ;;                   {:display "none"})}
+           ;;    [StaticTable
+           ;;     {:table-header [user-history-header
+           ;;                     {;;:sort-keyword sort-keyword-logs
+           ;;                      ;;:sort-reversed? sort-reversed-logs?
+           ;;                      }]
+           ;;      :table-row (user-history-row)}
+           ;;     (sort-by :timestamp (:admin_event_log @current-user))]])
+           ]
           ;; Table of orders for current user
           (when (> (count paginated-orders)
                    0)
@@ -262,7 +483,8 @@
   "Display a table of selectable users with an indivdual user panel
   for the selected user"
   [users]
-  (let [current-user (r/atom nil)
+  (let [current-user (r/cursor state [:current-user])
+        edit-user    (r/cursor state [:edit-user])
         sort-keyword (r/atom :timestamp_created)
         sort-reversed? (r/atom false)
         selected-filter (r/atom "show-all")
@@ -304,9 +526,14 @@
                              (reset! saving? false)))))]
         (when (nil? @current-user)
           (reset! current-user (first paginated-users)))
+        ;;(reset! edit-user @current-user)
+        (reset-edit-user! edit-user current-user)
+        ;; set the edit-user values to match those of current-user 
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
-          [user-panel current-user]
+          [user-panel current-user]]
+         [:div {:class "panel"
+                :style {:margin-top "15px"}}
           [:div [:h3 {:class "pull-left"
                       :style {:margin-top "4px"
                               :margin-bottom 0}}
@@ -316,15 +543,14 @@
            [:div {:class "btn-group"
                   :role "group"}
             [RefreshButton {:refresh-fn
-                            refresh-fn}]]]]
-         [:br]
-         [:div {:class "table-responsive"}
-          [StaticTable
-           {:table-header [user-table-header
-                           {:sort-keyword sort-keyword
-                            :sort-reversed? sort-reversed?}]
-            :table-row (user-row current-user)}
-           paginated-users]]
+                            refresh-fn}]]]
+          [:div {:class "table-responsive"}
+           [StaticTable
+            {:table-header [user-table-header
+                            {:sort-keyword sort-keyword
+                             :sort-reversed? sort-reversed?}]
+             :table-row (user-row current-user)}
+            paginated-users]]]
          [TablePager
           {:total-pages (count sorted-users)
            :current-page current-page}]]))))
