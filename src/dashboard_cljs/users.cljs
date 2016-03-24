@@ -13,11 +13,9 @@
                                                RefreshButton KeyVal StarRating
                                                TablePager ConfirmationAlert
                                                FormGroup TextInput
-                                               ProcessingIcon AlertSuccess
-                                               EditFormSubmit DismissButton
-                                               SubmitDismissGroup
-                                               TextAreaInput
-                                               ViewHideButton]]
+                                               AlertSuccess
+                                               SubmitDismissConfirmGroup
+                                               TextAreaInput ViewHideButton]]
             [clojure.string :as s]))
 
 (def push-selected-users (r/atom (set nil)))
@@ -349,9 +347,8 @@
                                           (-> %
                                               (aget "target")
                                               (aget "value")))}]]]
-           [KeyVal "Referral Gallons" (:referral_gallons ;;@user
-                                       @user)])
-         [SubmitDismissGroup
+           [KeyVal "Referral Gallons" (:referral_gallons @user)])
+         [SubmitDismissConfirmGroup
           {:confirming? confirming?
            :editing? editing?
            :retrieving? retrieving?
@@ -487,20 +484,12 @@
         edit-user    (r/cursor state [:edit-user])
         sort-keyword (r/atom :timestamp_created)
         sort-reversed? (r/atom false)
-        selected-filter (r/atom "show-all")
         current-page (r/atom 1)
         page-size 15]
     (fn [users]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
-            filter-fn (cond (= @selected-filter
-                               "declined")
-                            (fn [user]
-                              (and (not (:paid user))
-                                   (= (:status user) "complete")
-                                   (> (:total_price user))))
-                            :else (fn [user] true))
             displayed-users users
             sorted-users (->> displayed-users
                               sort-fn
@@ -526,7 +515,6 @@
                              (reset! saving? false)))))]
         (when (nil? @current-user)
           (reset! current-user (first paginated-users)))
-        ;;(reset! edit-user @current-user)
         (reset-edit-user! edit-user current-user)
         ;; set the edit-user values to match those of current-user 
         [:div {:class "panel panel-default"}

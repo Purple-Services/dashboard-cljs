@@ -8,8 +8,12 @@
                                                RefreshButton ErrorComp
                                                TableFilterButtonGroup
                                                TablePager ConfirmationAlert
-                                               KeyVal ProcessingIcon]]
+                                               KeyVal ProcessingIcon FormGroup
+                                               TextAreaInput DismissButton
+                                               SubmitDismissGroup]]
             [dashboard-cljs.datastore :as datastore]
+            [dashboard-cljs.forms :refer [entity-save edit-on-success
+                                          edit-on-error]]
             [dashboard-cljs.utils :refer [unix-epoch->hrf base-url
                                           cents->$dollars json-string->clj
                                           accessible-routes
@@ -31,19 +35,15 @@
                           "complete"    nil
                           "cancelled"   nil})
 
-(def state (r/atom {:confirming? false}))
+(def default-order {:retrieving? false
+                    :notes ""
+                    :errors nil})
 
-(defn EditButton
-  "Button for toggling editing? button"
-  [editing?]
-  (fn [editing?]
-    [:button {:type "button"
-              :class (str "btn btn-sm btn-default pull-right")
-              :on-click #(swap! editing? not)
-              }
-     (if @editing?
-       "Save"
-       "Edit")]))
+(def state (r/atom {:confirming? false
+                    :editing-notes? false
+                    :current-order nil
+                    :edit-order default-order
+                    :alert-success ""}))
 
 (defn order-row
   "A table row for an order in a table. current-order is the one currently being
@@ -53,7 +53,9 @@
     [:tr {:class (when (= (:id order)
                           (:id @current-order))
                    "active")
-          :on-click #(reset! current-order order)}
+          :on-click (fn [_]
+                      (reset! current-order order)
+                      (reset! (r/cursor state [:editing-notes?]) false))}
      ;; order status
      [:td (:status order)]
      ;; courier assigned
@@ -93,8 +95,7 @@
        "Status"]
       [TableHeadSortable
        (conj props {:keyword :courier_name})
-       "Courier"
-       ]
+       "Courier"]
       [TableHeadSortable
        (conj props {:keyword :target_time_start})
        "Placed"]
@@ -193,8 +194,7 @@
   "
   [props]
   (let [error-message (r/atom "")
-        retrieving? (r/atom false)
-        ]
+        retrieving? (r/atom false)]
     (fn [{:keys [editing? assigned-courier couriers order]}
          props]
       (let [selected-courier (r/atom assigned-courier)]
@@ -230,19 +230,23 @@
                     (subset? #{{:uri "/assign-order"
                                 :method "POST"}}
                              @accessible-routes))
-           [:button {:type "button"
-                     :class "btn btn-xs btn-default"
-                     :on-click
-                     #(when (not @retrieving?)
-                        (reset! retrieving? true)
-                        (assign-courier editing? retrieving? order
-                                        selected-courier couriers
-                                        error-message))
-                     }
-            (if @retrieving?
-              [ProcessingIcon]
-              "Save assignment")
-            ])
+           [:span {:style {:display "inline-block"}}
+            [:button {:type "button"
+                      :class "btn btn-xs btn-default"
+                      :on-click
+                      #(when (not @retrieving?)
+                         (reset! retrieving? true)
+                         (assign-courier editing? retrieving? order
+                                         selected-courier couriers
+                                         error-message))}
+             (if @retrieving?
+               [ProcessingIcon]
+               "Save assignment")]
+            " "
+            (when-not  @retrieving?
+              [DismissButton {:dismiss-fn #(when (not @retrieving?)
+                                             (reset! editing? false))
+                              :class "btn btn-xs btn-default"}])])
          (when (not (s/blank? @error-message))
            [ErrorComp (str "Courier could not be assigned! Reason: "
                            @error-message
@@ -257,19 +261,16 @@
   order-fn on the resulting new-order if there is one."
   [order order-fn]
   (retrieve-url
-   (str base-url "order")
-   "POST"
-   (js/JSON.stringify
-    (clj->js
-     {:id (:id @order)}))
+   (str base-url "order/" (:id @order))
+   "GET"
+   {}
    (partial xhrio-wrapper
             (fn [r]
               (let [response (js->clj r :keywordize-keys
                                       true)
                     new-order (first response)]
                 (when new-order
-                  (order-fn new-order)
-                  ))))))
+                  (order-fn new-order)))))))
 
 (defn update-status
   "Update order with status on server. error-message is an r/atom to set
@@ -420,20 +421,9 @@
   (let [retrieving? (r/atom false)]
     (fn [order]
       (let [get-etas (fn [order]
-                       (retrieve-url
-                        (str base-url "order")
-                        "POST"
-                        (js/JSON.stringify
-                         (clj->js
-                          {:id (:id @order)}))
-                        (partial xhrio-wrapper
-                                 (fn [r]
-                                   (let [response (js->clj r :keywordize-keys
-                                                           true)
-                                         new-order (first response)]
-                                     (reset! retrieving? false)
-                                     (when new-order
-                                       (reset! order new-order)))))))]
+                       (refresh-order! order (fn [new-order]
+                                               (reset! retrieving? false)
+                                               (reset! order new-order))))]
         [:button {:type "button"
                   :class "btn btn-default btn-xs"
                   :on-click #(when (not @retrieving?)
@@ -444,36 +434,93 @@
            "Get ETAs")]
         ))))
 
+(defn order-notes-comp
+  "Given an order r/atom, edit the order's notes"
+  [order]
+  (let [edit-order     (r/cursor state [:edit-order])
+        notes          (r/atom "")
+        retrieving?    (r/atom false)
+        editing-notes? (r/cursor state [:editing-notes?])
+        alert-success  (r/cursor state [:alert-success])
+        aux-fn         (fn [_]
+                         (reset! editing-notes? (not @editing-notes?))
+                         (reset! retrieving? false))]
+    (fn [order]
+      (when-not @editing-notes?
+        (reset! notes (:notes @order)))
+      [:form {:class "form-horizontal"}
+       (if @editing-notes?
+         [FormGroup {:label "Notes"
+                     :label-for "order notes"
+                     :input-container-class "col-sm-7"}
+          [TextAreaInput {:value @notes
+                          :rows 2
+                          :cols 50
+                          :on-change #(reset!
+                                       notes
+                                       (-> %
+                                           (aget "target")
+                                           (aget "value")))}]]
+         (when-not (s/blank? (:notes @order))
+           [KeyVal "Notes" (:notes @order)]))
+       [SubmitDismissGroup
+        {:editing? editing-notes?
+         :retrieving? retrieving?
+         :edit-btn-content (if (s/blank? (:notes @order))
+                             "Add Note"
+                             "Edit Note")
+         :submit-fn
+         (fn [e]
+           (.preventDefault e)
+           (if @editing-notes?
+             (entity-save
+              (assoc @order :notes @notes)
+              "order"
+              "PUT"
+              retrieving?
+              (edit-on-success "order" edit-order order alert-success
+                               :aux-fn aux-fn)
+              (edit-on-error  edit-order
+                              :aux-fn aux-fn))
+             (do
+               (reset! alert-success "")
+               (reset! editing-notes?
+                       (not @editing-notes?)))))
+         :dismiss-fn
+         (fn [e]
+           ;; no longer editing
+           (reset! editing-notes? false))}]])))
+
 (defn order-panel
   "Display detailed and editable fields for current-order"
-  [current-order]
+  [order]
   (let [google-marker (atom nil)]
-    (fn [current-order]
+    (fn [order]
       (let [editing-assignment? (r/atom false)
             editing-status?     (r/atom false)
             couriers
             ;; filter out the couriers to only those assigned
             ;; to the zone
             (sort-by :name (filter #(contains? (set (:zones %))
-                                               (:zone @current-order))
+                                               (:zone @order))
                                    @datastore/couriers))
-            assigned-courier (if (not (nil? (:courier_name @current-order)))
+            assigned-courier (if (not (nil? (:courier_name @order)))
                                ;; there is a courier currently assigned
                                (:id (first (filter #(= (:courier_name
-                                                        @current-order)
+                                                        @order)
                                                        (:name % )) couriers)))
                                ;; no courier, assign the first one
                                (:id (first couriers)))
-            order-status (:status @current-order)]
+            order-status   (:status @order)]
         (reset! (r/cursor state [:confirming?]) false)
         ;; create and insert order marker
-        (when (:lat @current-order)
+        (when (:lat @order)
           (when @google-marker
             (.setMap @google-marker nil))
           (reset! google-marker (js/google.maps.Marker.
                                  (clj->js {:position
-                                           {:lat (:lat @current-order)
-                                            :lng (:lng @current-order)}
+                                           {:lat (:lat @order)
+                                            :lng (:lng @order)}
                                            :map
                                            (second (get-cached-gmaps :orders))}
                                           ))))
@@ -483,119 +530,110 @@
           [:div {:class "col-xs-6 pull-left"}
            [:h3 {:style {:margin-top 0}} "Order Details"]
            ;; order price
-           [:h5 [:span {:class "info-window-label"} "Total Price: "]
-            (cents->$dollars (:total_price @current-order))
-            " "
-            ;; declined payment?
-            (if (declined-payment? @current-order)
-              [:span {:class "text-danger"} "Payment declined!"])]
+           [KeyVal "Total Price"
+            [:span
+             (cents->$dollars (:total_price @order))
+             " "
+             ;; declined payment?
+             (if (declined-payment? @order)
+               [:span {:class "text-danger"} "Payment declined!"])]]
            ;; payment info
-           (let [payment-info (json-string->clj (:payment_info @current-order))]
+           (let [payment-info (json-string->clj (:payment_info @order))]
              (when (not (nil? payment-info))
-               [:h5 [:span {:class "info-window-label"} "Payment Info: "]
-                (:brand payment-info)
-                " "
-                (:last4 payment-info)
-                " "
-                (:exp_month payment-info) "/" (:exp_year payment-info)
-                ]))
+               [KeyVal "Payment Info" (str (:brand payment-info)
+                                           " "
+                                           (:last4 payment-info)
+                                           " "
+                                           (:exp_month payment-info) "/"
+                                           (:exp_year payment-info))]))
            ;; coupon code
-           (when (not (s/blank? (:coupon_code @current-order)))
-             [:h5 [:span {:class "info-window-label"} "Coupon: "]
-              (:coupon_code @current-order)])
+           (when (not (s/blank? (:coupon_code @order)))
+             [KeyVal "Coupon" (:coupon_code @order)])
            ;; gallons and type
-           [:h5 [:span {:class "info-window-label"} "Gallons: "]
-            (str (:gallons @current-order) " (" (:gas_type @current-order)
-                 " Octane)")]
+           [KeyVal "Gallons" (str (:gallons @order)
+                                  " ("
+                                  (:gas_type @order)
+                                  " Octane)")]
            ;; time order was placed
-           [:h5 [:span {:class "info-window-label"} "Order Placed: "]
-            (unix-epoch->hrf (:target_time_start @current-order))]
+           [KeyVal "Order Placed" (unix-epoch->hrf (:target_time_start
+                                                    @order))]
            ;; completion time
            (when-let [completion-time (get-event-time
-                                       (:event_log @current-order) "complete")]
+                                       (:event_log @order) "complete")]
              [KeyVal "Completion Time" (unix-epoch->hrf completion-time)])
            ;; delivery time
-           [:h5 [:span {:class "info-window-label"} "Delivery Time: "]
-            (str (.diff (js/moment.unix (:target_time_end @current-order))
-                        (js/moment.unix (:target_time_start @current-order))
+           [KeyVal "Delivery Time"
+            (str (.diff (js/moment.unix (:target_time_end @order))
+                        (js/moment.unix (:target_time_start @order))
                         "hours")
                  " Hr")]
            ;; special instructions field
-           (when (not (s/blank? (:special_instructions @current-order)))
-             [:h5 [:span {:class "info-window-label"} "Special Instructions: "]
-              (:special_instructions @current-order)])
+           (when (not (s/blank? (:special_instructions @order)))
+             [KeyVal "Special Instructions" (:special_instructions
+                                             @order)])
            ;;  name
-           [:h5 [:span {:class "info-window-label"} "Customer: "]
-            (:customer_name @current-order)]
+           [KeyVal "Customer" (:customer_name @order)]
            ;;  phone number
-           [:h5 [:span {:class "info-window-label"} "Phone: "]
-            (:customer_phone_number @current-order)]
+           [KeyVal "Phone" (:customer_phone_number @order)]
            ;;  email
-           [:h5 [:span {:class "info-window-label"} "Email: "]
-            (:email @current-order)]
+           [KeyVal "Email" (:email @order)]
            ;; rating
-           (let [number-rating (:number_rating @current-order)]
+           (let [number-rating (:number_rating @order)]
              (when number-rating
-               [:h5 [:span {:class "info-window-label"} "Rating: "]
-                (for [x (range number-rating)]
-                  ^{:key x} [:i {:class "fa fa-star fa-lg"}])
-                (for [x (range (- 5 number-rating))]
-                  ^{:key x} [:i {:class "fa fa-star-o fa-lg"}])
-                ]))
+               [KeyVal "Rating"
+                [:span (for [x (range number-rating)]
+                         ^{:key x} [:i {:class "fa fa-star fa-lg"}])
+                 (for [x (range (- 5 number-rating))]
+                   ^{:key x} [:i {:class "fa fa-star-o fa-lg"}])]]))
            ;; review
-           (when (not (s/blank? (:text_rating @current-order)))
-             [:h5 [:span {:class "info-window-label"} "Review: "]
-              (:text_rating @current-order)])
+           (when (not (s/blank? (:text_rating @order)))
+             [KeyVal "Review" (:text_rating @order)])
            ;; delivery address
-           [:h5
-            [:span {:class "info-window-label"} "Address: "]
-            [:i {:class "fa fa-circle"
-                 :style {:color (:zone-color @current-order)}}]
-            " "
-            (:address_street @current-order)]
+           [KeyVal "Address"
+            [:span [:i {:class "fa fa-circle"
+                        :style {:color (:zone-color @order)}}]
+             " "
+             (:address_street @order)]]
            ;; vehicle description
-           [:h5
-            [:span {:class "info-window-label"} "Vehicle: "]
-            (str (:color (:vehicle @current-order))
-                 " "
-                 (:make (:vehicle @current-order))
-                 " "
-                 (:model (:vehicle @current-order)))]
+           [KeyVal "Vehicle" (str (:color (:vehicle @order))
+                                  " "
+                                  (:make (:vehicle @order))
+                                  " "
+                                  (:model (:vehicle @order)))]
            ;; license plate
-           [:h5 [:span {:class "info-window-label"} "License Plate: "]
-            (:license_plate @current-order)]
+           [KeyVal "License Plate" (:license_plate @order)]
            ;; ETAs
            ;; note: the server only populates ETA values when the orders
            ;; are: "unassigned" "assigned" "accepted" "enroute"
            (when (contains? #{"unassigned" "assigned" "accepted" "enroute"}
-                            (:status @current-order))
-             [:h5
-              [:span {:class "info-window-label"} "ETAs: "]
-              ;; get etas button
-              [get-etas-button current-order]
-              (when (:etas @current-order)
-                (map (fn [eta]
-                       ^{:key (:name eta)}
-                       [:p (str (:name eta) " - ")
-                        [:strong {:class (when (:busy eta)
-                                           "text-danger")}
-                         (:minutes eta)]])
-                     (sort-by :minutes (:etas @current-order))))])
+                            (:status @order))
+             [KeyVal "ETAs"
+              [:span [get-etas-button order]
+               (when (:etas @order)
+                 (map (fn [eta]
+                        ^{:key (:name eta)}
+                        [:p (str (:name eta) " - ")
+                         [:strong {:class (when (:busy eta)
+                                            "text-danger")}
+                          (:minutes eta)]])
+                      (sort-by :minutes (:etas @order))))]])
            ;; assigned courier display and editing
            [order-courier-comp {:editing? editing-assignment?
                                 :assigned-courier assigned-courier
                                 :couriers couriers
-                                :order current-order}]
+                                :order order}]
            ;; status and editing
            [status-comp {:editing? editing-status?
                          :status order-status
-                         :order current-order}]]
+                         :order order}]
+           ;; notes
+           [order-notes-comp order]]
           [:div {:class "pull-right hidden-xs"}
            [gmap {:id :orders
                   :style {:height 300
                           :width 300}
-                  :center {:lat (:lat @current-order)
-                           :lng (:lng @current-order)}}]]]]))))
+                  :center {:lat (:lat @order)
+                           :lng (:lng @order)}}]]]]))))
 
 (defn new-orders-button
   "A component for allowing the user to see new orders on the server"
@@ -615,11 +653,12 @@
   "Display a table of selectable orders with an indivdual order panel
   for the selected order"
   [orders]
-  (let [current-order (r/atom nil)
+  (let [current-order (r/cursor state [:current-order])
+        edit-order    (r/cursor state [:edit-order])
         sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
         current-page (r/atom 1)
-        page-size 15
+        page-size 20
         filters {"Show All" (constantly true)
                  "Current Orders" current-order?
                  "Declined Payments" declined-payment?}

@@ -310,7 +310,7 @@
       [:h2 {:style {:display "inline-block"
                     :color "black"}}
        "Loading   " [:i {:class "fa fa-spinner fa-pulse"
-                      :style {:color "black"}}]]]]))
+                         :style {:color "black"}}]]]]))
 
 (defn AlertSuccess
   "An alert for when an action is successfully completed
@@ -424,40 +424,60 @@
            edit-btn-content)]))
 
 (defn DismissButton
+  "props is
+  {
+  dismiss-fn ; fn
+  class      ; string
+  }"
   [props]
-  (fn [{:keys [dismiss-fn]} props]
-    [:button {:type "button"
-              :class "btn btn-sm btn-default"
-              :on-click dismiss-fn}
-     "Dismiss"]))
+  (fn [{:keys [dismiss-fn class]} props]
+    (let [class (or class "btn btn-sm btn-default")]
+      [:button {:type "button"
+                :class class
+                :on-click dismiss-fn}
+       "Dismiss"])))
 
 (defn SubmitDismiss
   [props submit dismiss]
-  (fn [{:keys [confirming? editing? retrieving?]} props]
-    (when-not @confirming?
-      [:div {:class "btn-toolbar"}
-       ;; edit button
-       [:div {:class "btn-group"}
-        submit]
-       [:div {:class "btn-group"}
-        ;; dismiss button
-        (when-not (or @retrieving? (not @editing?))
-          dismiss)]])))
+  (fn [{:keys [editing? retrieving?]} props]
+    [:div {:class "btn-toolbar"}
+     ;; edit button
+     [:div {:class "btn-group"}
+      submit]
+     [:div {:class "btn-group"}
+      ;; dismiss button
+      (when-not (or @retrieving? (not @editing?))
+        dismiss)]]))
 
 (defn SubmitDismissGroup
   [props]
+  (fn [{:keys [editing? retrieving? submit-fn dismiss-fn edit-btn-content]}
+       props]
+    (let [edit-btn-content (or edit-btn-content "Edit")]
+      [SubmitDismiss {:editing? editing?
+                      :retrieving? retrieving?}
+       [EditFormSubmit {:retrieving? retrieving?
+                        :editing? editing?
+                        :on-click submit-fn
+                        :edit-btn-content edit-btn-content}]
+       [DismissButton {:dismiss-fn dismiss-fn}]])))
+
+(defn SubmitDismissConfirm
+  [props submit-dismiss]
+  (fn [{:keys [confirming?]} props]
+    (when-not @confirming?
+      submit-dismiss)))
+
+(defn SubmitDismissConfirmGroup
+  [props]
   (fn [{:keys [confirming? editing? retrieving? submit-fn dismiss-fn
                edit-btn-content]} props]
-    [SubmitDismiss {:confirming? confirming?
-                    :editing? editing?
-                    :retrieving? retrieving?}
-     [EditFormSubmit {:retrieving? retrieving?
-                      :editing? editing?
-                      :on-click submit-fn
-                      :edit-btn-content (if edit-btn-content
-                                          edit-btn-content
-                                          "Edit")}]
-     [DismissButton {:dismiss-fn dismiss-fn}]]))
+    [SubmitDismissConfirm {:confirming? confirming?}
+     [SubmitDismissGroup {:editing? editing?
+                          :retrieving? retrieving?
+                          :submit-fn submit-fn
+                          :dismiss-fn dismiss-fn
+                          :edit-btn-content edit-btn-content}]]))
 
 (defn ViewHideButton
   "A button toggling view/hide of information

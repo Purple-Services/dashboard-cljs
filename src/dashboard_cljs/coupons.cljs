@@ -10,13 +10,14 @@
                                           json-string->clj cents->$dollars
                                           cents->dollars dollars->cents
                                           format-coupon-code parse-to-number?
-                                          accessible-routes expired-coupon?]]
+                                          accessible-routes expired-coupon?
+                                          diff-message]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton DatePicker
                                                TablePager TableFilterButtonGroup
                                                FormGroup TextInput
-                                               KeyVal FormSubmit AlertSuccess
-                                               SubmitDismissGroup
+                                               KeyVal AlertSuccess
+                                               SubmitDismissConfirmGroup
                                                ConfirmationAlert]]
             [clojure.string :as s]))
 
@@ -246,11 +247,11 @@
                                               "Yes"
                                               "No")]])
          ;;submit-button
-         [SubmitDismissGroup {:confirming? confirming?
-                              :editing? editing?
-                              :retrieving? retrieving?
-                              :submit-fn submit-on-click
-                              :dismiss-fn dismiss-fn}]
+         [SubmitDismissConfirmGroup {:confirming? confirming?
+                                     :editing? editing?
+                                     :retrieving? retrieving?
+                                     :submit-fn submit-on-click
+                                     :dismiss-fn dismiss-fn}]
          (if (and @confirming?
                     (not-every? nil? (diff-msg-gen
                                       @edit-coupon @current-coupon)))
@@ -348,12 +349,12 @@
                                 :expires? expires?
                                 :expiration-time expiration-time
                                 :only-for-first-order only-for-first-order}])
-         [SubmitDismissGroup {:confirming? confirming?
-                              :editing? editing?
-                              :retrieving? retrieving?
-                              :submit-fn submit-on-click
-                              :dismiss-fn dismiss-fn
-                              :edit-btn-content "Create a New Coupon"}]
+         [SubmitDismissConfirmGroup {:confirming? confirming?
+                                     :editing? editing?
+                                     :retrieving? retrieving?
+                                     :submit-fn submit-on-click
+                                     :dismiss-fn dismiss-fn
+                                     :edit-btn-content "Create a New Coupon"}]
          (when @confirming?
            [ConfirmationAlert
             {:confirmation-message (fn [] (confirm-msg @new-coupon))

@@ -14,7 +14,7 @@
                                                FormGroup TextInput KeyVal
                                                EditFormSubmit DismissButton
                                                ConfirmationAlert AlertSuccess
-                                               SubmitDismissGroup]]
+                                               SubmitDismissConfirmGroup]]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error]]
             [clojure.string :as s]))
@@ -269,11 +269,11 @@
                                       :service_time_bracket
                                       second)]])
          ;; submit button
-         [SubmitDismissGroup {:confirming? confirming?
-                              :editing? editing?
-                              :retrieving? retrieving?
-                              :submit-fn submit-on-click
-                              :dismiss-fn dismiss-fn}]
+         [SubmitDismissConfirmGroup {:confirming? confirming?
+                                     :editing? editing?
+                                     :retrieving? retrieving?
+                                     :submit-fn submit-on-click
+                                     :dismiss-fn dismiss-fn}]
          (if (and @confirming?
                   (not-every? nil? (diff-msg-gen
                                     @edit-zone @current-zone)))
