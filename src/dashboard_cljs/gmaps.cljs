@@ -7,8 +7,7 @@
             [maplabel]
             [cljs.reader :refer [read-string]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
-            [dashboard-cljs.utils :refer [base-url]]
-            ))
+            [dashboard-cljs.utils :refer [base-url]]))
 
 (def state (atom {:timeout-interval 5000
                   :orders (array)
@@ -264,6 +263,11 @@
   "Given an obj with a info-window prop, open it"
   [state obj]
   (let [info-window (aget obj "info-window")]
+    ;; first, close all other windows that are open
+    (mapv (fn [order]  (.close (:info-window order)))
+         (js->clj (:orders @state)
+                  :keywordize-keys true))
+    ;; now open the window
     (.open info-window (:google-map @state))))
 
 (defn create-info-window-tr
