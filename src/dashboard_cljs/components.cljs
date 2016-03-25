@@ -368,6 +368,31 @@
                 :placeholder placeholder
                 :on-change on-change}]))
 
+(defn Select
+  "props is:
+  {
+  :value       ; r/atom, id of the currently selected atom
+  :options     ; set of maps, #{{:id <value> :display-key str}, ...}
+  :display-key ; keyword, associated value is displayed
+  }
+  "
+  [props]
+  (fn [{:keys [value options display-key]} props]
+    [:select
+     {:value @value
+      :on-change
+      #(do (reset! value
+                   (-> %
+                       (aget "target")
+                       (aget "value"))))}
+     (map
+      (fn [option]
+        ^{:key (:id option)}
+        [:option
+         {:value (:id option)}
+         (display-key option)])
+      options)]))
+
 (defn FormGroup
   "props is:
   {

@@ -14,17 +14,17 @@
     <link rel="stylesheet" type="text/css" href="resources/css/font-awesome.min.css"></link>
   </head>
   <body>
-    <!-- <div id="base-url" value="http://localhost:3001/" style="display: none;"></div> -->
-    <div id="base-url" value="https://dash.purpleapp.com/" style="display: none;"></div>
+    <div id="base-url" value="http://localhost:3001/" style="display: none;"></div>
+    <!-- <div id="base-url" value="https://dash.purpleapp.com/" style="display: none;"></div> -->
     <!-- uncomment below when using main application -->
-    <!-- <script async defer src='https://maps.googleapis.com/maps/api/js?key=AIzaSyCr_OX9SFz0I8IE9p5NIdsjRaXTIEjlrbE'></script> -->
-    <script src="out/dashboard_cljs.js" type="text/javascript"></script>
+    <script async defer src='https://maps.googleapis.com/maps/api/js?key=AIzaSyCr_OX9SFz0I8IE9p5NIdsjRaXTIEjlrbE'></script>
     <div id="app"></div>
-    <!-- <script>dashboard_cljs.core.init_new_dash();</script> -->
+    <script src="out/dashboard_cljs.js" type="text/javascript"></script>
+    <script>dashboard_cljs.core.init_new_dash();</script>
 
-    <!-- uncomment below when using gmaps.cljs fn's -->
-    <div id="map"></div>
-    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCr_OX9SFz0I8IE9p5NIdsjRaXTIEjlrbE&callback=dashboard_cljs.gmaps.init_map_couriers"></script>
+    <!-- uncomment below when debugging gmaps.cljs-->
+    <!-- <div id="map"></div> -->
+    <!-- <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCr_OX9SFz0I8IE9p5NIdsjRaXTIEjlrbE&callback=dashboard_cljs.gmaps.init_map_couriers"></script> -->
 
     <!-- Note: In order to make requests to protected routes on the server, you -->
     <!-- must login to server when it is running. The cookies can not be set -->

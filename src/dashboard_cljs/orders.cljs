@@ -10,7 +10,7 @@
                                                TablePager ConfirmationAlert
                                                KeyVal ProcessingIcon FormGroup
                                                TextAreaInput DismissButton
-                                               SubmitDismissGroup]]
+                                               SubmitDismissGroup Select]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error]]
@@ -23,7 +23,8 @@
                                           same-timestamp?
                                           declined-payment?
                                           current-order?
-                                          get-event-time]]
+                                          get-event-time
+                                          get-by-id]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps]]))
 
@@ -41,9 +42,19 @@
 
 (def state (r/atom {:confirming? false
                     :editing-notes? false
+                    :editing-reason? false
                     :current-order nil
                     :edit-order default-order
                     :alert-success ""}))
+
+(def cancellation-reasons #{{:id "r0" :reason "None"}
+                            {:id "r1" :reason "Car won't be there"}
+                            {:id "r2" :reason "Can't find car"}
+                            {:id "r3" :reason "Customer request"}
+                            {:id "r4" :reason "Order will be late"}
+                            {:id "r5" :reason "Courier unavailable"}
+                            {:id "r6" :reason "Gas tank locked"}
+                            {:id "r7" :reason "Reason in notes"}})
 
 (defn order-row
   "A table row for an order in a table. current-order is the one currently being
@@ -114,32 +125,6 @@
        (conj props {:keyword :address_street})
        "Street Address"]]]))
 
-(defn order-courier-select
-  "Select for assigning a courier
-  props is:
-  {
-  :select-courier ; reagent atom, id of currently selected courier
-  :couriers       ; set of courier maps
-  }"
-  [props]
-  (fn [{:keys [selected-courier couriers]} props]
-    [:select
-     {:value (if @selected-courier
-               @selected-courier
-               (:id (first couriers)))
-      :on-change
-      #(do (reset! selected-courier
-                   (-> %
-                       (aget "target")
-                       (aget "value"))))}
-     (map
-      (fn [courier]
-        ^{:key (:id courier)}
-        [:option
-         {:value (:id courier)}
-         (:name courier)])
-      couriers)]))
-
 (defn assign-courier
   "Assign order to selected-courier from the list of couriers. error
   is an r/atom that contains any error associated with this call. editing?
@@ -197,7 +182,8 @@
         retrieving? (r/atom false)]
     (fn [{:keys [editing? assigned-courier couriers order]}
          props]
-      (let [selected-courier (r/atom assigned-courier)]
+      (let [selected-courier (r/atom (or assigned-courier
+                                         (:id (first couriers))))]
         [:h5 [:span {:class "info-window-label"} "Courier: "]
          ;; courier assigned (if any)
          (when (not @editing?)
@@ -221,9 +207,10 @@
                     (subset? #{{:uri "/assign-order"
                                 :method "POST"}}
                              @accessible-routes))
-           [order-courier-select {:selected-courier
-                                  selected-courier
-                                  :couriers couriers}])
+           (when-not @retrieving?
+             [Select {:value selected-courier
+                      :options couriers
+                      :display-key :name}]))
          ;; save assignment
          " "
          (when (and @editing?
@@ -251,9 +238,7 @@
            [ErrorComp (str "Courier could not be assigned! Reason: "
                            @error-message
                            "\n"
-                           "Try saving the assignment again"
-                           )])
-         ]))))
+                           "Try saving the assignment again")])]))))
 
 
 (defn refresh-order!
@@ -491,6 +476,92 @@
            ;; no longer editing
            (reset! editing-notes? false))}]])))
 
+
+(defn cancel-reason-comp
+  "Given an order r/atom, edit the order's cancel reason"
+  [order]
+  (let [edit-order (r/cursor state [:edit-order])
+        error-message (r/atom "")
+        cancel-reason (r/atom "")
+        retrieving? (r/atom false)
+        alert-success (r/atom "")
+        reason->id (fn [reason]
+                     (:id (first (filter #(= (:reason %) reason)
+                                         cancellation-reasons))))
+        editing? (r/cursor state [:editing-reason?])
+        aux-fn     (fn [_]
+                     (reset! editing? (not @editing?))
+                     (reset! retrieving? false))]
+    (fn [order]
+      (let [selected-reason (r/atom (or (reason->id (:cancel_reason @order))
+                                        "r0"))
+            id->reason (fn [id]
+                         (:reason (get-by-id cancellation-reasons
+                                             id)))]
+        [:h5 [:span {:class "info-window-label"} "Cancellation Reason: "]
+         ;; reason assigned (if any)
+         (when-not @editing?
+           [:span (id->reason @selected-reason) " "])
+         ;; change cancel reason button
+         (when (and (not @editing?)
+                    (subset? #{{:uri "/assign-order"
+                                :method "POST"}}
+                             @accessible-routes))
+           [:button {:type "button"
+                     :class "btn btn-xs btn-default"
+                     :on-click #(reset! editing? true)}
+            "Change Reason"])
+         ;; reason select
+         (when (and @editing?
+                    (subset? #{{:uri "/assign-order"
+                                :method "POST"}}
+                             @accessible-routes))
+           (when-not @retrieving?
+             [Select {:value selected-reason
+                      :options cancellation-reasons
+                      :display-key :reason}]))
+         ;; save reason
+         " "
+         (when (and @editing?
+                    (subset? #{{:uri "/assign-order"
+                                :method "POST"}}
+                             @accessible-routes))
+           [:span {:style {:display "inline-block"}}
+            [:button {:type "button"
+                      :class "btn btn-xs btn-default"
+                      :on-click
+                      (fn [e]
+                        (.preventDefault e)
+                        (if @editing?
+                          (entity-save
+                           (assoc @order :cancel_reason (id->reason
+                                                         @selected-reason))
+                           "order"
+                           "PUT"
+                           retrieving?
+                           (edit-on-success "order" edit-order order
+                                            alert-success
+                                            :aux-fn aux-fn)
+                           (edit-on-error  edit-order
+                                           :aux-fn aux-fn))
+                          (do
+                            (reset! alert-success "")
+                            (reset! editing?
+                                    (not @editing?)))))}
+             (if @retrieving?
+               [ProcessingIcon]
+               "Save Changes")]
+            " "
+            (when-not @retrieving?
+              [DismissButton {:dismiss-fn #(when (not @retrieving?)
+                                             (reset! editing? false))
+                              :class "btn btn-xs btn-default"}])])
+         (when (not (s/blank? @error-message))
+           [ErrorComp (str "Reason could not be used due to: "
+                           @error-message
+                           "\n"
+                           "Try changing reason again")])]))))
+
 (defn order-panel
   "Display detailed and editable fields for current-order"
   [order]
@@ -626,6 +697,9 @@
            [status-comp {:editing? editing-status?
                          :status order-status
                          :order order}]
+           ;; cancellation reason
+           (when (= "cancelled" (:status @order))
+             [cancel-reason-comp order])
            ;; notes
            [order-notes-comp order]]
           [:div {:class "pull-right hidden-xs"}
