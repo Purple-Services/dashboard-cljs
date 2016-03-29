@@ -448,33 +448,34 @@
                                            (aget "value")))}]]
          (when-not (s/blank? (:notes @order))
            [KeyVal "Notes" (:notes @order)]))
-       [SubmitDismissGroup
-        {:editing? editing-notes?
-         :retrieving? retrieving?
-         :edit-btn-content (if (s/blank? (:notes @order))
-                             "Add Note"
-                             "Edit Note")
-         :submit-fn
-         (fn [e]
-           (.preventDefault e)
-           (if @editing-notes?
-             (entity-save
-              (assoc @order :notes @notes)
-              "order"
-              "PUT"
-              retrieving?
-              (edit-on-success "order" edit-order order alert-success
-                               :aux-fn aux-fn)
-              (edit-on-error  edit-order
-                              :aux-fn aux-fn))
-             (do
-               (reset! alert-success "")
-               (reset! editing-notes?
-                       (not @editing-notes?)))))
-         :dismiss-fn
-         (fn [e]
-           ;; no longer editing
-           (reset! editing-notes? false))}]])))
+       ;; [SubmitDismissGroup
+       ;;  {:editing? editing-notes?
+       ;;   :retrieving? retrieving?
+       ;;   :edit-btn-content (if (s/blank? (:notes @order))
+       ;;                       "Add Note"
+       ;;                       "Edit Note")
+       ;;   :submit-fn
+       ;;   (fn [e]
+       ;;     (.preventDefault e)
+       ;;     (if @editing-notes?
+       ;;       (entity-save
+       ;;        (assoc @order :notes @notes)
+       ;;        "order"
+       ;;        "PUT"
+       ;;        retrieving?
+       ;;        (edit-on-success "order" edit-order order alert-success
+       ;;                         :aux-fn aux-fn)
+       ;;        (edit-on-error  edit-order
+       ;;                        :aux-fn aux-fn))
+       ;;       (do
+       ;;         (reset! alert-success "")
+       ;;         (reset! editing-notes?
+       ;;                 (not @editing-notes?)))))
+       ;;   :dismiss-fn
+       ;;   (fn [e]
+       ;;     ;; no longer editing
+       ;;     (reset! editing-notes? false))}]
+       ])))
 
 
 (defn cancel-reason-comp
@@ -698,8 +699,8 @@
                          :status order-status
                          :order order}]
            ;; cancellation reason
-           (when (= "cancelled" (:status @order))
-             [cancel-reason-comp order])
+           ;; (when (= "cancelled" (:status @order))
+           ;;   [cancel-reason-comp order])
            ;; notes
            [order-notes-comp order]]
           [:div {:class "pull-right hidden-xs"}

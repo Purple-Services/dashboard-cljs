@@ -7,7 +7,8 @@
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt markets
                                           json-string->clj pager-helper!
                                           integer->comma-sep-string
-                                          parse-to-number? diff-message]]
+                                          parse-to-number? diff-message
+                                          accessible-routes]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton KeyVal StarRating
@@ -16,6 +17,7 @@
                                                AlertSuccess
                                                SubmitDismissConfirmGroup
                                                TextAreaInput ViewHideButton]]
+            [clojure.set :refer [subset?]]
             [clojure.string :as s]))
 
 (def push-selected-users (r/atom (set nil)))
@@ -348,15 +350,18 @@
                                               (aget "target")
                                               (aget "value")))}]]]
            [KeyVal "Referral Gallons" (:referral_gallons @user)])
-         [SubmitDismissConfirmGroup
-          {:confirming? confirming?
-           :editing? editing?
-           :retrieving? retrieving?
-           :submit-fn submit-on-click
-           :dismiss-fn dismiss-fn}]
+         (when (subset? #{{:uri "/user"
+                           :method "PUT"}}
+                        @accessible-routes)
+           [SubmitDismissConfirmGroup
+            {:confirming? confirming?
+             :editing? editing?
+             :retrieving? retrieving?
+             :submit-fn submit-on-click
+             :dismiss-fn dismiss-fn}])
          (if (and @confirming?
-                    (not-every? nil?
-                                (diff-msg-gen @edit-user @current-user)))
+                  (not-every? nil?
+                              (diff-msg-gen @edit-user @current-user)))
            [ConfirmationAlert
             {:confirmation-message
              (fn []
