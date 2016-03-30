@@ -54,7 +54,7 @@
                             {:id "r4" :reason "Order will be late"}
                             {:id "r5" :reason "Courier unavailable"}
                             {:id "r6" :reason "Gas tank locked"}
-                            {:id "r7" :reason "Reason in notes"}})
+                            {:id "r7" :reason "Other"}})
 
 (defn order-row
   "A table row for an order in a table. current-order is the one currently being
@@ -485,6 +485,13 @@
         cancel-reason (r/atom "")
         retrieving? (r/atom false)
         alert-success (r/atom "")
+        current-cancel-reason (fn [order]
+                                (->> (:admin_event_log order)
+                                     (filter #(= (:action %) "cancel-order"))
+                                     (sort-by :timestamp)
+                                     reverse
+                                     first
+                                     :comment))
         reason->id (fn [reason]
                      (:id (first (filter #(= (:reason %) reason)
                                          cancellation-reasons))))
@@ -493,7 +500,8 @@
                      (reset! editing? (not @editing?))
                      (reset! retrieving? false))]
     (fn [order]
-      (let [selected-reason (r/atom (or (reason->id (:cancel_reason @order))
+      (let [selected-reason (r/atom (or (reason->id
+                                         (current-cancel-reason @order))
                                         "r0"))
             id->reason (fn [id]
                          (:reason (get-by-id cancellation-reasons
