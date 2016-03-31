@@ -182,8 +182,8 @@
       [TableHeadSortable
        (conj props {:keyword :courier_name})
        "Courier Name"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "Payment"]
+      ;; [:th {:style {:font-size "16px"
+      ;;               :font-weight "normal"}} "Payment"]
       [TableHeadSortable
        (conj props {:keyword :status})
        "Status"]
@@ -204,7 +204,7 @@
      ;; courier name
      [:td (:courier_name order)]
      ;; payment info
-     [:td (:customer_phone_number order)]
+     ;;[:td (:customer_phone_number order)]
      ;; status
      [:td (:status order)]
      ;; star rating
@@ -375,19 +375,20 @@
                          [:h4 el])
                        (diff-msg-gen @edit-user @current-user))])
                :cancel-on-click dismiss-fn
-               :confirm-on-click (fn [_]
-                                   (entity-save
-                                    (user->server-req @edit-user)
-                                    "user"
-                                    "PUT"
-                                    retrieving?
-                                    (edit-on-success "user" edit-user current-user
-                                                     alert-success
-                                                     :aux-fn
-                                                     #(reset! confirming? false))
-                                    (edit-on-error edit-user
-                                                   :aux-fn
-                                                   #(reset! confirming? false))))
+               :confirm-on-click
+               (fn [_]
+                 (entity-save
+                  (user->server-req @edit-user)
+                  "user"
+                  "PUT"
+                  retrieving?
+                  (edit-on-success "user" edit-user current-user
+                                   alert-success
+                                   :aux-fn
+                                   #(reset! confirming? false))
+                  (edit-on-error edit-user
+                                 :aux-fn
+                                 #(reset! confirming? false))))
                :retrieving? retrieving?}]
              (reset! confirming? false)))
          ;; success alert
