@@ -323,65 +323,65 @@
                "/"
                (:exp_year default-card-info)))])
          ;; Referral Gallons
-         ;; (if @editing?
-         ;;   [:div
-         ;;    [FormGroup {:label "Referral Gallons"
-         ;;                :label-for "referral gallons"
-         ;;                :errors (:referral_gallons @errors)
-         ;;                :input-container-class "col-sm-7"}
-         ;;     [TextInput {:value @referral-gallons
-         ;;                 :default-value @referral-gallons
-         ;;                 :on-change #(reset!
-         ;;                              referral-gallons
-         ;;                              (-> %
-         ;;                                  (aget "target")
-         ;;                                  (aget "value")))}]]
-         ;;    [FormGroup {:label "Referral Gallons Comment"
-         ;;                :label-for "referral gallons comment"
-         ;;                :input-container-class "col-sm-7"}
-         ;;     [TextAreaInput {:value @comment
-         ;;                     :rows 2
-         ;;                     :cols 50
-         ;;                     :on-change #(reset!
-         ;;                                  comment
-         ;;                                  (-> %
-         ;;                                      (aget "target")
-         ;;                                      (aget "value")))}]]]
-         ;;   [KeyVal "Referral Gallons" (:referral_gallons @user)])
-         ;; [SubmitDismissConfirmGroup
-         ;;  {:confirming? confirming?
-         ;;   :editing? editing?
-         ;;   :retrieving? retrieving?
-         ;;   :submit-fn submit-on-click
-         ;;   :dismiss-fn dismiss-fn}]
-         ;; (if (and @confirming?
-         ;;          (not-every? nil?
-         ;;                      (diff-msg-gen @edit-user @current-user)))
-         ;;   [ConfirmationAlert
-         ;;    {:confirmation-message
-         ;;     (fn []
-         ;;       [:div (str "The following changes will be made to "
-         ;;                  (:name @current-user))
-         ;;        (map (fn [el]
-         ;;               ^{:key el}
-         ;;               [:h4 el])
-         ;;             (diff-msg-gen @edit-user @current-user))])
-         ;;     :cancel-on-click dismiss-fn
-         ;;     :confirm-on-click (fn [_]
-         ;;                         (entity-save
-         ;;                          (user->server-req @edit-user)
-         ;;                          "user"
-         ;;                          "PUT"
-         ;;                          retrieving?
-         ;;                          (edit-on-success "user" edit-user current-user
-         ;;                                           alert-success
-         ;;                                           :aux-fn
-         ;;                                           #(reset! confirming? false))
-         ;;                          (edit-on-error edit-user
-         ;;                                         :aux-fn
-         ;;                                         #(reset! confirming? false))))
-         ;;     :retrieving? retrieving?}]
-         ;;   (reset! confirming? false))
+         (if @editing?
+           [:div
+            [FormGroup {:label "Referral Gallons"
+                        :label-for "referral gallons"
+                        :errors (:referral_gallons @errors)
+                        :input-container-class "col-sm-7"}
+             [TextInput {:value @referral-gallons
+                         :default-value @referral-gallons
+                         :on-change #(reset!
+                                      referral-gallons
+                                      (-> %
+                                          (aget "target")
+                                          (aget "value")))}]]
+            [FormGroup {:label "Referral Gallons Comment"
+                        :label-for "referral gallons comment"
+                        :input-container-class "col-sm-7"}
+             [TextAreaInput {:value @comment
+                             :rows 2
+                             :cols 50
+                             :on-change #(reset!
+                                          comment
+                                          (-> %
+                                              (aget "target")
+                                              (aget "value")))}]]]
+           [KeyVal "Referral Gallons" (:referral_gallons @user)])
+         [SubmitDismissConfirmGroup
+          {:confirming? confirming?
+           :editing? editing?
+           :retrieving? retrieving?
+           :submit-fn submit-on-click
+           :dismiss-fn dismiss-fn}]
+         (if (and @confirming?
+                  (not-every? nil?
+                              (diff-msg-gen @edit-user @current-user)))
+           [ConfirmationAlert
+            {:confirmation-message
+             (fn []
+               [:div (str "The following changes will be made to "
+                          (:name @current-user))
+                (map (fn [el]
+                       ^{:key el}
+                       [:h4 el])
+                     (diff-msg-gen @edit-user @current-user))])
+             :cancel-on-click dismiss-fn
+             :confirm-on-click (fn [_]
+                                 (entity-save
+                                  (user->server-req @edit-user)
+                                  "user"
+                                  "PUT"
+                                  retrieving?
+                                  (edit-on-success "user" edit-user current-user
+                                                   alert-success
+                                                   :aux-fn
+                                                   #(reset! confirming? false))
+                                  (edit-on-error edit-user
+                                                 :aux-fn
+                                                 #(reset! confirming? false))))
+             :retrieving? retrieving?}]
+           (reset! confirming? false))
          ;; success alert
          (when-not (empty? @alert-success)
            [AlertSuccess {:message @alert-success
