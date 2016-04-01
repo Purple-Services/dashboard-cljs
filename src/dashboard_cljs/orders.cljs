@@ -608,6 +608,8 @@
          [:div {:class "row"}
           [:div {:class "col-xs-6 pull-left"}
            [:h3 {:style {:margin-top 0}} "Order Details"]
+           ;; order id
+           [KeyVal "Order ID" (:id @order)]
            ;; order price
            [KeyVal "Total Price"
             [:span
@@ -674,11 +676,8 @@
              " "
              (:address_street @order)]]
            ;; vehicle description
-           [KeyVal "Vehicle" (str (:color (:vehicle @order))
-                                  " "
-                                  (:make (:vehicle @order))
-                                  " "
-                                  (:model (:vehicle @order)))]
+           (let [{:keys [year make model color]} (:vehicle @order)]
+             [KeyVal "Vehicle" (str year " " make " " model " " "(" color ")")])
            ;; license plate
            [KeyVal "License Plate" (:license_plate @order)]
            ;; ETAs
