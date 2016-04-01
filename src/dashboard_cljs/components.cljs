@@ -170,6 +170,10 @@
           displayed-pages (->> pages
                                (filter (fn [i] (some #(= @current-page %) i)))
                                first)]
+      ;; prevent overshooting of current-page for tables
+      ;; of different sizes
+      (when (> @current-page displayed-pages)
+        (reset! current-page 1))
       (when (> total-pages 1)
         [:nav
          [:ul {:class "pagination"}
@@ -178,12 +182,10 @@
                 :class "page-link"
                 :on-click (fn [e]
                             (.preventDefault e)
-                            (reset! current-page 1))
-                }
+                            (reset! current-page 1))}
             ;; the symbol here is called a Guillemet
             ;; html character entity reference &laquo;
-            "«"
-            ]]
+            "«"]]
           [:li {:class "page-item"}
            [:a {:href "#"
                 :class "page-link"
@@ -195,8 +197,7 @@
                       (reset! current-page 1)
                       (reset! current-page new-current-page))))}
             ;; html character entity reference &lsaquo;
-            "‹"
-            ]]
+            "‹"]]
           (doall (map (fn [page-number]
                         ^{:key page-number}
                         [:li {:class
@@ -204,18 +205,15 @@
                                    (when (= page-number
                                             @current-page)
                                      "active ")
-                                   (when (= 1))
-                                   )}
+                                   (when (= 1)))}
                          [:a {:href "#"
                               :class "page-link"
                               :on-click (fn [e]
                                           (.preventDefault e)
-                                          (reset! current-page page-number))
-                              }
+                                          (reset! current-page page-number))}
                           page-number]])
                       ;;(range 1 (+ 1 total-pages))
-                      displayed-pages
-                      ))
+                      displayed-pages))
           [:li {:class "page-item"}
            [:a {:href "#"
                 :class "page-link"
@@ -226,8 +224,7 @@
                                 (reset! current-page total-pages)
                                 (reset! current-page new-current-page))))}
             ;; html character entity reference &rsaquo;
-            "›"
-            ]]
+            "›"]]
           [:li {:class "page-item"}
            [:a {:href "#"
                 :class "page-link"

@@ -742,8 +742,7 @@
         current-page (r/atom 1)
         page-size 20
         filters {"Show All" (constantly true)
-                 "Current Orders" current-order?
-                 "Declined Payments" declined-payment?}
+                 "Current Orders" current-order?}
         selected-filter (r/atom "Current Orders")]
     (fn [orders]
       (let [sort-fn (if @sort-reversed?
