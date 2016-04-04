@@ -410,6 +410,7 @@
             sorted-couriers (->> displayed-couriers
                                  sort-fn
                                  (filter (get filters @selected-filter))
+                                 (filter :active)
                                  (partition-all page-size))
             paginated-couriers (-> sorted-couriers
                                    (nth (- @current-page 1)
