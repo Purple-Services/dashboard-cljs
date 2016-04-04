@@ -405,20 +405,13 @@
   (fn [props input]
     (let [{:keys [label label-for errors input-group-addon
                   input-container-class]} props]
-      [:div {:class "form-group"}
-       [:label {:for label-for
-                :class "col-sm-2 control-label"}
-        label]
-       [:div {:class (if input-container-class
-                       input-container-class
-                       "col-sm-2")}
-        [:div {:class "input-group"}
-         (when input-group-addon
-           input-group-addon)
-         input]
-        (when errors
-          [:div {:class "alert alert-danger"}
-           (first errors)])]])))
+      [:div {:class "form-group"
+             :style {:margin-left "1px"}}
+       [:label {:for label-for} label]
+       input
+       (when errors
+         [:div {:class "alert alert-danger"}
+          (first errors)])])))
 
 (defn FormSubmit
   [button]

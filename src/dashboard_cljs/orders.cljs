@@ -435,19 +435,23 @@
         (reset! notes (:notes @order)))
       [:form {:class "form-horizontal"}
        (if @editing-notes?
-         [FormGroup {:label "Notes"
-                     :label-for "order notes"
-                     :input-container-class "col-sm-7"}
-          [TextAreaInput {:value @notes
-                          :rows 2
-                          :cols 50
-                          :on-change #(reset!
-                                       notes
-                                       (-> %
-                                           (aget "target")
-                                           (aget "value")))}]]
+         [:div [FormGroup {:label "Notes"
+                           :label-for "order notes"}
+                [TextAreaInput {:value @notes
+                                :rows 2
+                                :cols 50
+                                :on-change #(reset!
+                                             notes
+                                             (-> %
+                                                 (aget "target")
+                                                 (aget "value")))}]]
+          [:br]]
          (when-not (s/blank? (:notes @order))
-           [KeyVal "Notes" (:notes @order)]))
+           [KeyVal "Notes"
+            (into []
+                  (concat
+                   [:div {:style {:display "inline-table"}}]
+                   (interpose [:br] (s/split (:notes @order) #"\n"))))]))
        [SubmitDismissGroup
         {:editing? editing-notes?
          :retrieving? retrieving?

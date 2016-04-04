@@ -177,97 +177,98 @@
                          (reset! confirming? false))]
         [:form {:class "form-horizontal"}
          (if @editing?
-           [:div
-            ;; 87 Price
-            [FormGroup {:label-for "87 price"
-                        :label "87 Octane"
-                        :errors (:price-87 @errors)
-                        :input-group-addon [:div {:class "input-group-addon"}
-                                            "$"]}
-             [TextInput {:value @price-87
-                         :on-change #(reset! price-87 (-> %
-                                                          (aget "target")
-                                                          (aget "value")))}]]
-            ;; 91 price
-            [FormGroup {:label-for "91 price"
-                        :label "91 Octane"
-                        :errors (:price-91 @errors)
-                        :input-group-addon [:div {:class "input-group-addon"}
-                                            "$"]}
-             [TextInput {:value @price-91
-                         :on-change #(reset! price-91 (-> %
-                                                          (aget "target")
-                                                          (aget "value")))}]]
-            ;; 1 hour fee
-            [FormGroup {:label-for "1 Hour Fee"
-                        :label "1 Hour Fee"
-                        :errors  (:service-fee-60 @errors)
-                        :input-group-addon [:div {:class "input-group-addon"}
-                                            "$"]}
-             [TextInput {:value @service-fee-60
-                         :on-change #(reset! service-fee-60
-                                             (-> %
-                                                 (aget "target")
-                                                 (aget "value")))}]]
-            ;; 3 hour fee
-            [FormGroup {:label-for "3 Hour Fee"
-                        :label "3 Hour Fee"
-                        :errors  (:service-fee-180 @errors)
-                        :input-group-addon [:div {:class "input-group-addon"}
-                                            "$"]}
-             [TextInput {:value @service-fee-180
-                         :on-change #(reset! service-fee-180
-                                             (-> %
-                                                 (aget "target")
-                                                 (aget "value")))}]]
-            ;; service starts
-            [FormGroup {:label-for "Service Starts"
-                        :label "service starts"
-                        :errors (:service-time-bracket-begin @errors)}
-             [TextInput {:value @service-time-bracket-begin
-                         :on-change #(reset! service-time-bracket-begin
-                                             (-> %
-                                                 (aget "target")
-                                                 (aget "value")))}]]
-            ;; service ends
-            [FormGroup {:label-for "Service Ends"
-                        :label "service ends"
-                        :errors (:service-time-bracket-end @errors)}
-             [TextInput {:value @service-time-bracket-end
-                         :on-change #(reset! service-time-bracket-end
-                                             (-> %
-                                                 (aget "target")
-                                                 (aget "value")))}]]]
+           [:div {:class "row"}
+            [:div {:class "col-xs-2"}
+             ;; 87 Price
+             [FormGroup {:label-for "87 price"
+                         :label "87 Octane"
+                         :errors (:price-87 @errors)
+                         :input-group-addon [:div {:class "input-group-addon"}
+                                             "$"]}
+              [TextInput {:value @price-87
+                          :on-change #(reset! price-87 (-> %
+                                                           (aget "target")
+                                                           (aget "value")))}]]
+             ;; 91 price
+             [FormGroup {:label-for "91 price"
+                         :label "91 Octane"
+                         :errors (:price-91 @errors)
+                         :input-group-addon [:div {:class "input-group-addon"}
+                                             "$"]}
+              [TextInput {:value @price-91
+                          :on-change #(reset! price-91 (-> %
+                                                           (aget "target")
+                                                           (aget "value")))}]]
+             ;; 1 hour fee
+             [FormGroup {:label-for "1 Hour Fee"
+                         :label "1 Hour Fee"
+                         :errors  (:service-fee-60 @errors)
+                         :input-group-addon [:div {:class "input-group-addon"}
+                                             "$"]}
+              [TextInput {:value @service-fee-60
+                          :on-change #(reset! service-fee-60
+                                              (-> %
+                                                  (aget "target")
+                                                  (aget "value")))}]]
+             ;; 3 hour fee
+             [FormGroup {:label-for "3 Hour Fee"
+                         :label "3 Hour Fee"
+                         :errors  (:service-fee-180 @errors)
+                         :input-group-addon [:div {:class "input-group-addon"}
+                                             "$"]}
+              [TextInput {:value @service-fee-180
+                          :on-change #(reset! service-fee-180
+                                              (-> %
+                                                  (aget "target")
+                                                  (aget "value")))}]]
+             ;; service starts
+             [FormGroup {:label-for "Service Starts"
+                         :label "service starts"
+                         :errors (:service-time-bracket-begin @errors)}
+              [TextInput {:value @service-time-bracket-begin
+                          :on-change #(reset! service-time-bracket-begin
+                                              (-> %
+                                                  (aget "target")
+                                                  (aget "value")))}]]
+             ;; service ends
+             [FormGroup {:label-for "Service Ends"
+                         :label "service ends"
+                         :errors (:service-time-bracket-end @errors)}
+              [TextInput {:value @service-time-bracket-end
+                          :on-change #(reset! service-time-bracket-end
+                                              (-> %
+                                                  (aget "target")
+                                                  (aget "value")))}]]]]
            ;; not editing
            [:div
             ;;87 price
             [KeyVal "87 Octane" (-> @zone
-                                   :fuel_prices
-                                   :87
-                                   (cents->$dollars))]
+                                    :fuel_prices
+                                    :87
+                                    (cents->$dollars))]
             ;; 91 price
             [KeyVal "91 Octane" (-> @zone
-                                   :fuel_prices
-                                   :91
-                                   (cents->$dollars))]
+                                    :fuel_prices
+                                    :91
+                                    (cents->$dollars))]
             ;; 1 hour fee
             [KeyVal "1 Hour Fee" (-> @zone
-                                    :service_fees
-                                    :60
-                                    (cents->$dollars))]
+                                     :service_fees
+                                     :60
+                                     (cents->$dollars))]
             ;; 3 hour fee
             [KeyVal "3 Hour Fee" (-> @zone
-                                    :service_fees
-                                    :180
-                                    (cents->$dollars))]
+                                     :service_fees
+                                     :180
+                                     (cents->$dollars))]
             ;; service starts
             [KeyVal "Service Starts" (-> @zone
-                                        :service_time_bracket
-                                        first)]
+                                         :service_time_bracket
+                                         first)]
             ;; service ends
             [KeyVal "Service Ends" (-> @zone
-                                      :service_time_bracket
-                                      second)]])
+                                       :service_time_bracket
+                                       second)]])
          ;; submit button
          [SubmitDismissConfirmGroup {:confirming? confirming?
                                      :editing? editing?

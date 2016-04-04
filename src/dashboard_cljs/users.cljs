@@ -329,8 +329,7 @@
            [:div
             [FormGroup {:label "Referral Gallons"
                         :label-for "referral gallons"
-                        :errors (:referral_gallons @errors)
-                        :input-container-class "col-sm-7"}
+                        :errors (:referral_gallons @errors)}
              [TextInput {:value @referral-gallons
                          :default-value @referral-gallons
                          :on-change #(reset!
@@ -338,9 +337,8 @@
                                       (-> %
                                           (aget "target")
                                           (aget "value")))}]]
-            [FormGroup {:label "Referral Gallons Comment"
-                        :label-for "referral gallons comment"
-                        :input-container-class "col-sm-7"}
+            [FormGroup {:label "Reason for Adjusting Referral Gallons"
+                        :label-for "referral gallons comment"}
              [TextAreaInput {:value @comment
                              :rows 2
                              :cols 50
@@ -348,7 +346,8 @@
                                           comment
                                           (-> %
                                               (aget "target")
-                                              (aget "value")))}]]]
+                                              (aget "value")))}]]
+            [:br]]
            [KeyVal "Referral Gallons" (:referral_gallons @user)])
          (when (subset? #{{:uri "/user"
                            :method "PUT"}}

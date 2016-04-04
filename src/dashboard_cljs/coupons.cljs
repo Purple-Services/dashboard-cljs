@@ -106,69 +106,73 @@
 
 (defn coupon-form-render
   [props]
-  (fn [{:keys [errors code value expires? expiration-time only-for-first-order]}
-       props]
-    [:div
-     ;; promo code
-     [FormGroup {:label "Code"
-                 :label-for "promo code"
-                 :errors (:code @errors)}
-      [TextInput {:value @code
-                  :default-value @code
-                  :placeholder "Code"
-                  :on-change #(reset!
-                               code
-                               (-> %
-                                   (aget "target")
-                                   (aget "value")
-                                   (format-coupon-code)))}]]
-     ;; amount
-     [FormGroup {:label "Amount"
-                 :label-for "amount"
-                 :errors (:value @errors)}
-      [TextInput {:value @value
-                  :placeholder "Amount"
-                  :on-change #(reset!
-                               value (-> %
-                                         (aget "target")
-                                         (aget "value")))}]]
-     ;; exp date
-     [:div {:class "form-group"}
-      [:label {:for "expires?"
-               :class "col-sm-2 control-label"}
-       "Expires? "
+  (fn [{:keys [errors code value expires? expiration-time only-for-first-order
+               code-editable?]} props]
+    [:div {:class "row"}
+     [:div {:class "col-sm-2"}
+      ;; promo code
+      (when code-editable?
+        [FormGroup {:label "Code"
+                    :label-for "promo code"
+                    :errors (:code @errors)}
+         [TextInput {:value @code
+                     :default-value @code
+                     :placeholder "Code"
+                     :on-change #(reset!
+                                  code
+                                  (-> %
+                                      (aget "target")
+                                      (aget "value")
+                                      (format-coupon-code)))}]])
+      (when-not code-editable?
+        [KeyVal "Code" @code])
+      ;; amount
+      [FormGroup {:label "Amount"
+                  :label-for "amount"
+                  :errors (:value @errors)}
+       [TextInput {:value @value
+                   :placeholder "Amount"
+                   :on-change #(reset!
+                                value (-> %
+                                          (aget "target")
+                                          (aget "value")))}]]
+      ;; exp date
+      [:div {:class "form-group"
+             :style {:margin-left "1px"}}
+       [:label {:for "expires?"
+                :class "control-label"}
+        "Expires? "
+        [:div {:style {:display "inline-block"}}
+         [:input {:type "checkbox"
+                  :checked @expires?
+                  :style {:margin-left "4px"}
+                  :on-change (fn [e]
+                               (reset!
+                                expires?
+                                (-> e
+                                    (aget "target")
+                                    (aget "checked")))
+                               (when-not @expires?
+                                 (reset! expiration-time
+                                         1999999999)))}]]]
+       [:div
+        [:div {:class "input-group"}
+         (when @expires?
+           [DatePicker expiration-time])]
+        (when (:expiration_time @errors)
+          [:div {:class "alert alert-danger"}
+           (first (:expiration_time @errors))])]]
+      ;; first tine only?
+      [FormGroup {:label (str "First Order Only?     ")
+                  :label-for "first time only?"}
        [:input {:type "checkbox"
-                :checked @expires?
-                :on-change (fn [e]
-                             (reset!
-                              expires?
-                              (-> e
-                                  (aget "target")
-                                  (aget "checked")))
-                             (when-not @expires?
-                               (reset! expiration-time
-                                       1999999999)))}]]
-      [:div {:class "col-sm-10"}
-       [:div {:class "input-group"}
-        (when @expires?
-          [DatePicker expiration-time])]
-       (when (:expiration_time @errors)
-         [:div {:class "alert alert-danger"}
-          (first (:expiration_time @errors))])]]
-     ;; first tine only?
-     [:div {:class "form-group"}
-      [:label {:for "first time only?"
-               :class "col-sm-2 control-label"}
-       "First Order Only?"]
-      [:div {:class "col-sm-10"}
-       [:div {:class "input-group"}
-        [:input {:type "checkbox"
-                 :checked @only-for-first-order
-                 :on-change #(reset!
-                              only-for-first-order
-                              (-> %
-                                  (aget "target")
-                                  (aget "checked")))}]]]]]))
+                :checked @only-for-first-order
+                :style {:margin-left "4px"}
+                :on-change #(reset!
+                             only-for-first-order
+                             (-> %
+                                 (aget "target")
+                                 (aget "checked")))}]]]]))
 
 (defn edit-coupon-comp
   [coupon]
@@ -230,7 +234,8 @@
                                     :value value
                                     :expires? expires?
                                     :expiration-time expiration-time
-                                    :only-for-first-order only-for-first-order}]
+                                    :only-for-first-order only-for-first-order
+                                    :code-editable? false}]
                (and (not @editing?)
                     (not (s/blank? @code)))
                [:div
@@ -238,8 +243,8 @@
                                    :code)]
                 [KeyVal "Amount" (->> @coupon
                                       :value
-                                     (.abs js/Math)
-                                     (cents->$dollars))]
+                                      (.abs js/Math)
+                                      (cents->$dollars))]
                 [KeyVal "Expiration Date" (-> @coupon
                                               :expiration_time
                                               (unix-epoch->fmt "M/D/YYYY"))]
@@ -253,8 +258,8 @@
                                      :submit-fn submit-on-click
                                      :dismiss-fn dismiss-fn}]
          (if (and @confirming?
-                    (not-every? nil? (diff-msg-gen
-                                      @edit-coupon @current-coupon)))
+                  (not-every? nil? (diff-msg-gen
+                                    @edit-coupon @current-coupon)))
            [ConfirmationAlert
             {:confirmation-message
              (fn []
@@ -318,8 +323,8 @@
                                                      expiration_time
                                                      "M/D/YYYY")]
                            [:h4 "First Order Only?: " (if only_for_first_orders
-                                                         "Yes"
-                                                         "No")]]))
+                                                        "Yes"
+                                                        "No")]]))
           submit-on-click (fn [e]
                             (.preventDefault e)
                             (if @editing?
@@ -331,14 +336,14 @@
                                 (reset! alert-success "")
                                 (reset! editing? (not @editing?)))))
           dismiss-fn (fn [e]
-                         ;; reset any errors
-                         (reset! errors nil)
-                         ;; no longer editing
-                         (reset! editing? false)
-                         ;; reset new coupon
-                         (reset-new-coupon!)
-                         ;; reset confirming
-                         (reset! confirming? false))]
+                       ;; reset any errors
+                       (reset! errors nil)
+                       ;; no longer editing
+                       (reset! editing? false)
+                       ;; reset new coupon
+                       (reset-new-coupon!)
+                       ;; reset confirming
+                       (reset! confirming? false))]
       [:div {:class "panel panel-default"}
        [:div {:class "panel-body"}
         [:form {:class "form-horizontal"}
@@ -348,7 +353,8 @@
                                 :value value
                                 :expires? expires?
                                 :expiration-time expiration-time
-                                :only-for-first-order only-for-first-order}])
+                                :only-for-first-order only-for-first-order
+                                :code-editable? true}])
          [SubmitDismissConfirmGroup {:confirming? confirming?
                                      :editing? editing?
                                      :retrieving? retrieving?
