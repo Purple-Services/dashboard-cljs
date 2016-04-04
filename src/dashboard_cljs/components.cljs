@@ -260,11 +260,11 @@
          [:button {:type "button"
                    :class "btn btn-default"
                    :on-click confirm-on-click}
-          "Confirm"]
+          "Yes"]
          [:button {:type "button"
                    :class "btn btn-default"
                    :on-click cancel-on-click}
-          "Cancel"]])
+          "No"]])
       (when @retrieving?
         [:i {:class "fa fa-spinner fa-pulse"}])]]))
 
@@ -461,23 +461,25 @@
 
 (defn SubmitDismiss
   [props submit dismiss]
-  (fn [{:keys [editing? retrieving?]} props]
-    [:div {:class "btn-toolbar"}
-     ;; edit button
-     [:div {:class "btn-group"}
-      submit]
-     [:div {:class "btn-group"}
-      ;; dismiss button
-      (when-not (or @retrieving? (not @editing?))
-        dismiss)]]))
+  (fn [props submit dismiss]
+    (let [{:keys [editing? retrieving?]} props]
+      [:div {:class "btn-toolbar"}
+       ;; edit button
+       [:div {:class "btn-group"}
+        submit]
+       [:div {:class "btn-group"}
+        ;; dismiss button
+        (when-not (or @retrieving? (not @editing?))
+          dismiss)]])))
 
 (defn SubmitDismissGroup
   [props]
   (fn [{:keys [editing? retrieving? submit-fn dismiss-fn edit-btn-content]}
        props]
     (let [edit-btn-content (or edit-btn-content "Edit")]
-      [SubmitDismiss {:editing? editing?
-                      :retrieving? retrieving?}
+      [SubmitDismiss
+       {:editing? editing?
+        :retrieving? retrieving?}
        [EditFormSubmit {:retrieving? retrieving?
                         :editing? editing?
                         :on-click submit-fn
