@@ -327,7 +327,7 @@
          ;; Referral Gallons
          (if @editing?
            [:div
-            [FormGroup {:label "Referral Gallons"
+            [FormGroup {:label "Credit Gallons"
                         :label-for "referral gallons"
                         :errors (:referral_gallons @errors)}
              [TextInput {:value @referral-gallons
@@ -337,7 +337,7 @@
                                       (-> %
                                           (aget "target")
                                           (aget "value")))}]]
-            [FormGroup {:label "Reason for Adjusting Referral Gallons"
+            [FormGroup {:label "Reason for Adjusting Credit Gallons"
                         :label-for "referral gallons comment"}
              [TextAreaInput {:value @comment
                              :rows 2
@@ -348,7 +348,7 @@
                                               (aget "target")
                                               (aget "value")))}]]
             [:br]]
-           [KeyVal "Referral Gallons" (:referral_gallons @user)])
+           [KeyVal "Credit Gallons" (:referral_gallons @user)])
          (when (subset? #{{:uri "/user"
                            :method "PUT"}}
                         @accessible-routes)
