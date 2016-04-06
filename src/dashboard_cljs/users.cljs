@@ -67,11 +67,14 @@
 
 (defn user->server-req
   [user]
-  (let [{:keys [referral_gallons]} user]
+  (let [{:keys [referral_gallons]} user
+        processed-ref-gallons (-> referral_gallons
+                                  (clojure.string/replace #"," "")
+                                  (js/Number))]
     (assoc user
            :referral_gallons
-           (if (parse-to-number? referral_gallons)
-             (js/Number referral_gallons)
+           (if (parse-to-number? processed-ref-gallons)
+             processed-ref-gallons
              referral_gallons))))
 
 (defn reset-edit-user!
