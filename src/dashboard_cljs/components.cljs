@@ -109,10 +109,16 @@
 
 (defn ErrorComp
   "Given an error message, display it in an alert box"
-  [error-message]
-  (fn [error-messsage]
-    [:div {:class "alert alert-danger"
+  [props]
+  (fn [{:keys [error-message dismiss-fn]} props]
+    [:div {:class "alert alert-danger alert-dismissible"
            :role "alert"}
+     (when dismiss-fn
+       [:button {:type "button"
+                 :class "close"
+                 :aria-label "Close"}
+        [:i {:class "fa fa-times"
+             :on-click dismiss-fn}]])
      [:span {:class "sr-only"} "Error:"]
      error-message]))
 

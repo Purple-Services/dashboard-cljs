@@ -235,10 +235,12 @@
                                              (reset! editing? false))
                               :class "btn btn-xs btn-default"}])])
          (when (not (s/blank? @error-message))
-           [ErrorComp (str "Courier could not be assigned! Reason: "
-                           @error-message
-                           "\n"
-                           "Try saving the assignment again")])]))))
+           [ErrorComp {:error-message
+                       (str "Courier could not be assigned! Reason: "
+                            @error-message
+                            "\n"
+                            "Try saving the assignment again")
+                       :dismiss-fn #(reset! error-message "")}])]))))
 
 
 (defn refresh-order!
@@ -397,8 +399,10 @@
                [:i {:class "fa fa-spinner fa-pulse"}]
                "Cancel Order")])])
        (when (not (s/blank? @error-message))
-         [ErrorComp (str "Order status could be not be changed! Reason: "
-                         @error-message)])])))
+         [ErrorComp {:error-message
+                     (str "Order status could be not be changed! Reason: "
+                          @error-message)
+                     :dismiss-fn #(reset! error-message "")}])])))
 
 (defn get-etas-button
   "Given an order atom, refresh it with values from the server"
@@ -569,10 +573,12 @@
                                              (reset! editing? false))
                               :class "btn btn-xs btn-default"}])])
          (when (not (s/blank? @error-message))
-           [ErrorComp (str "Reason could not be used due to: "
-                           @error-message
-                           "\n"
-                           "Try changing reason again")])]))))
+           [ErrorComp {:error-message
+                       (str "Reason could not be used due to: "
+                            @error-message
+                            "\n"
+                            "Try changing reason again")
+                       :dismiss-fn #(reset! error-message "")}])]))))
 
 (defn order-panel
   "Display detailed and editable fields for current-order"

@@ -281,8 +281,10 @@
                                     courier
                                     retrieve-courier)}])
          (when (not (s/blank? @error-message))
-           [ErrorComp (str "Courier could not be assigned! Reason: "
-                           @error-message)])]))))
+           [ErrorComp {:error-message
+                       (str "Courier could not be assigned! Reason: "
+                            @error-message)
+                       :dismiss-fn #(reset! error-message "")}])]))))
 
 
 (defn courier-panel
