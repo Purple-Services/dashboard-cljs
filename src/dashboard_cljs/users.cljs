@@ -337,7 +337,7 @@
                                       (-> %
                                           (aget "target")
                                           (aget "value")))}]]
-            [FormGroup {:label "Reason for Adjusting Credit Gallons"
+            [FormGroup {:label "Reason for Changing Credit Gallons"
                         :label-for "referral gallons comment"}
              [TextAreaInput {:value @comment
                              :rows 2
