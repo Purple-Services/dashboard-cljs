@@ -48,12 +48,12 @@
                     :alert-success ""}))
 
 (def cancellation-reasons #{{:id "r0" :reason "None"}
-                            {:id "r1" :reason "Car won't be there"}
-                            {:id "r2" :reason "Can't find car"}
-                            {:id "r3" :reason "Customer request"}
-                            {:id "r4" :reason "Order will be late"}
-                            {:id "r5" :reason "Courier unavailable"}
-                            {:id "r6" :reason "Gas tank locked"}
+                            {:id "r1" :reason "Can't find Car"}
+                            {:id "r2" :reason "Car is inaccessible"}
+                            {:id "r3" :reason "Gas cap closed"}
+                            {:id "r4" :reason "Customer request"}
+                            {:id "r5" :reason "Customer moving vehicle (not-late)"}
+                            {:id "r6" :reason "Customer moving vehicle (late)"}
                             {:id "r7" :reason "Other"}})
 
 (defn order-row
