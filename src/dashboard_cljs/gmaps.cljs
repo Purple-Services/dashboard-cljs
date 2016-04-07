@@ -106,10 +106,10 @@
   "Create a zip-boundrary Polygon from coords in gmap with color"
   [gmap color coords]
   (js/google.maps.Polygon. (js-obj "paths" coords
-                                   "strokeColor" color
+                                   "strokeColor" "#9B59B6"
                                    "strokeOpacity" 1
                                    "strokeWeight" 1
-                                   "fillColor" color
+                                   "fillColor" "#9B59B6"
                                    "fillOpacity" 0.15
                                    "map" gmap)))
 
