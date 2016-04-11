@@ -76,42 +76,36 @@
           recent-search-term (r/cursor state [:recent-search-term])
           search-results (r/cursor state [:search-results])
           users-search-results (r/cursor search-results [:users])
-          orders-search-results (r/cursor search-results [:orders])
-          ]
+          orders-search-results (r/cursor search-results [:orders])]
+      (.scrollTo js/window 0 0)
       [:div
        ;; users results
        [:div {:class "panel panel-default"}
         [:div {:class "panel-body"}
          [:div
-          (when (and (empty? ;;@search-results
-                      @users-search-results)
+          (when (and (empty? @users-search-results)
                      (not (s/blank? @recent-search-term))
                      (not @retrieving?))
-            [:h5 "Your search - " [:strong @recent-search-term]
-             " - did not match any users."])
-          (when-not (empty? ;;@search-results
-                     @users-search-results)
+            [:h5 "Your search - \"" [:strong {:style {:white-space "pre"}}
+                                     @recent-search-term]
+             \"" - did not match any users."])
+          (when-not (empty? @users-search-results)
             [:div
-             [:h5 "Users matching - " [:strong @recent-search-term]]
-             [users/users-panel ;;@search-results
-              @users-search-results
-              state]])]]]
+             [:h5 "Users matching - \"" [:strong {:style {:white-space "pre"}}
+                                         @recent-search-term] "\""]
+             [users/users-panel @users-search-results state]])]]]
        ;; orders results
        [:div {:class "panel panel-default"}
         [:div {:class "panel-body"}
          [:div
-          (when (and (empty? ;;@search-results
-                      @orders-search-results)
+          (when (and (empty? @orders-search-results)
                      (not (s/blank? @recent-search-term))
                      (not @retrieving?))
-            [:h5 "Your search - " [:strong @recent-search-term]
-             " - did not match any orders."])
-          (when-not (empty? ;;@search-results
-                     @orders-search-results)
+            [:h5 "Your search - \"" [:strong {:style {:white-space "pre"}}
+                                     @recent-search-term]
+             "\" - did not match any orders."])
+          (when-not (empty? @orders-search-results)
             [:div
-             [:h5 "Orders matching - " [:strong @recent-search-term]]
-             [orders/orders-panel ;;@search-results
-              @orders-search-results
-              state]])]]]
-       
-       ])))
+             [:h5 "Orders matching - \"" [:strong {:style {:white-space "pre"}}
+                                          @recent-search-term] "\""]
+             [orders/orders-panel @orders-search-results state]])]]]])))
