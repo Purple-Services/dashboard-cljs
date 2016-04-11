@@ -44,13 +44,6 @@
               :class "purple-logo"}]]]
      [:ul {:class "nav navbar-right top-nav"}
       [:li {:class "dropdown"}
-       ;; [:form {:class "navbar-form" :role "search"}
-       ;;  [:div {:class "input-group"}
-       ;;   [:input {:type "text" :class "form-control" :placeholder "Search"
-       ;;            :name "srch-term" :id "srch-term"}]
-       ;;   [:div {:class "input-group-btn"}
-       ;;    [:button {:class "btn btn-default" :type "submit"}
-       ;;     [:i {:class "fa fa-search"}]]]]]
        [search/search-bar {:tab-content-toggle
                            tab-content-toggle}]]
       [:li
@@ -241,11 +234,7 @@
 ;; based on https://github.com/IronSummitMedia/startbootstrap-sb-admin
 (defn app
   []
-  (let [;; tab-content-toggle (r/atom {:dashboard-view false
-        ;;                             :couriers-view false
-        ;;                             :users-view false
-        ;;                             :orders-view false})
-        side-bar-toggle (r/atom false)]
+  (let [side-bar-toggle (r/atom false)]
     (fn []
       (if-not (and @datastore/orders
                    (:processed (meta datastore/orders)))
@@ -296,8 +285,7 @@
                           {:uri "/send-push-to-users-list"
                            :method "POST"}}
                         @accessible-routes)
-                   [users/user-push-notification])
-                 [:div [users/search-panel]]])]]]
+                   [users/user-push-notification])])]]]
            ;; coupon code page
            [TabContent
             {:toggle (r/cursor tab-content-toggle [:coupons-view])}
