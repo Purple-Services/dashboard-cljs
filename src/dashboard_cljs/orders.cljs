@@ -330,7 +330,7 @@
   :status          ; string, the status of the order
   :order           ; ratom, currently selected order
   }"
-  [props]
+  [props state]
   (let [error-message (r/atom "")
         retrieving? (r/atom false)
         confirming? (r/cursor state [:confirming?])
@@ -425,7 +425,7 @@
 
 (defn order-notes-comp
   "Given an order r/atom, edit the order's notes"
-  [order]
+  [order state]
   (let [edit-order     (r/cursor state [:edit-order])
         notes          (r/atom "")
         retrieving?    (r/atom false)
@@ -487,7 +487,7 @@
 
 (defn cancel-reason-comp
   "Given an order r/atom, edit the order's cancel reason"
-  [order]
+  [order state]
   (let [edit-order (r/cursor state [:edit-order])
         error-message (r/atom "")
         cancel-reason (r/atom "")
@@ -582,7 +582,7 @@
 
 (defn order-panel
   "Display detailed and editable fields for current-order"
-  [order]
+  [order state]
   (let [google-marker (atom nil)]
     (fn [order]
       (let [editing-assignment? (r/atom false)
@@ -713,12 +713,12 @@
            ;; status and editing
            [status-comp {:editing? editing-status?
                          :status order-status
-                         :order order}]
+                         :order order} state]
            ;; cancellation reason
            (when (= "cancelled" (:status @order))
-             [cancel-reason-comp order])
+             [cancel-reason-comp order state])
            ;; notes
-           [order-notes-comp order]]
+           [order-notes-comp order state]]
           [:div {:class "pull-right hidden-xs"}
            [gmap {:id :orders
                   :style {:height 300
@@ -743,7 +743,7 @@
 (defn orders-panel
   "Display a table of selectable orders with an indivdual order panel
   for the selected order"
-  [orders]
+  [orders state]
   (let [current-order (r/cursor state [:current-order])
         edit-order    (r/cursor state [:edit-order])
         sort-keyword (r/atom :target_time_start)
@@ -805,7 +805,7 @@
         (when (nil? @current-order)
           (reset! current-order (first paginated-orders)))
         [:div {:class "panel panel-default"}
-         [order-panel current-order]
+         [order-panel current-order state]
          [:div {:class "panel-body"
                 :style {:margin-top "15px"}}
           [:div {:class "btn-toolbar"

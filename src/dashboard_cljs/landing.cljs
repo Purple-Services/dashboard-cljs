@@ -12,10 +12,13 @@
             [dashboard-cljs.couriers :as couriers]
             [dashboard-cljs.users :as users]
             [dashboard-cljs.coupons :as coupons]
+            [dashboard-cljs.search :as search]
             [dashboard-cljs.zones :as zones]
             [dashboard-cljs.orders :as orders]
             [dashboard-cljs.analytics :as analytics]
             [dashboard-cljs.googlemaps :refer [get-cached-gmaps]]))
+
+(def tab-content-toggle (r/atom {}))
 
 (defn top-navbar-comp
   "Props contains:
@@ -41,6 +44,16 @@
               :class "purple-logo"}]]]
      [:ul {:class "nav navbar-right top-nav"}
       [:li {:class "dropdown"}
+       ;; [:form {:class "navbar-form" :role "search"}
+       ;;  [:div {:class "input-group"}
+       ;;   [:input {:type "text" :class "form-control" :placeholder "Search"
+       ;;            :name "srch-term" :id "srch-term"}]
+       ;;   [:div {:class "input-group-btn"}
+       ;;    [:button {:class "btn btn-default" :type "submit"}
+       ;;     [:i {:class "fa fa-search"}]]]]]
+       [search/search-bar {:tab-content-toggle
+                           tab-content-toggle}]]
+      [:li
        [:a {:href (str base-url "logout")} "Logout"]]]]))
 
 (defn Tab
@@ -149,9 +162,7 @@
                   (not (same-timestamp? @datastore/most-recent-order
                                         @datastore/last-acknowledged-order)))
            (let [num-new (new-orders-count @datastore/orders
-                                           @datastore/last-acknowledged-order)
-                 _ (set! js/document.title (str "(" num-new ") Dashboard - Purple"))
-                 ]
+                                           @datastore/last-acknowledged-order)]
              [:div "Orders "
               [:span {:style {:color "red"}}
                "(" num-new ")"]])
@@ -230,10 +241,10 @@
 ;; based on https://github.com/IronSummitMedia/startbootstrap-sb-admin
 (defn app
   []
-  (let [tab-content-toggle (r/atom {:dashboard-view false
-                                    :couriers-view false
-                                    :users-view false
-                                    :orders-view false})
+  (let [;; tab-content-toggle (r/atom {:dashboard-view false
+        ;;                             :couriers-view false
+        ;;                             :users-view false
+        ;;                             :orders-view false})
         side-bar-toggle (r/atom false)]
     (fn []
       (if-not (and @datastore/orders
@@ -278,7 +289,7 @@
                                 :method "GET"
                                 }} @accessible-routes)
                 [:div
-                 [users/users-panel @datastore/users]
+                 [users/users-panel @datastore/users users/state]
                  (when (subset?
                         #{{:uri "/send-push-to-all-active-users"
                            :method "POST"}
@@ -321,7 +332,7 @@
                                  :method "POST"}}
                               @accessible-routes)
                  [:div
-                  [orders/orders-panel @datastore/orders]])]]]]
+                  [orders/orders-panel @datastore/orders orders/state]])]]]]
            ;; analytics page
            [TabContent
             {:toggle (r/cursor tab-content-toggle [:analytics-view])}
@@ -336,7 +347,14 @@
                                  :method "GET"}}
                               @accessible-routes)
                  [:div
-                  [analytics/stats-panel]])]]]]]]]))))
+                  [analytics/stats-panel]])]]]]
+           ;; Search Resuls
+           [TabContent
+            {:toggle (r/cursor tab-content-toggle [:search-results-view])}
+            [:div
+             [:div {:class "row"}
+              [:div {:class "col-lg-12"}
+               [search/search-results]]]]]]]]))))
 
 (defn init-landing
   []

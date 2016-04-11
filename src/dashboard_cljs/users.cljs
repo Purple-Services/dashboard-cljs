@@ -251,7 +251,7 @@
 
 (defn user-form
   "Form for editing a user"
-  [user]
+  [user state]
   (let [edit-user (r/cursor state [:edit-user])
         current-user (r/cursor state [:current-user])
         retrieving? (r/cursor edit-user [:retrieving?])
@@ -398,7 +398,7 @@
 (defn user-panel
   "Display detailed and editable fields for an user. current-user is an
   r/atom"
-  [current-user]
+  [current-user state]
   (let [sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
         show-orders? (r/atom true)
@@ -441,7 +441,7 @@
           [:div {:class "col-xs-3"}
            [:div [:h3 {:style {:margin-top 0}} (:name @current-user)]]
            ;; main display panel
-           [user-form current-user]
+           [user-form current-user state]
            ;; below is for showing user logs,
            ;; implemented, but not used yet
            ;; [:br]
@@ -487,7 +487,7 @@
 (defn users-panel
   "Display a table of selectable users with an indivdual user panel
   for the selected user"
-  [users]
+  [users state]
   (let [current-user (r/cursor state [:current-user])
         edit-user    (r/cursor state [:edit-user])
         sort-keyword (r/atom :timestamp_created)
@@ -527,7 +527,7 @@
         ;; set the edit-user values to match those of current-user 
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
-          [user-panel current-user]]
+          [user-panel current-user state]]
          [:div {:class "panel"
                 :style {:margin-top "15px"}}
           [:div [:h3 {:class "pull-left"
@@ -831,4 +831,4 @@
          (when-not (empty? @search-results)
            [:div
             [:h5 "Users matching - " [:strong @recent-search-term]]
-            [users-panel @search-results]])]]])))
+            [users-panel @search-results state]])]]])))
