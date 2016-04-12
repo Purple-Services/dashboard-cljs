@@ -29,10 +29,6 @@
 
 (def state (r/atom {:confirming? false
                     :confirming-edit? false
-                    :search-term ""
-                    :recent-search-term ""
-                    :search-results #{}
-                    :search-retrieving? false
                     :current-user nil
                     :edit-user default-user
                     :alert-success ""
@@ -254,7 +250,7 @@
 
 (defn user-form
   "Form for editing a user"
-  [user]
+  [user state]
   (let [edit-user (r/cursor state [:edit-user])
         current-user (r/cursor state [:current-user])
         retrieving? (r/cursor edit-user [:retrieving?])
@@ -401,7 +397,7 @@
 (defn user-panel
   "Display detailed and editable fields for an user. current-user is an
   r/atom"
-  [current-user]
+  [current-user state]
   (let [sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
         show-orders? (r/atom true)
@@ -444,7 +440,7 @@
           [:div {:class "col-xs-3"}
            [:div [:h3 {:style {:margin-top 0}} (:name @current-user)]]
            ;; main display panel
-           [user-form current-user]
+           [user-form current-user state]
            ;; below is for showing user logs,
            ;; implemented, but not used yet
            ;; [:br]
@@ -490,7 +486,7 @@
 (defn users-panel
   "Display a table of selectable users with an indivdual user panel
   for the selected user"
-  [users]
+  [users state]
   (let [current-user (r/cursor state [:current-user])
         edit-user    (r/cursor state [:edit-user])
         sort-keyword (r/atom :timestamp_created)
@@ -530,7 +526,7 @@
         ;; set the edit-user values to match those of current-user 
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
-          [user-panel current-user]]
+          [user-panel current-user state]]
          [:div {:class "panel"
                 :style {:margin-top "15px"}}
           [:div [:h3 {:class "pull-left"
@@ -763,75 +759,3 @@
              [TablePager
               {:total-pages (count sorted-users)
                :current-page current-page}]])]]))))
-
-
-(defn users-search
-  "A component for searching users"
-  []
-  (let [retrieving?        (r/cursor state [:search-retrieving?])
-        search-term        (r/cursor state [:search-term])
-        recent-search-term (r/cursor state [:recent-search-term])
-        search-results     (r/cursor state [:search-results])
-        retrieve-users (fn [search-term]
-                         (retrieve-url
-                          (str base-url "users/search/" search-term)
-                          "GET"
-                          {}
-                          (partial
-                           xhrio-wrapper
-                           (fn [r]
-                             (let [response (js->clj
-                                             r :keywordize-keys true)]
-                               (reset! retrieving? false)
-                               (reset! recent-search-term search-term)
-                               (reset! search-results response))))))]
-    (fn []
-      [:form
-       [:div {:class "form-group"}
-        [:input {:type "text"
-                 :defaultValue ""
-                 :class "form-control"
-                 :placeholder "Search Term"
-                 :on-change (fn [e]
-                              (reset! search-term
-                                      (-> e
-                                          (aget "target")
-                                          (aget "value"))))}]]
-       [:button {:type "submit"
-                 :class (str "btn btn-default "
-                             (when @retrieving?
-                               "disabled")
-                             (when (s/blank? @search-term)
-                               "disabled"))
-                 :disabled  (cond @retrieving?
-                                  true
-                                  (s/blank? @search-term)
-                                  true
-                                  :else false)
-                 :on-click (fn [e]
-                             (.preventDefault e)
-                             (reset! retrieving? true)
-                             (retrieve-users @search-term))}
-        (if-not @retrieving?
-          "Search Users"
-          [:i {:class "fa fa-spinner fa-pulse"}])]])))
-
-(defn search-panel
-  []
-  (let [retrieving?        (r/cursor state [:search-retrieving?])
-        search-results     (r/cursor state [:search-results])
-        recent-search-term (r/cursor state [:recent-search-term])]
-    (fn []
-      [:div {:class "panel panel-default"}
-       [:div {:class "panel-body"}
-        [:div [:h4 {:class "pull-left"} "Search Users"]
-         [users-search]
-         (when (and (empty? @search-results)
-                    (not (s/blank? @recent-search-term))
-                    (not @retrieving?))
-           [:h5 "Your search - " [:strong @recent-search-term]
-            " - did not match any users."])
-         (when-not (empty? @search-results)
-           [:div
-            [:h5 "Users matching - " [:strong @recent-search-term]]
-            [users-panel @search-results]])]]])))
