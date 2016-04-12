@@ -788,20 +788,8 @@
                                            :keywordize-keys true)]
                                (when (> (count orders)
                                         0)
-                                 ;; update the orders atom
-                                 (put! datastore/modify-data-chan
-                                       {:topic "orders"
-                                        :data orders})
-                                 ;; update the most recent order atom
-                                 (reset! datastore/most-recent-order
-                                         (last
-                                          (sort-by
-                                           :target_time_start orders)))
-                                 ;; update the most
-                                 ;; last-acknowledged-order atom
-                                 (reset! datastore/last-acknowledged-order
-                                         @datastore/most-recent-order)
-                                 (reset! saving? false)))))))]
+                                 (datastore/process-orders orders true))
+                               (reset! saving? false))))))]
         (when (nil? @current-order)
           (reset! current-order (first paginated-orders)))
         [:div {:class "panel panel-default"}
