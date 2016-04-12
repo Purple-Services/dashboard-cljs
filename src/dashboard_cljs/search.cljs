@@ -1,7 +1,9 @@
 (ns dashboard-cljs.search
   (:require [clojure.string :as s]
+            [cljs.core.async :refer [put!]]
             [reagent.core :as r]
             [dashboard-cljs.components :refer [StaticTable TablePager]]
+            [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.orders :as orders]
             [dashboard-cljs.users :as users]
             [dashboard-cljs.utils :refer [base-url]]
@@ -25,6 +27,47 @@
                     :search-retrieving? false
                     :search-term ""
                     :view-log? false}))
+
+(defn search-orders-results-panel
+  "Display a table of selectable orders with an individual order panel for the
+  select order."
+  [order state]
+  (let [current-order (r/cursor state [:current-order])
+        edit-order    (r/cursor state [:edit-order])
+        sort-keyword (r/atom :target_time_start)
+        sort-reversed? (r/atom false)
+        current-page (r/atom 1)
+        page-size 20]
+    (fn [orders]
+      (let [sort-fn (if @sort-reversed?
+                      (partial sort-by @sort-keyword)
+                      (comp reverse (partial sort-by @sort-keyword)))
+            search-results-orders (filter
+                                   #(contains?
+                                     (set (map
+                                           :id (:orders
+                                                (:search-results @state))))
+                                     (:id %)) @dashboard-cljs.datastore/orders)
+            sorted-orders (->> search-results-orders
+                               sort-fn
+                               (partition-all page-size))
+            paginated-orders  (-> sorted-orders
+                                  (nth (- @current-page 1)
+                                       '()))]
+        (when (nil? @current-order)
+          (reset! current-order (first paginated-orders)))
+        [:div {:class "panel panel-default"}
+         [orders/order-panel current-order state]
+         [:div {:class "table-responsive"}
+          [StaticTable
+           {:table-header [orders/order-table-header
+                           {:sort-keyword sort-keyword
+                            :sort-reversed? sort-reversed?}]
+            :table-row (orders/order-row current-order)}
+           paginated-orders]]
+         [TablePager
+          {:total-pages (count sorted-orders)
+           :current-page current-page}]]))))
 
 (defn search-users-results-panel
   "Display a table of selectable users with an indivdual user panel
@@ -67,41 +110,6 @@
            :current-page current-page}]]))))
 
 
-(defn search-orders-results-panel
-  "Display a table of selectable orders with an individual order panel for the
-  select order."
-  [order state]
-  (let [current-order (r/cursor state [:current-order])
-        edit-order    (r/cursor state [:edit-order])
-        sort-keyword (r/atom :target_time_start)
-        sort-reversed? (r/atom false)
-        current-page (r/atom 1)
-        page-size 20
-        ]
-    (fn [orders]
-      (let [sort-fn (if @sort-reversed?
-                      (partial sort-by @sort-keyword)
-                      (comp reverse (partial sort-by @sort-keyword)))
-            sorted-orders (->> orders
-                               sort-fn
-                               (partition-all page-size))
-            paginated-orders  (-> sorted-orders
-                                  (nth (- @current-page 1)
-                                       '()))]
-        (when (nil? @current-order)
-          (reset! current-order (first paginated-orders)))
-        [:div {:class "panel panel-default"}
-         [orders/order-panel current-order state]
-         [:div {:class "table-responsive"}
-          [StaticTable
-           {:table-header [orders/order-table-header
-                           {:sort-keyword sort-keyword
-                            :sort-reversed? sort-reversed?}]
-            :table-row (orders/order-row current-order)}
-           paginated-orders]]
-         [TablePager
-          {:total-pages (count sorted-orders)
-           :current-page current-page}]]))))
 
 (defn search-bar
   [props]
@@ -121,7 +129,10 @@
                                                r :keywordize-keys true)]
                                  (reset! retrieving? false)
                                  (reset! recent-search-term search-term)
-                                 (reset! search-results response))))))]
+                                 (reset! search-results response)
+                                 (put! datastore/modify-data-chan
+                                       {:topic "orders"
+                                        :data (:orders response)}))))))]
     (fn [{:keys [tab-content-toggle]} props]
       [:form {:class "navbar-form" :role "search"}
        [:div {:class "input-group"}
@@ -155,9 +166,9 @@
           search-results (r/cursor state [:search-results])
           users-search-results (r/cursor search-results [:users])
           orders-search-results (r/cursor search-results [:orders])]
-      (.scrollTo js/window 0 0)
       [:div
        (when @retrieving?
+         (.scrollTo js/window 0 0)
          [:h4 "Retrieving results for \""
           [:strong
            {:style {:white-space "pre"}}
@@ -183,7 +194,8 @@
                 [:h4 "Orders matching - \""
                  [:strong {:style {:white-space "pre"}}
                   @recent-search-term] "\""]
-                [search-orders-results-panel @orders-search-results state]])]]]
+                [search-orders-results-panel @dashboard-cljs.datastore/orders
+                 state]])]]]
           ;; users results
           [:div {:class "panel panel-default"}
            [:div {:class "panel-body"}
