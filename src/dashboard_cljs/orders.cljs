@@ -56,6 +56,10 @@
                             {:id "r6" :reason "Customer moving vehicle (late)"}
                             {:id "r7" :reason "Other"}})
 
+(defn id->reason  [id]
+  (:reason (get-by-id cancellation-reasons
+                      id)))
+
 (defn order-row
   "A table row for an order in a table. current-order is the one currently being
   viewed"
@@ -298,22 +302,25 @@
   "Cancel order on the server. Any resulting error messages
   will be put in the error-message atom. retrieving? is a boolean
   r/atom. confirming? is a boolean r/atom."
-  [order error-message retrieving? confirming?]
+  [order error-message cancel-reason retrieving? confirming?]
   (retrieve-url
    (str base-url "cancel-order")
    "POST"
    (js/JSON.stringify (clj->js {:user_id (:user_id @order)
-                                :order_id (:id @order)}))
+                                :order_id (:id @order)
+                                :cancel-reason cancel-reason}))
    (partial xhrio-wrapper
             (fn [r]
               (let [response (js->clj r :keywordize-keys true)]
                 (reset! retrieving? false)
                 (reset! confirming? false)
                 (when (:success response)
-                  (let [updated-order
-                        (assoc
-                         @order
-                         :status "cancelled")]
+                  (let [response-order (:order response)
+                        updated-order (assoc
+                                       @order
+                                       :status "cancelled"
+                                       :admin_event_log
+                                       (:admin_event_log response-order))]
                     (reset! order updated-order)
                     (reset! error-message "")
                     (put! datastore/modify-data-chan
@@ -338,71 +345,85 @@
         confirm-on-click (r/atom false)]
     (fn [{:keys [editing? status order]}
          props]
-      [:h5 [:span {:class "info-window-label"} "Status: "]
-       (str status " ")
-       (if @confirming?
-         ;; confirmation
-         [ConfirmationAlert
-          {:cancel-on-click (fn [e]
-                              (reset! confirming? false))
-           :confirm-on-click (fn [e]
-                               (reset! retrieving? true)
-                               (when (= @confirm-action "advance")
-                                 (update-status order status error-message
-                                                retrieving?
-                                                confirming?))
-                               (when (= @confirm-action "cancel")
-                                 (cancel-order order error-message
-                                               retrieving?
-                                               confirming?)))
-           :confirmation-message
-           (fn [] [:div (str "Are you sure you want to "
-                             (cond (= @confirm-action "advance")
-                                   (str " advance this order's status to "
-                                        (status->next-status status) "?")
-                                   (= @confirm-action "cancel")
-                                   (str "cancel this order?")))
-                   [:br]])
-           :retrieving? retrieving?}]
-         [:div {:style {:display "inline-block"}}
-          ;; advance order button
-          (when-not (contains? #{"complete" "cancelled" "unassigned"}
-                               status)
-            [:button {:type "button"
-                      :class "btn btn-xs btn-default"
-                      :on-click
-                      #(when (not @retrieving?)
-                         (reset! confirming? true)
-                         (reset! confirm-action "advance"))}
-             (if (not @retrieving?)
-               ({"assigned" "Force Accept"
-                 "accepted" "Start Route"
-                 "enroute" "Begin Servicing"
-                 "servicing" "Complete Order"}
-                status)
-               [:i {:class "fa fa-spinner fa-pulse"}])])
-          " "
-          ;; cancel button
-          (when
-              (and (not @editing?)
-                   (not (contains? #{"complete" "cancelled"}
-                                   status))
-                   (subset? #{{:uri "/cancel-order"
-                               :method "POST"}}
-                            @accessible-routes))
-            [:button {:type "button"
-                      :class "btn btn-xs btn-default"
-                      :on-click #(when (not @retrieving?)
-                                   (reset! confirming? true)
-                                   (reset! confirm-action "cancel"))}
-             (if @retrieving?
-               [:i {:class "fa fa-spinner fa-pulse"}]
-               "Cancel Order")])])
-       (when (not (s/blank? @error-message))
-         [ErrorComp {:error-message
-                     (str "Order status could be not be changed! Reason: "
-                          @error-message)
-                     :dismiss-fn #(reset! error-message "")}])])))
+      (let [selected-reason (r/atom "r1")]
+        [:h5 [:span {:class "info-window-label"} "Status: "]
+         (str status " ")
+         (if @confirming?
+           ;; confirmation
+           [ConfirmationAlert
+            {:cancel-on-click (fn [e]
+                                (reset! confirming? false))
+             :confirm-on-click (fn [e]
+                                 (reset! retrieving? true)
+                                 (when (= @confirm-action "advance")
+                                   (update-status order status error-message
+                                                  retrieving?
+                                                  confirming?))
+                                 (when (= @confirm-action "cancel")
+                                   (cancel-order
+                                    order
+                                    error-message
+                                    (id->reason @selected-reason)
+                                    retrieving?
+                                    confirming?)))
+             :confirmation-message
+             (fn []
+               [:div
+                (cond (= @confirm-action "advance")
+                      (str "Are you sure you want to advance this order's "
+                           "status to '" (status->next-status status) "'?")
+                      (= @confirm-action "cancel")
+                      [:div
+                       "Please select a cancellation reason"
+                       [:br]
+                       [:br]
+                       [Select {:value selected-reason
+                                :options cancellation-reasons
+                                :display-key :reason}]
+                       [:br]
+                       [:br]
+                       (str "Are you sure you want to cancel this order?")])
+                [:br]])
+             :retrieving? retrieving?}]
+           [:div {:style {:display "inline-block"}}
+            ;; advance order button
+            (when-not (contains? #{"complete" "cancelled" "unassigned"}
+                                 status)
+              [:button {:type "button"
+                        :class "btn btn-xs btn-default"
+                        :on-click
+                        #(when (not @retrieving?)
+                           (reset! confirming? true)
+                           (reset! confirm-action "advance"))}
+               (if (not @retrieving?)
+                 ({"assigned" "Force Accept"
+                   "accepted" "Start Route"
+                   "enroute" "Begin Servicing"
+                   "servicing" "Complete Order"}
+                  status)
+                 [:i {:class "fa fa-spinner fa-pulse"}])])
+            " "
+            ;; cancel button
+            (when
+                (and (not @editing?)
+                     (not (contains? #{"complete" "cancelled"}
+                                     status))
+                     (subset? #{{:uri "/cancel-order"
+                                 :method "POST"}}
+                              @accessible-routes))
+              [:button {:type "button"
+                        :class "btn btn-xs btn-default"
+                        :on-click #(when (not @retrieving?)
+                                     (reset! confirming? true)
+                                     (reset! confirm-action "cancel"))}
+               (if @retrieving?
+                 [:i {:class "fa fa-spinner fa-pulse"}]
+                 "Cancel Order")])])
+         (when (not (s/blank? @error-message))
+           [ErrorComp {:error-message
+                       (str "Order status could be not be changed! Reason: "
+                            @error-message)
+                       :dismiss-fn #(reset! error-message "")}])]))))
 
 (defn get-etas-button
   "Given an order atom, refresh it with values from the server"
@@ -510,10 +531,7 @@
     (fn [order]
       (let [selected-reason (r/atom (or (reason->id
                                          (current-cancel-reason @order))
-                                        "r0"))
-            id->reason (fn [id]
-                         (:reason (get-by-id cancellation-reasons
-                                             id)))]
+                                        "r0"))]
         [:h5 [:span {:class "info-window-label"} "Cancellation Reason: "]
          ;; reason assigned (if any)
          (when-not @editing?
