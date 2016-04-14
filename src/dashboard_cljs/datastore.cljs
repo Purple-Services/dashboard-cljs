@@ -127,6 +127,25 @@
 ;; zones
 (def zones (r/atom #{}))
 
+(defn process-orders
+  "Given a set of orders, handle putting them on modify-data-chan
+  and resetting the most-recent-order and last-acknowledged-order atoms"
+  [orders initializing?]
+  (put! modify-data-chan
+        {:topic "orders"
+         :data orders})
+  ;; update the most recent order atom
+  (reset!
+   most-recent-order
+   (last (sort-by
+          :target_time_start orders)))
+  ;; initialize the last-acknowledged-order atom
+  (when initializing?
+    (reset!
+     last-acknowledged-order
+     (last (sort-by
+            :target_time_start orders)))))
+
 (defn init-datastore
   "Initialize the datastore for the app. Should be called once when launching
   the app."
@@ -136,21 +155,7 @@
                                                    :keywordize-keys true)]
                                (when (> (count orders)
                                         0)
-                                 ;; update the orders atom
-                                 (put! modify-data-chan
-                                       {:topic "orders"
-                                        :data orders})
-                                 ;; update the most recent order atom
-                                 (reset!
-                                  most-recent-order
-                                  (last (sort-by
-                                         :target_time_start orders)))
-                                 ;; initialize the last-acknowledged-order atom
-                                 (when initializing?
-                                   (reset!
-                                    last-acknowledged-order
-                                    (last (sort-by
-                                           :target_time_start orders)))))))]
+                                 (process-orders orders initializing?))))]
     ;; orders
     (when (subset? #{{:uri "/orders-since-date"
                       :method "POST"}} @accessible-routes)

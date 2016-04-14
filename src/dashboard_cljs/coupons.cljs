@@ -27,7 +27,8 @@
    :expiration_time (-> (js/moment)
                         (.endOf "day")
                         (.unix))
-   :only_for_first_orders true})
+   :only_for_first_orders true
+   :expires? false})
 
 (def default-edit-coupon
   {:errors nil
@@ -141,7 +142,7 @@
              :style {:margin-left "1px"}}
        [:label {:for "expires?"
                 :class "control-label"}
-        "Expires? "
+        "Expires "
         [:div {:style {:display "inline-block"}}
          [:input {:type "checkbox"
                   :checked @expires?
@@ -152,6 +153,11 @@
                                 (-> e
                                     (aget "target")
                                     (aget "checked")))
+                               (when @expires?
+                                 (reset! expiration-time
+                                         (-> (js/moment)
+                                             (.endOf "day")
+                                             (.unix))))
                                (when-not @expires?
                                  (reset! expiration-time
                                          1999999999)))}]]]
@@ -319,9 +325,12 @@
                                 "with the following values?")
                            [:h4 "Code: " code]
                            [:h4 "Amount: " value]
-                           [:h4 "Expiration Date: " (unix-epoch->fmt
-                                                     expiration_time
-                                                     "M/D/YYYY")]
+                           [:h4 "Expires: " (if (= expiration_time
+                                                   1999999999)
+                                              "No"
+                                              (unix-epoch->fmt
+                                               expiration_time
+                                               "M/D/YYYY"))]
                            [:h4 "First Order Only?: " (if only_for_first_orders
                                                         "Yes"
                                                         "No")]]))
@@ -344,6 +353,7 @@
                        (reset-new-coupon!)
                        ;; reset confirming
                        (reset! confirming? false))]
+      (when-not @expires? (reset! expiration-time 1999999999))
       [:div {:class "panel panel-default"}
        [:div {:class "panel-body"}
         [:form {:class "form-horizontal"}

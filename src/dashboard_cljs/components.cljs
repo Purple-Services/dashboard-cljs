@@ -394,7 +394,7 @@
         [:option
          {:value (:id option)}
          (display-key option)])
-      options)]))
+      (sort-by :id options))]))
 
 (defn FormGroup
   "props is:
