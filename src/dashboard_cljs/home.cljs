@@ -7,6 +7,7 @@
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton CountPanel
                                                TablePager TelephoneNumber]]
+            [dashboard-cljs.orders :as orders]
             [clojure.string :as s]))
 
 (def state (r/atom {:current-order nil}))
@@ -129,10 +130,10 @@
                          "hide")}
           [:div {:class "table-responsive"}
            [StaticTable
-            {:table-header [order-table-header
+            {:table-header [orders/order-table-header
                             {:sort-keyword sort-keyword
                              :sort-reversed? sort-reversed?}]
-             :table-row (order-row current-order)}
+             :table-row (orders/order-row current-order)}
             paginated-orders]]
           [TablePager
            {:total-pages (count sorted-orders)

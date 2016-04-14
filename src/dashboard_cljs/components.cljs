@@ -528,3 +528,8 @@
   (fn [number]
     [:a {:href (str "tel:" number)} number]))
 
+(defn Mailto
+  "A component that transforms email into a href mailto"
+  [email]
+  (fn [email]
+    [:a {:href (str "mailto:" email)} email]))

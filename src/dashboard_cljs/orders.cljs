@@ -11,7 +11,8 @@
                                                KeyVal ProcessingIcon FormGroup
                                                TextAreaInput DismissButton
                                                SubmitDismissGroup Select
-                                               TelephoneNumber]]
+                                               TelephoneNumber
+                                               Mailto]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error]]
@@ -89,12 +90,16 @@
      [:td (:customer_name order)]
      ;; phone #
      [:td [TelephoneNumber (:customer_phone_number order)]]
+     ;; email
+     [:td [Mailto (:email order)]]
      ;; street address
-     [:td
-      [:i {:class "fa fa-circle"
-           :style {:color (:zone-color order)}}]
-      " "
-      (:address_street order)]]))
+     [:td (:address_street order)]
+     ;; market
+     [:td [:i {:class "fa fa-circle"
+               :style {:color (:zone-color order)}}] " "
+      (->> (:zone order)
+           (get-by-id @datastore/zones)
+           :name)]]))
 
 (defn order-table-header
   "props is:
@@ -126,9 +131,14 @@
       [TableHeadSortable
        (conj props {:keyword :customer_phone_number})
        "Phone"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}} "Email"]
       [TableHeadSortable
        (conj props {:keyword :address_street})
-       "Street Address"]]]))
+       "Street Address"]
+      [TableHeadSortable
+       (conj props {:keyword :zone})
+       "Market"]]]))
 
 (defn assign-courier
   "Assign order to selected-courier from the list of couriers. error
@@ -686,7 +696,7 @@
            ;;  phone number
            [KeyVal "Phone" [TelephoneNumber (:customer_phone_number @order)]]
            ;;  email
-           [KeyVal "Email" (:email @order)]
+           [KeyVal "Email" [Mailto (:email @order)]]
            ;; rating
            (let [number-rating (:number_rating @order)]
              (when number-rating
