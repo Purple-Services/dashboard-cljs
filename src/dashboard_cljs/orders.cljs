@@ -10,7 +10,8 @@
                                                TablePager ConfirmationAlert
                                                KeyVal ProcessingIcon FormGroup
                                                TextAreaInput DismissButton
-                                               SubmitDismissGroup Select]]
+                                               SubmitDismissGroup Select
+                                               TelephoneNumber]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error]]
@@ -87,7 +88,7 @@
      ;; username
      [:td (:customer_name order)]
      ;; phone #
-     [:td (:customer_phone_number order)]
+     [:td [TelephoneNumber (:customer_phone_number order)]]
      ;; street address
      [:td
       [:i {:class "fa fa-circle"
@@ -683,7 +684,7 @@
            ;;  name
            [KeyVal "Customer" (:customer_name @order)]
            ;;  phone number
-           [KeyVal "Phone" (:customer_phone_number @order)]
+           [KeyVal "Phone" [TelephoneNumber (:customer_phone_number @order)]]
            ;;  email
            [KeyVal "Email" (:email @order)]
            ;; rating

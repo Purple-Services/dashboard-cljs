@@ -522,3 +522,9 @@
        hide-content
        view-content)]))
 
+(defn TelephoneNumber
+  "A component that transforms a number into a href tel"
+  [number]
+  (fn [number]
+    [:a {:href (str "tel:" number)} number]))
+

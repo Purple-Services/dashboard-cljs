@@ -16,7 +16,8 @@
                                                FormGroup TextInput
                                                AlertSuccess
                                                SubmitDismissConfirmGroup
-                                               TextAreaInput ViewHideButton]]
+                                               TextAreaInput ViewHideButton
+                                               TelephoneNumber]]
             [clojure.set :refer [subset?]]
             [clojure.string :as s]))
 
@@ -108,7 +109,7 @@
        ;; email
        [:td (:email user)]
        ;; phone
-       [:td (:phone_number user)]
+       [:td [TelephoneNumber (:phone_number user)]]
        ;; card?
        [:td (if (s/blank? (:stripe_default_card user))
               "No"
@@ -301,7 +302,7 @@
          ;; email
          [KeyVal "Email" (:email @user)]
          ;; phone number
-         [KeyVal "Phone" (:phone_number @user)]
+         [KeyVal "Phone" [TelephoneNumber (:phone_number @user)]]
          ;; date started
          [KeyVal "Registered" (unix-epoch->fmt
                                (:timestamp_created @user)
@@ -581,7 +582,7 @@
      ;; name
      [:td (:name user)]
      ;;phone
-     [:td (:phone_number user)]
+     [:td [TelephoneNumber (:phone_number user)]]
      ;; email
      [:td (:email user)]
      ;; push?

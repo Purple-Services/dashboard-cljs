@@ -8,7 +8,8 @@
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                TableFilterButtonGroup
                                                RefreshButton KeyVal StarRating
-                                               ErrorComp TablePager]]
+                                               ErrorComp TablePager
+                                               TelephoneNumber]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->fmt base-url markets
                                           accessible-routes pager-helper!]]
@@ -35,7 +36,7 @@
                                                    (:status order)))))
                count)]
      ;; phone
-     [:td (:phone_number courier)]
+     [:td [TelephoneNumber (:phone_number courier)]]
      ;; joined
      [:td (unix-epoch->fmt (:timestamp_created courier) "M/D/YYYY")]
      ;; status
@@ -121,7 +122,7 @@
      ;; username
      [:td (:customer_name order)]
      ;; phone #
-     [:td (:customer_phone_number order)]
+     [:td [TelephoneNumber (:customer_phone_number order)]]
      ;; email
      [:td [:a {:href (str "mailto:" (:email order))} (:email order)]]
      ;; status
@@ -341,7 +342,8 @@
             ;; email
             [KeyVal "Email" (:email @current-courier)]
             ;; phone number
-            [KeyVal "Phone Number" (:phone_number @current-courier)]
+            [KeyVal "Phone Number" [TelephoneNumber
+                                    (:phone_number @current-courier)]]
             ;; date started
             [KeyVal "Date Started" (unix-epoch->fmt
                                     (:timestamp_created @current-courier)
