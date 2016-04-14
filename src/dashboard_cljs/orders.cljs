@@ -345,7 +345,7 @@
         confirm-on-click (r/atom false)]
     (fn [{:keys [editing? status order]}
          props]
-      (let [selected-reason (r/atom "r1")]
+      (let [selected-reason (r/atom "r0")]
         [:h5 [:span {:class "info-window-label"} "Status: "]
          (str status " ")
          (if @confirming?
