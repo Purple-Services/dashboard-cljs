@@ -710,12 +710,18 @@
            ;; review
            (when (not (s/blank? (:text_rating @order)))
              [KeyVal "Review" (:text_rating @order)])
+           ;; market
+           [KeyVal "Market"
+            [:span
+             [:i {:class "fa fa-circle"
+                  :style {:color (:zone-color @order)}}]
+             " "
+             (->> (:zone @order)
+                  (get-by-id @datastore/zones)
+                  :name)]]
            ;; delivery address
            [KeyVal "Address"
-            [:span [:i {:class "fa fa-circle"
-                        :style {:color (:zone-color @order)}}]
-             " "
-             (:address_street @order)]]
+            (str (:address_street @order) ", " (:address_zip @order))]
            ;; vehicle description
            (let [{:keys [year make model color]} (:vehicle @order)]
              [KeyVal "Vehicle" (str year " " make " " model " " "(" color ")")])
