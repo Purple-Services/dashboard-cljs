@@ -367,8 +367,8 @@
              [ConfirmationAlert
               {:confirmation-message
                (fn []
-                 [:div (str "The following changes will be made to "
-                            (:name @current-user))
+                 [:div (str "Do you want to make the following changes to "
+                            (:name @current-user) "?")
                   (map (fn [el]
                          ^{:key el}
                          [:h4 el])
