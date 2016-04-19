@@ -619,9 +619,11 @@
             couriers
             ;; filter out the couriers to only those assigned
             ;; to the zone
-            (sort-by :name (filter #(contains? (set (:zones %))
-                                               (:zone @order))
-                                   @datastore/couriers))
+            (->> @datastore/couriers
+                 (filter #(contains? (set (:zones %))
+                                     (:zone @order)))
+                 (filter :active)
+                 (sort-by :name))
             assigned-courier (if (not (nil? (:courier_name @order)))
                                ;; there is a courier currently assigned
                                (:id (first (filter #(= (:courier_name
