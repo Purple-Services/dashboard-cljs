@@ -9,7 +9,9 @@
                                                TableFilterButtonGroup
                                                RefreshButton KeyVal StarRating
                                                ErrorComp TablePager
-                                               TelephoneNumber FormGroup
+                                               TelephoneNumber
+                                               Mailto
+                                               FormGroup
                                                TextInput
                                                SubmitDismissConfirmGroup
                                                ConfirmationAlert
@@ -159,7 +161,7 @@
      ;; phone #
      [:td [TelephoneNumber (:customer_phone_number order)]]
      ;; email
-     [:td [:a {:href (str "mailto:" (:email order))} (:email order)]]
+     [:td [Mailto (:email order)]]
      ;; status
      [:td (:status order)]
      ;; star rating
@@ -215,7 +217,7 @@
     (fn [courier]
       [:form {:class "form-horizontal"}
        ;; email
-       [KeyVal "Email" (:email @current-courier)]
+       [KeyVal "Email" [Mailto (:email @current-courier)]]
        ;; phone number
        [KeyVal "Phone Number" [TelephoneNumber
                                (:phone_number @current-courier)]]

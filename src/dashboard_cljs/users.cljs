@@ -17,7 +17,7 @@
                                                AlertSuccess
                                                SubmitDismissConfirmGroup
                                                TextAreaInput ViewHideButton
-                                               TelephoneNumber]]
+                                               TelephoneNumber Mailto]]
             [clojure.set :refer [subset?]]
             [clojure.string :as s]))
 
@@ -107,7 +107,7 @@
        ;; orders count
        [:td (count orders)]
        ;; email
-       [:td (:email user)]
+       [:td [Mailto (:email user)]]
        ;; phone
        [:td [TelephoneNumber (:phone_number user)]]
        ;; card?
@@ -300,7 +300,7 @@
                          (reset! confirming? false))]
         [:form {:class "form-horizontal"}
          ;; email
-         [KeyVal "Email" (:email @user)]
+         [KeyVal "Email" [Mailto (:email @user)]]
          ;; phone number
          [KeyVal "Phone" [TelephoneNumber (:phone_number @user)]]
          ;; date started
@@ -584,7 +584,7 @@
      ;;phone
      [:td [TelephoneNumber (:phone_number user)]]
      ;; email
-     [:td (:email user)]
+     [:td [Mailto (:email user)]]
      ;; push?
      [:td (if (s/blank? (:arn_endpoint user))
             [:div "No"]
