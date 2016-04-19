@@ -26,7 +26,7 @@
                                           declined-payment?
                                           current-order?
                                           get-event-time
-                                          get-by-id]]
+                                          get-by-id now]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps]]))
 
@@ -67,9 +67,14 @@
   viewed"
   [current-order]
   (fn [order]
-    [:tr {:class (when (= (:id order)
-                          (:id @current-order))
-                   "active")
+    [:tr {:class (str (when (= (:id order)
+                               (:id @current-order))
+                        "active"))
+          :style (when-not (contains? #{"complete" "cancelled"} (:status order))
+                   (when (< (- (:target_time_end order)
+                               (now))
+                            (* 60 60))
+                     {:color "#d9534f"}))
           :on-click (fn [_]
                       (reset! current-order order)
                       (reset! (r/cursor state [:editing-notes?]) false))}
