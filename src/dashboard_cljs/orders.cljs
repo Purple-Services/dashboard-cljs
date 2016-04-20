@@ -70,11 +70,6 @@
     [:tr {:class (str (when (= (:id order)
                                (:id @current-order))
                         "active"))
-          :style (when-not (contains? #{"complete" "cancelled"} (:status order))
-                   (when (< (- (:target_time_end order)
-                               (now))
-                            (* 60 60))
-                     {:color "#d9534f"}))
           :on-click (fn [_]
                       (reset! current-order order)
                       (reset! (r/cursor state [:editing-notes?]) false))}
@@ -85,7 +80,12 @@
      ;; order placed
      [:td (unix-epoch->hrf (:target_time_start order))]
      ;; order dealine
-     [:td (unix-epoch->hrf (:target_time_end order))]
+     [:td {:style (when-not (contains? #{"complete" "cancelled"} (:status order))
+                    (when (< (- (:target_time_end order)
+                                (now))
+                             (* 60 60))
+                      {:color "#d9534f"}))}
+      (unix-epoch->hrf (:target_time_end order))]
      ;; delivery time (TODO: this should show minutes if non-zero)
      [:td (str (.diff (js/moment.unix (:target_time_end order))
                       (js/moment.unix (:target_time_start order))
