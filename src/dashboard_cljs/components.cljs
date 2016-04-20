@@ -533,3 +533,10 @@
   [email]
   (fn [email]
     [:a {:href (str "mailto:" email)} email]))
+
+(defn GoogleMapLink
+  "Given a lat, lng create google map link using tex"
+  [text lat lng]
+  [:a {:href (str "https://maps.google.com/?q=" lat "," lng)
+       :target "_blank"}
+   text])

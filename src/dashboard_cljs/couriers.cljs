@@ -15,7 +15,8 @@
                                                TextInput
                                                SubmitDismissConfirmGroup
                                                ConfirmationAlert
-                                               AlertSuccess]]
+                                               AlertSuccess
+                                               GoogleMapLink]]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error]]
             [dashboard-cljs.datastore :as datastore]
@@ -155,7 +156,7 @@
      [:td [:i {:class "fa fa-circle"
                :style {:color (:zone-color order)}}]
       " "
-      (:address_street order)]
+      [GoogleMapLink (:address_street order) (:lat order) (:lng order)]]
      ;; username
      [:td (:customer_name order)]
      ;; phone #

@@ -17,7 +17,8 @@
                                                AlertSuccess
                                                SubmitDismissConfirmGroup
                                                TextAreaInput ViewHideButton
-                                               TelephoneNumber Mailto]]
+                                               TelephoneNumber Mailto
+                                               GoogleMapLink]]
             [clojure.set :refer [subset?]]
             [clojure.string :as s]))
 
@@ -200,7 +201,7 @@
      [:td [:i {:class "fa fa-circle"
                :style {:color (:zone-color order)}}]
       " "
-      (:address_street order)]
+      [GoogleMapLink (:address_street order) (:lat order) (:lng order)]]
      ;; courier name
      [:td (:courier_name order)]
      ;; payment info

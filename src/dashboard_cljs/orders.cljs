@@ -12,7 +12,7 @@
                                                TextAreaInput DismissButton
                                                SubmitDismissGroup Select
                                                TelephoneNumber
-                                               Mailto]]
+                                               Mailto GoogleMapLink]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error]]
@@ -98,7 +98,7 @@
      ;; email
      [:td [Mailto (:email order)]]
      ;; street address
-     [:td (:address_street order)]
+     [:td [GoogleMapLink (:address_street order) (:lat order) (:lng order)]]
      ;; market
      [:td [:i {:class "fa fa-circle"
                :style {:color (:zone-color order)}}] " "
@@ -726,7 +726,10 @@
                   :name)]]
            ;; delivery address
            [KeyVal "Address"
-            (str (:address_street @order) ", " (:address_zip @order))]
+            [:span [GoogleMapLink
+                    (:address_street @order)
+                    (:lat @order)
+                    (:lng @order)] ", " (:address_zip @order)]]
            ;; vehicle description
            (let [{:keys [year make model color]} (:vehicle @order)]
              [KeyVal "Vehicle" (str year " " make " " model " " "(" color ")")])
