@@ -202,7 +202,7 @@
       (clojure.string/replace #"\B(?=(\d{3})+(?!\d))" ",")))
 
 (defn diff-message
-  "Given a "
+  "Given old and new hashmap, create message based on their diff"
   [old new key-str]
   (let [[new-map old-map unchanged] (clojure.data/diff old new)
         concern (into [] (keys key-str))]
@@ -212,3 +212,7 @@
              (str (% key-str) " : " (% old-map) " -> " (% new-map)))
           concern))))
 
+(defn now
+  "Get the current time in unix epoch seconds"
+  []
+  (.unix (js/moment)))

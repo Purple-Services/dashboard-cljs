@@ -10,7 +10,9 @@
                                                TablePager ConfirmationAlert
                                                KeyVal ProcessingIcon FormGroup
                                                TextAreaInput DismissButton
-                                               SubmitDismissGroup Select]]
+                                               SubmitDismissGroup Select
+                                               TelephoneNumber
+                                               Mailto GoogleMapLink]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error]]
@@ -24,7 +26,7 @@
                                           declined-payment?
                                           current-order?
                                           get-event-time
-                                          get-by-id]]
+                                          get-by-id now]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps]]))
 
@@ -65,9 +67,9 @@
   viewed"
   [current-order]
   (fn [order]
-    [:tr {:class (when (= (:id order)
-                          (:id @current-order))
-                   "active")
+    [:tr {:class (str (when (= (:id order)
+                               (:id @current-order))
+                        "active"))
           :on-click (fn [_]
                       (reset! current-order order)
                       (reset! (r/cursor state [:editing-notes?]) false))}
@@ -78,7 +80,12 @@
      ;; order placed
      [:td (unix-epoch->hrf (:target_time_start order))]
      ;; order dealine
-     [:td (unix-epoch->hrf (:target_time_end order))]
+     [:td {:style (when-not (contains? #{"complete" "cancelled"} (:status order))
+                    (when (< (- (:target_time_end order)
+                                (now))
+                             (* 60 60))
+                      {:color "#d9534f"}))}
+      (unix-epoch->hrf (:target_time_end order))]
      ;; delivery time (TODO: this should show minutes if non-zero)
      [:td (str (.diff (js/moment.unix (:target_time_end order))
                       (js/moment.unix (:target_time_start order))
@@ -87,13 +94,17 @@
      ;; username
      [:td (:customer_name order)]
      ;; phone #
-     [:td (:customer_phone_number order)]
+     [:td [TelephoneNumber (:customer_phone_number order)]]
+     ;; email
+     [:td [Mailto (:email order)]]
      ;; street address
-     [:td
-      [:i {:class "fa fa-circle"
-           :style {:color (:zone-color order)}}]
-      " "
-      (:address_street order)]]))
+     [:td [GoogleMapLink (:address_street order) (:lat order) (:lng order)]]
+     ;; market
+     [:td [:i {:class "fa fa-circle"
+               :style {:color (:zone-color order)}}] " "
+      (->> (:zone order)
+           (get-by-id @datastore/zones)
+           :name)]]))
 
 (defn order-table-header
   "props is:
@@ -125,9 +136,14 @@
       [TableHeadSortable
        (conj props {:keyword :customer_phone_number})
        "Phone"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}} "Email"]
       [TableHeadSortable
        (conj props {:keyword :address_street})
-       "Street Address"]]]))
+       "Street Address"]
+      [TableHeadSortable
+       (conj props {:keyword :zone})
+       "Market"]]]))
 
 (defn assign-courier
   "Assign order to selected-courier from the list of couriers. error
@@ -608,9 +624,11 @@
             couriers
             ;; filter out the couriers to only those assigned
             ;; to the zone
-            (sort-by :name (filter #(contains? (set (:zones %))
-                                               (:zone @order))
-                                   @datastore/couriers))
+            (->> @datastore/couriers
+                 (filter #(contains? (set (:zones %))
+                                     (:zone @order)))
+                 (filter :active)
+                 (sort-by :name))
             assigned-courier (if (not (nil? (:courier_name @order)))
                                ;; there is a courier currently assigned
                                (:id (first (filter #(= (:courier_name
@@ -683,9 +701,9 @@
            ;;  name
            [KeyVal "Customer" (:customer_name @order)]
            ;;  phone number
-           [KeyVal "Phone" (:customer_phone_number @order)]
+           [KeyVal "Phone" [TelephoneNumber (:customer_phone_number @order)]]
            ;;  email
-           [KeyVal "Email" (:email @order)]
+           [KeyVal "Email" [Mailto (:email @order)]]
            ;; rating
            (let [number-rating (:number_rating @order)]
              (when number-rating
@@ -697,12 +715,21 @@
            ;; review
            (when (not (s/blank? (:text_rating @order)))
              [KeyVal "Review" (:text_rating @order)])
+           ;; market
+           [KeyVal "Market"
+            [:span
+             [:i {:class "fa fa-circle"
+                  :style {:color (:zone-color @order)}}]
+             " "
+             (->> (:zone @order)
+                  (get-by-id @datastore/zones)
+                  :name)]]
            ;; delivery address
            [KeyVal "Address"
-            [:span [:i {:class "fa fa-circle"
-                        :style {:color (:zone-color @order)}}]
-             " "
-             (:address_street @order)]]
+            [:span [GoogleMapLink
+                    (:address_street @order)
+                    (:lat @order)
+                    (:lng @order)] ", " (:address_zip @order)]]
            ;; vehicle description
            (let [{:keys [year make model color]} (:vehicle @order)]
              [KeyVal "Vehicle" (str year " " make " " model " " "(" color ")")])

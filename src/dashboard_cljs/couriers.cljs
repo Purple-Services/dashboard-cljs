@@ -8,12 +8,51 @@
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                TableFilterButtonGroup
                                                RefreshButton KeyVal StarRating
-                                               ErrorComp TablePager]]
+                                               ErrorComp TablePager
+                                               TelephoneNumber
+                                               Mailto
+                                               FormGroup
+                                               TextInput
+                                               SubmitDismissConfirmGroup
+                                               ConfirmationAlert
+                                               AlertSuccess
+                                               GoogleMapLink]]
+            [dashboard-cljs.forms :refer [entity-save edit-on-success
+                                          edit-on-error]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->fmt base-url markets
-                                          accessible-routes pager-helper!]]
+                                          accessible-routes pager-helper!
+                                          diff-message]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [get-cached-gmaps gmap]]))
+
+(def default-courier {:editing? false
+                      :retrieving? false
+                      :zones ""
+                      :errors nil})
+
+(def state (r/atom {:edit-courier default-courier
+                    :current-courier nil
+                    :confirimng-edit? false
+                    :alert-success ""}))
+
+(defn zones->str
+  "Convert a vector of zones into a comma-seperated string"
+  [zones]
+  (-> zones
+      sort
+      clj->js
+      .join))
+
+(defn displayed-courier
+  [courier]
+  (assoc courier
+         :zones (zones->str (:zones courier))))
+
+(defn reset-edit-courier!
+  [edit-courier current-courier]
+  (reset! edit-courier
+          (displayed-courier @current-courier)))
 
 (defn courier-row
   "A table row for an courier in a table. current-courier is an r/atom."
@@ -35,7 +74,7 @@
                                                    (:status order)))))
                count)]
      ;; phone
-     [:td (:phone_number courier)]
+     [:td [TelephoneNumber (:phone_number courier)]]
      ;; joined
      [:td (unix-epoch->fmt (:timestamp_created courier) "M/D/YYYY")]
      ;; status
@@ -117,13 +156,13 @@
      [:td [:i {:class "fa fa-circle"
                :style {:color (:zone-color order)}}]
       " "
-      (:address_street order)]
+      [GoogleMapLink (:address_street order) (:lat order) (:lng order)]]
      ;; username
      [:td (:customer_name order)]
      ;; phone #
-     [:td (:customer_phone_number order)]
+     [:td [TelephoneNumber (:customer_phone_number order)]]
      ;; email
-     [:td [:a {:href (str "mailto:" (:email order))} (:email order)]]
+     [:td [Mailto (:email order)]]
      ;; status
      [:td (:status order)]
      ;; star rating
@@ -132,160 +171,125 @@
         (when number-rating
           [StarRating number-rating]))]]))
 
-
-(defn save-button
-  "props is:
-  {
-  :editing?    ; ratom boolean, is the field currently being edited?
-  :retrieving? ; ratom boolean, is the data being retrieved?
-  :on-click    ; fn, button on-click fn
-  }"
-  [props]
-  (fn [{:keys [editing? retrieving? on-click]}]
-    ;; save/edit button
-    [:button {:type "button"
-              :class "btn btn-xs btn-default"
-              :on-click on-click}
-     (cond
-       @retrieving?
-       [:i {:class "fa fa-spinner fa-pulse"}]
-       @editing?
-       "Save"
-       :else
-       "Edit")]))
-
-(defn text-input
-  "props is:
-  {
-  :error?        ; boolean, is there an error for the field?
-  :default-value ; str, defaultValue for field
-  :on-change     ; fn, fn for handling on-change events
-  }"
-  [props]
-  (fn [{:keys [error? default-value on-change]}]
-    [:input {:type "text"
-             :defaultValue default-value
-             :class (str " "
-                         (when error?
-                           "error"))
-             :on-change on-change}]))
-
-(defn courier-zones-comp
-  "Component to edit a courier's assigned zones
-  props is:
-  {
-  :editing?         ; ratom boolean, is the field currently being edited?
-  :input-value      ; ratom str, the current input-value
-  :error-message    ; ratom str, error message, if any, associated with input
-  :courier          ; ratom, currently selected courier
-  }
-  "
-  [props]
-  (let [retrieve-courier (fn [editing? retrieving? courier]
-                           (retrieve-url
-                            (str base-url "courier/" (:id @courier))
-                            "GET"
-                            {}
-                            (partial xhrio-wrapper
-                                     #(let [response (js->clj % :keywordize-keys
-                                                              true)]
-                                        ;; the response is valid
-                                        (when (not (empty? response))
-                                          ;; update the datastore
-                                          (put! datastore/modify-data-chan
-                                                {:topic "couriers"
-                                                 :data response})
-                                          ;; update the courier
-                                          (reset! courier (first response))
-                                          ;; no longer retrieving
-                                          (reset! retrieving? false)
-                                          ;; no longer editing
-                                          (reset! editing? false))
-                                        ;; there was an error
-                                        (when (:success response))))))
-        update-courier (fn [editing? retrieving? error-message retrieve-courier
-                            courier input-value]
-                         (retrieve-url
-                          (str base-url "courier")
-                          "POST"
-                          (js/JSON.stringify (clj->js
-                                              {:id (:id @courier)
-                                               :zones @input-value}))
-                          (partial xhrio-wrapper
-                                   #(let [response (js->clj % :keywordize-keys
-                                                            true)]
-                                      (when (:success response)
-                                        ;; no longer editing courier
-                                        ;;(reset! editing? false)
-                                        (retrieve-courier editing? retrieving?
-                                                          courier))
-                                      (when (not (:success response))
-                                        ;; should still be editing
-                                        (reset! editing? true)
-                                        ;; not retrieving
-                                        (reset! retrieving? false)
-                                        ;; error message
-                                        (reset! error-message
-                                                (:message response)))))))
-        save-button-on-click (fn [editing? retrieving? input-value current-value
-                                  error-message courier retrieve-courier]
-                               (fn [e]
-                                 (if @editing?
-                                   (do
-                                     ;; the error message is always reset
-                                     (reset! error-message "")
-                                     (when (= @input-value current-value)
-                                       (reset! editing? false))
-                                     (when (not= @input-value current-value)
-                                       ;; retrieving from the server
-                                       (reset! retrieving? true)
-                                       ;; attempt to update the courier
-                                       (update-courier
-                                        editing? retrieving?
-                                        error-message retrieve-courier
-                                        courier input-value)))
-                                   (reset! editing? true))))
-        text-input-on-change (fn [input-value]
-                               (fn [e]
-                                 (let [input-val (-> e
-                                                     (aget "target")
-                                                     (aget "value"))]
-                                   (reset! input-value input-val))))]
-    (fn [{:keys [editing?
-                 input-value
-                 error-message
-                 courier]}]
-      (let [current-value (-> (:zones @courier)
-                              sort
-                              clj->js
-                              .join)
-            retrieving? (r/atom false)]
-        [:h5 [:span {:class "info-window-label"} "Zones: "]
-         (when (not @editing?)
-           (str current-value " "))
-         (when @editing?
-           [text-input {:error? (not (s/blank? @error-message))
-                        :default-value @input-value
-                        :on-change (text-input-on-change input-value)}])
-         (when (subset? #{{:uri "/courier"
-                           :method "POST"}}
-                        @accessible-routes)
-           [save-button {:editing? editing?
-                         :retrieving? retrieving?
-                         :on-click (save-button-on-click
-                                    editing?
-                                    retrieving?
-                                    input-value
-                                    current-value
-                                    error-message
-                                    courier
-                                    retrieve-courier)}])
-         (when (not (s/blank? @error-message))
-           [ErrorComp {:error-message
-                       (str "Courier could not be assigned! Reason: "
-                            @error-message)
-                       :dismiss-fn #(reset! error-message "")}])]))))
-
+(defn courier-form
+  "Form for editing a courier"
+  [courier]
+  (let [edit-courier (r/cursor state [:edit-courier])
+        current-courier (r/cursor state [:current-courier])
+        confirming?     (r/cursor state [:confirming-edit?])
+        retrieving?     (r/cursor edit-courier [:retrieving?])
+        editing?      (r/cursor edit-courier [:editing?])
+        alert-success (r/cursor state [:alert-success])
+        errors (r/cursor edit-courier [:errors])
+        zones (r/cursor edit-courier [:zones])
+        zones->str (fn [zones] (-> zones
+                                   sort
+                                   clj->js
+                                   .join))
+        diff-key-str {:zones "Assigned Zones"}
+        diff-msg-gen (fn [edit current] (diff-message
+                                         edit
+                                         (displayed-courier current)
+                                         diff-key-str))
+        submit-on-click (fn [e]
+                          (.preventDefault e)
+                          (if @editing?
+                            (if (every? nil?
+                                        (diff-msg-gen @edit-courier
+                                                      @current-courier))
+                              ;; there isn't a diff message, no changes
+                              ;; do nothing
+                              (reset! editing? (not @editing?))
+                              ;; there is a diff message, confirm changes
+                              (reset! confirming? true))
+                            (do
+                              ;; get rid of alert-success
+                              (reset! alert-success "")
+                              (reset! editing? (not @editing?)))))
+        dismiss-fn (fn [e]
+                     ;; reset any errors
+                     (reset! errors nil)
+                     ;; no longer editing
+                     (reset! editing? false)
+                     ;; reset current user
+                     (reset-edit-courier! edit-courier current-courier)
+                     ;; reset confirming
+                     (reset! confirming? false))]
+    (fn [courier]
+      [:form {:class "form-horizontal"}
+       ;; email
+       [KeyVal "Email" [Mailto (:email @current-courier)]]
+       ;; phone number
+       [KeyVal "Phone Number" [TelephoneNumber
+                               (:phone_number @current-courier)]]
+       ;; date started
+       [KeyVal "Date Started" (unix-epoch->fmt
+                               (:timestamp_created @current-courier)
+                               "M/D/YYYY")]
+       ;; last active (last ping)
+       [KeyVal "Last Active" (unix-epoch->fmt
+                              (:last_ping @current-courier)
+                              "M/D/YYYY h:mm A")]
+       ;; courier zones
+       (if @editing?
+         [:div
+          [FormGroup {:label "Assigned Zones"
+                      :label-for "courier zones"
+                      :errors (:zones @errors)}
+           [TextInput {:value @zones
+                       :default-value @zones
+                       :on-change #(reset!
+                                    zones
+                                    (-> %
+                                        (aget "target")
+                                        (aget "value")))}]]]
+         [KeyVal "Assigned Zones" (zones->str (:zones @current-courier))])
+       (when (subset? #{{:uri "/courier"
+                         :method "PUT"}}
+                      @accessible-routes)
+         [SubmitDismissConfirmGroup
+          {:confirming? confirming?
+           :editing? editing?
+           :retrieving? retrieving?
+           :submit-fn submit-on-click
+           :dismiss-fn dismiss-fn}])
+       (when (subset? #{{:uri "/courier"
+                         :method "PUT"}}
+                      @accessible-routes)
+         (if (and @confirming?
+                  (not-every? nil?
+                              (diff-msg-gen @edit-courier @current-courier)))
+           [ConfirmationAlert
+            {:confirmation-message
+             (fn []
+               [:div (str "Do you want to make the following changes to "
+                          (:name @current-courier) "?")
+                (map (fn [el]
+                       ^{:key el}
+                       [:h4 el])
+                     (diff-msg-gen @edit-courier @current-courier))])
+             :cancel-on-click dismiss-fn
+             :confirm-on-click
+             (fn [_]
+               (entity-save
+                ;; this needs changed
+                @edit-courier
+                "courier"
+                "PUT"
+                retrieving?
+                (edit-on-success "courier" edit-courier current-courier
+                                 alert-success
+                                 :aux-fn
+                                 #(reset! confirming? false))
+                (edit-on-error edit-courier
+                               :aux-fn
+                               #(reset! confirming? false))))
+             :retrieving? retrieving?}]
+           (reset! confirming? false)))
+       ;; success alert
+       (when-not (empty? @alert-success)
+         [AlertSuccess {:message @alert-success
+                        :dismiss #(reset! alert-success "")}])])))
 
 (defn courier-panel
   "Display detailed and editable fields for an courier. current-courier is an
@@ -337,26 +341,9 @@
           [:div {:class "col-xs-6 pull-left"}
            [:div [:h3 {:style {:margin-top 0}} (:name @current-courier)]]
            ;; main display panel
-           [:div 
-            ;; email
-            [KeyVal "Email" (:email @current-courier)]
-            ;; phone number
-            [KeyVal "Phone Number" (:phone_number @current-courier)]
-            ;; date started
-            [KeyVal "Date Started" (unix-epoch->fmt
-                                    (:timestamp_created @current-courier)
-                                    "M/D/YYYY")]
-            ;; last active (last ping)
-            [KeyVal "Last Active" (unix-epoch->fmt
-                                   (:last_ping @current-courier)
-                                   "M/D/YYYY h:mm A"
-                                   )]
-            ;; zones the courier is currently assigned to
-            [courier-zones-comp {:editing? editing-zones?
-                                 ;;:zones (:zones @current-courier)
-                                 :input-value zones-input-value
-                                 :error-message zones-error-message
-                                 :courier current-courier}]
+           [:div
+            [courier-form current-courier]
+            [:br]
             [:button {:type "button"
                       :class "btn btn-sm btn-default"
                       :on-click #(swap! show-orders? not)}
@@ -389,14 +376,14 @@
               (when @show-orders?
                 [TablePager
                  {:total-pages (count sorted-orders )
-                  :current-page current-page}])
-              ]))]))))
+                  :current-page current-page}])]))]))))
 
 (defn couriers-panel
   "Display a table of selectable couriers with an indivdual courier panel
   for the selected courier. couriers is set of couriers."
   [couriers]
-  (let [current-courier (r/atom nil)
+  (let [current-courier (r/cursor state [:current-courier])
+        edit-courier (r/cursor state [:edit-courier])
         sort-keyword (r/atom :timestamp_created)
         sort-reversed? (r/atom false)
         current-page (r/atom 1)
@@ -435,8 +422,10 @@
                                      {:topic "couriers"
                                       :data  couriers})
                                (reset! saving? false))))))]
+        ;; reset the current-courier if it is nil
         (when (nil? @current-courier)
           (reset! current-courier (first paginated-couriers)))
+        (reset-edit-courier! edit-courier current-courier)
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
           [courier-panel current-courier]

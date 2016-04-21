@@ -16,7 +16,9 @@
                                                FormGroup TextInput
                                                AlertSuccess
                                                SubmitDismissConfirmGroup
-                                               TextAreaInput ViewHideButton]]
+                                               TextAreaInput ViewHideButton
+                                               TelephoneNumber Mailto
+                                               GoogleMapLink]]
             [clojure.set :refer [subset?]]
             [clojure.string :as s]))
 
@@ -106,9 +108,9 @@
        ;; orders count
        [:td (count orders)]
        ;; email
-       [:td (:email user)]
+       [:td [Mailto (:email user)]]
        ;; phone
-       [:td (:phone_number user)]
+       [:td [TelephoneNumber (:phone_number user)]]
        ;; card?
        [:td (if (s/blank? (:stripe_default_card user))
               "No"
@@ -199,7 +201,7 @@
      [:td [:i {:class "fa fa-circle"
                :style {:color (:zone-color order)}}]
       " "
-      (:address_street order)]
+      [GoogleMapLink (:address_street order) (:lat order) (:lng order)]]
      ;; courier name
      [:td (:courier_name order)]
      ;; payment info
@@ -299,9 +301,9 @@
                          (reset! confirming? false))]
         [:form {:class "form-horizontal"}
          ;; email
-         [KeyVal "Email" (:email @user)]
+         [KeyVal "Email" [Mailto (:email @user)]]
          ;; phone number
-         [KeyVal "Phone" (:phone_number @user)]
+         [KeyVal "Phone" [TelephoneNumber (:phone_number @user)]]
          ;; date started
          [KeyVal "Registered" (unix-epoch->fmt
                                (:timestamp_created @user)
@@ -366,8 +368,8 @@
              [ConfirmationAlert
               {:confirmation-message
                (fn []
-                 [:div (str "The following changes will be made to "
-                            (:name @current-user))
+                 [:div (str "Do you want to make the following changes to "
+                            (:name @current-user) "?")
                   (map (fn [el]
                          ^{:key el}
                          [:h4 el])
@@ -581,9 +583,9 @@
      ;; name
      [:td (:name user)]
      ;;phone
-     [:td (:phone_number user)]
+     [:td [TelephoneNumber (:phone_number user)]]
      ;; email
-     [:td (:email user)]
+     [:td [Mailto (:email user)]]
      ;; push?
      [:td (if (s/blank? (:arn_endpoint user))
             [:div "No"]

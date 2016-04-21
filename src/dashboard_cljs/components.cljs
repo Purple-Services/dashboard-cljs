@@ -522,3 +522,21 @@
        hide-content
        view-content)]))
 
+(defn TelephoneNumber
+  "A component that transforms a number into a href tel"
+  [number]
+  (fn [number]
+    [:a {:href (str "tel:" number)} number]))
+
+(defn Mailto
+  "A component that transforms email into a href mailto"
+  [email]
+  (fn [email]
+    [:a {:href (str "mailto:" email)} email]))
+
+(defn GoogleMapLink
+  "Given a lat, lng create google map link using tex"
+  [text lat lng]
+  [:a {:href (str "https://maps.google.com/?q=" lat "," lng)
+       :target "_blank"}
+   text])

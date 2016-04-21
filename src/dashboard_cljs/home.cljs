@@ -6,7 +6,8 @@
                                           markets get-event-time]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton CountPanel
-                                               TablePager]]
+                                               TablePager TelephoneNumber]]
+            [dashboard-cljs.orders :as orders]
             [clojure.string :as s]))
 
 (def state (r/atom {:current-order nil}))
@@ -49,7 +50,7 @@
      ;; username
      [:td (:customer_name order)]
      ;; phone #
-     [:td (:customer_phone_number order)]
+     [:td [TelephoneNumber (:customer_phone_number order)]]
      ;; email #
      [:td (:email order)]
      ;; street address
@@ -129,10 +130,10 @@
                          "hide")}
           [:div {:class "table-responsive"}
            [StaticTable
-            {:table-header [order-table-header
+            {:table-header [orders/order-table-header
                             {:sort-keyword sort-keyword
                              :sort-reversed? sort-reversed?}]
-             :table-row (order-row current-order)}
+             :table-row (orders/order-row current-order)}
             paginated-orders]]
           [TablePager
            {:total-pages (count sorted-orders)
