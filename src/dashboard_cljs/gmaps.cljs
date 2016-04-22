@@ -41,8 +41,14 @@
                    {:coords (js-obj "lat" 34.0714522
                                     "lng" -118.40362)}
                    "San Diego"
-                   {:coords (js-obj "lat" 32.715786
-                                    "lng" -117.158340)}}
+                   {:coords (js-obj "lat" 32.7778
+                                    "lng" -117.2265)}
+                   "Seattle"
+                   {:coords (js-obj "lat" 47.6062
+                                    "lng" -122.3321)}
+                   "OC"
+                   {:coords (js-obj "lat" 33.6405
+                                    "lng" -117.8443)}}
                   :zones (array)}))
 
 (defn send-xhr
@@ -265,8 +271,8 @@
   (let [info-window (aget obj "info-window")]
     ;; first, close all other windows that are open
     (mapv (fn [order]  (.close (:info-window order)))
-         (js->clj (:orders @state)
-                  :keywordize-keys true))
+          (js->clj (:orders @state)
+                   :keywordize-keys true))
     ;; now open the window
     (.open info-window (:google-map @state))))
 
@@ -554,7 +560,7 @@
   "Convert a vector of lat,lng vectors to a json obj"
   [vec-coords]
   (clj->js (mapv #(hash-map :lat (first %) :lng (second %))
-                   vec-coords)))
+                 vec-coords)))
 
 (defn zcta-paths->polygons
   "Given a vector of path vectors, return an array of polygons"
@@ -713,10 +719,10 @@
             #(let [server-zctas (aget % "zctas")]
                (if (not (nil? server-zctas))
                  (let [zctas (mapv (partial
-                                   process-zcta!
-                                   (:google-map @state)
-                                   (aget zone "color"))
-                                  server-zctas)]
+                                    process-zcta!
+                                    (:google-map @state)
+                                    (aget zone "color"))
+                                   server-zctas)]
                    (aset zone "zctas" (clj->js zctas))
                    (modify-zone-zctas! zone)
                    (display-zone-selections! state)
@@ -1046,7 +1052,7 @@
             (js-obj "center"
                     (js-obj "lat" 34.0714522 "lng" -118.40362)
                     "zoom" 12) ))
-     ;; set from-date as startOf today, 30 days ago
+    ;; set from-date as startOf today, 30 days ago
     (swap! state
            assoc
            :from-date
@@ -1131,7 +1137,7 @@
                                           [:div (couriers-control state)])
                                          (crate/html
                                           [:div (zones-control state)])
-                                         ;;(city-control state)
+                                         (city-control state)
                                          ])
                   js/google.maps.ControlPosition.LEFT_TOP)
     ;; initialize the orders
