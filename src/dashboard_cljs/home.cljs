@@ -97,8 +97,8 @@
   "Display the orders that have yet to be completed or cancelled"
   [orders]
   (let [current-order (r/cursor state [:current-order])
-        sort-keyword (r/atom :target_time_start)
-        sort-reversed? (r/atom false)
+        sort-keyword (r/atom :target_time_end)
+        sort-reversed? (r/atom true)
         current-page (r/atom 1)
         page-size 15]
     (fn [orders]

@@ -791,8 +791,8 @@
   [orders state]
   (let [current-order (r/cursor state [:current-order])
         edit-order    (r/cursor state [:edit-order])
-        sort-keyword (r/atom :target_time_start)
-        sort-reversed? (r/atom false)
+        sort-keyword (r/atom :target_time_end)
+        sort-reversed? (r/atom true)
         current-page (r/atom 1)
         page-size 20
         filters {"Show All" (constantly true)
