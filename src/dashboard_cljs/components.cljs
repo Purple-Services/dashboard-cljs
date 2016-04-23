@@ -374,27 +374,29 @@
 (defn Select
   "props is:
   {
-  :value       ; r/atom, id of the currently selected atom
-  :options     ; set of maps, #{{:id <value> :display-key str}, ...}
-  :display-key ; keyword, associated value is displayed
+  :value        ; r/atom, id of the currently selected atom
+  :options      ; set of maps, #{{:id <value> :display-key str}, ...}
+  :display-key  ; keyword, associated value is displayed
+  :sort-keyword ; keyword, optional
   }
   "
   [props]
-  (fn [{:keys [value options display-key]} props]
-    [:select
-     {:value @value
-      :on-change
-      #(do (reset! value
-                   (-> %
-                       (aget "target")
-                       (aget "value"))))}
-     (map
-      (fn [option]
-        ^{:key (:id option)}
-        [:option
-         {:value (:id option)}
-         (display-key option)])
-      (sort-by :id options))]))
+  (fn [{:keys [value options display-key sort-keyword]} props]
+    (let [sort-keyword (or sort-keyword :id)]
+      [:select
+       {:value @value
+        :on-change
+        #(do (reset! value
+                     (-> %
+                         (aget "target")
+                         (aget "value"))))}
+       (map
+        (fn [option]
+          ^{:key (:id option)}
+          [:option
+           {:value (:id option)}
+           (display-key option)])
+        (sort-by sort-keyword options))])))
 
 (defn FormGroup
   "props is:

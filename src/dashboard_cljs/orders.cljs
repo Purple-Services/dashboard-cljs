@@ -230,7 +230,8 @@
            (when-not @retrieving?
              [Select {:value selected-courier
                       :options couriers
-                      :display-key :name}]))
+                      :display-key :name
+                      :sort-keyword :name}]))
          ;; save assignment
          " "
          (when (and @editing?
@@ -627,8 +628,7 @@
             (->> @datastore/couriers
                  (filter #(contains? (set (:zones %))
                                      (:zone @order)))
-                 (filter :active)
-                 (sort-by :name))
+                 (filter :active))
             assigned-courier (if (not (nil? (:courier_name @order)))
                                ;; there is a courier currently assigned
                                (:id (first (filter #(= (:courier_name

@@ -37,18 +37,19 @@
                    :cancelled  {:color "#000000"
                                 :selected? true}}
                   :cities
-                  {"Los Angeles"
-                   {:coords (js-obj "lat" 34.0714522
-                                    "lng" -118.40362)}
-                   "San Diego"
-                   {:coords (js-obj "lat" 32.7778
-                                    "lng" -117.2265)}
+                  {
                    "Seattle"
                    {:coords (js-obj "lat" 47.6062
                                     "lng" -122.3321)}
+                   "Los Angeles"
+                   {:coords (js-obj "lat" 34.0714522
+                                    "lng" -118.40362)}
                    "OC"
                    {:coords (js-obj "lat" 33.6405
-                                    "lng" -117.8443)}}
+                                    "lng" -117.8443)}
+                   "San Diego"
+                   {:coords (js-obj "lat" 32.7778
+                                    "lng" -117.2265)}}
                   :zones (array)}))
 
 (defn send-xhr
