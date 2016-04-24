@@ -1013,6 +1013,14 @@
                      (zones-display state)
                      (zones-zips-display state)]]))
 
+(defn move-to-city
+  "given a city-name, pan and zoom to that city"
+  [state city-name]
+  (.setZoom (:google-map @state)
+            (get-in @state [:cities city-name :zoom]))
+  (.setCenter (:google-map @state)
+              (get-in @state [:cities city-name :coords])))
+
 (defn city-button
   "Create a button for selecting city-name"
   [state city-name]
@@ -1021,12 +1029,7 @@
     (.addEventListener
      city-button
      "click"
-     #(do (.log js/console (str "I clicked "
-                                city-name))
-          (.setZoom (:google-map @state)
-                    (get-in @state [:cities city-name :zoom]))
-          (.setCenter (:google-map @state)
-                      (get-in @state [:cities city-name :coords]))))
+     #(move-to-city state city-name))
     city-button))
 
 (defn city-control
@@ -1114,6 +1117,8 @@
             (js-obj "center"
                     (get-in @state [:cities "Los Angeles" :coords])
                     "zoom" 12)))
+    ;; move to Los Angeles with proper zoom
+    (move-to-city state "Los Angeles")
     ;; set from-date as startOf today
     (swap! state
            assoc
