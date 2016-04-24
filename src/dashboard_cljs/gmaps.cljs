@@ -36,20 +36,28 @@
                                 :selected? true}
                    :cancelled  {:color "#000000"
                                 :selected? true}}
+                  ;; note: if you want to find centers, use
+                  ;; (.getCenter (:google-map @state))
+                  ;; and
+                  ;; (.getZoom (:google-map @state))
                   :cities
                   {
                    "Seattle"
-                   {:coords (js-obj "lat" 47.6062
-                                    "lng" -122.3321)}
+                   {:coords (js-obj "lat" 47.605042
+                                    "lng" -122.261588)
+                    :zoom 12}
                    "Los Angeles"
-                   {:coords (js-obj "lat" 34.0714522
-                                    "lng" -118.40362)}
+                   {:coords (js-obj "lat" 34.0754335
+                                    "lng" -118.379587)
+                    :zoom 11}
                    "OC"
-                   {:coords (js-obj "lat" 33.6405
-                                    "lng" -117.8443)}
+                   {:coords (js-obj "lat" 33.682791
+                                    "lng" -117.816834)
+                    :zoom 12}
                    "San Diego"
-                   {:coords (js-obj "lat" 32.7778
-                                    "lng" -117.2265)}}
+                   {:coords (js-obj "lat" 32.9032771
+                                    "lng" -117.167791)
+                    :zoom 11}}
                   :zones (array)}))
 
 (defn send-xhr
@@ -1015,6 +1023,8 @@
      "click"
      #(do (.log js/console (str "I clicked "
                                 city-name))
+          (.setZoom (:google-map @state)
+                    (get-in @state [:cities city-name :zoom]))
           (.setCenter (:google-map @state)
                       (get-in @state [:cities city-name :coords]))))
     city-button))
