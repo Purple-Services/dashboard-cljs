@@ -1119,6 +1119,8 @@
                     "zoom" 12)))
     ;; move to Los Angeles with proper zoom
     (move-to-city state "Los Angeles")
+    ;; put a traffic layer on the map
+    ;;(.setMap (js/google.maps.TrafficLayer.) (:google-map @state))
     ;; set from-date as startOf today
     (swap! state
            assoc

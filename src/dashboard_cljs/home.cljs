@@ -8,6 +8,7 @@
                                                RefreshButton CountPanel
                                                TablePager TelephoneNumber]]
             [dashboard-cljs.orders :as orders]
+            goog.string.format
             [clojure.string :as s]))
 
 (def state (r/atom {:current-order nil}))
@@ -22,8 +23,46 @@
             (filter #(>= (or (get-event-time (:event_log %) "complete") 0)
                          today-begin-unix)
                     orders))]
-      [CountPanel {:data (todays-orders @datastore/orders)
+      [CountPanel {:value (count (todays-orders @datastore/orders))
                    :caption "Completed Orders Today"
+                   :panel-class "panel-primary"}])))
+
+(defn cancelled-orders-panel
+  "Component for displaying today's cancelled orders"
+  []
+  (fn []
+    (let [today-begin-unix (-> (js/moment) (.startOf "day") (.unix))
+          cancelled-orders
+          (fn [orders]
+            (filter #(>= (or (get-event-time (:event_log %) "cancelled") 0)
+                         today-begin-unix)
+                    orders))]
+      [CountPanel {:value (count (cancelled-orders @datastore/orders))
+                   :caption "Cancelled Orders Today"
+                   :panel-class "panel-primary"}])))
+
+(defn percent-cancelled-panel
+  "Component for displaying the amount of cancelled orders"
+  []
+  (fn []
+    (let [today-begin-unix (-> (js/moment) (.startOf "day") (.unix))
+          completed-orders
+          (fn [orders]
+            (filter #(>= (or (get-event-time (:event_log %) "complete") 0)
+                         today-begin-unix)
+                    orders))
+          cancelled-orders
+          (fn [orders]
+            (filter #(>= (or (get-event-time (:event_log %) "cancelled") 0)
+                         today-begin-unix)
+                    orders))
+          percent-cancelled
+          (fn [orders] (/ (count (cancelled-orders orders))
+                          (count (completed-orders orders))))]
+      [CountPanel {:value (str "%" (* 100 (.toFixed (percent-cancelled
+                                                 @datastore/orders)
+                                                2)))
+                   :caption "Percent Cancelled Today"
                    :panel-class "panel-primary"}])))
 
 (defn order-row

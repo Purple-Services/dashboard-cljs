@@ -258,7 +258,9 @@
                                  :method "POST"}}
                               @accessible-routes)
                  [:div
+                  ;;[home/cancelled-orders-panel]
                   [home/orders-count-panel]
+                  ;;[home/percent-cancelled-panel]
                   [home/current-orders-panel @datastore/orders]])]]]]
            ;; couriers page
            [TabContent

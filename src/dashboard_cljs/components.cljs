@@ -7,21 +7,19 @@
 
 (defn CountPanel
   "Props is of the form:
-  {:data        coll   ; coll that count is called on 
-  :description string ; string that describe the maps in set-atom
-  :panel-class string ; additional classes to assign to root div
-                     ; ex: panel-primary results in a blue panel
-                     ;     panel-green   results in a green panel
-  :icon-class         ; class for font awesome icon in panel
-                     ; ex: fa-comments results in comments bubble
+  {:value       ; str, to display
+   :caption     ; string, that describe the maps in set-atom
+   :panel-class ; string, additional classes to assign to root div
+                 ex: panel-primary results in a blue panel
+                     panel-green   results in a green panel
   }
   Returns a panel that reports (count (:set-atom props))
   "
   [props]
-  (fn [props]
+  (fn [{:keys [value caption panel-class]} props]
     [:div
-     [:span {:class "huge"} (count (:data props))]
-     (str " " (:caption props))]))
+     [:span {:class "huge"} value]
+     (str " " caption)]))
 
 ;; Table components
 
