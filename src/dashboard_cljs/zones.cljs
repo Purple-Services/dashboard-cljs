@@ -323,7 +323,7 @@
        "Market"]
       [TableHeadSortable
        (conj props {:keyword :name})
-       "Name"]
+       "Name (id)"]
       [:th {:style {:font-size "16px"
                     :font-weight "normal"}}
        "87 Price"]
@@ -365,7 +365,7 @@
      [:td
       [:i {:class "fa fa-circle"
            :style {:color (:color zone)}}]
-      (str " " (:name zone))]
+      (str " " (:name zone) " (" (:id zone) ")")]
      ;; 87 Price
      [:td (cents->$dollars (-> zone
                                :fuel_prices
