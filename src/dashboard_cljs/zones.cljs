@@ -322,8 +322,11 @@
        (conj props {:keyword :id})
        "Market"]
       [TableHeadSortable
+       (conj props {:keyword :id})
+       "ID"]
+      [TableHeadSortable
        (conj props {:keyword :name})
-       "Name (id)"]
+       "Name"]
       [:th {:style {:font-size "16px"
                     :font-weight "normal"}}
        "87 Price"]
@@ -361,11 +364,14 @@
               :id
               (quot 50)
               markets)]
+     ;; id
+     [:td (-> zone
+              :id)]
      ;; name
      [:td {:style {:min-width "13em"}}
       [:i {:class "fa fa-circle"
            :style {:color (:color zone)}}]
-      (str " " (:name zone) " (" (:id zone) ")")]
+      (str " " (:name zone))]
      ;; 87 Price
      [:td (cents->$dollars (-> zone
                                :fuel_prices
