@@ -209,7 +209,7 @@
       (when (subset? #{{:uri "/dash-map-couriers"
                         :method "GET"}}
                      @accessible-routes)
-        [:li {:class "hidden-xs"}
+        [:li ;;{:class "hidden-xs"}
          [:a {:href (str base-url "dash-map-couriers")
               :target "_blank"}
           "Real-time Map"]])]]))

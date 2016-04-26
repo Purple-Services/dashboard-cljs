@@ -362,7 +362,7 @@
               (quot 50)
               markets)]
      ;; name
-     [:td
+     [:td {:style {:min-width "13em"}}
       [:i {:class "fa fa-circle"
            :style {:color (:color zone)}}]
       (str " " (:name zone) " (" (:id zone) ")")]
