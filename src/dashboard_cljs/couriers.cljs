@@ -75,6 +75,12 @@
                count)]
      ;; phone
      [:td [TelephoneNumber (:phone_number courier)]]
+     ;; last active
+     ;; [:td (if-not (= (:last_ping courier) 0)
+     ;;        (unix-epoch->fmt
+     ;;         (:last_ping courier)
+     ;;         "M/D/YYYY h:mm A")
+     ;;        "Never")]
      ;; joined
      [:td (unix-epoch->fmt (:timestamp_created courier) "M/D/YYYY")]
      ;; status
@@ -110,7 +116,10 @@
                     :font-weight "normal"}} "Current Orders"]
       [TableHeadSortable
        (conj props {:keyword :phone_number})
-       "Phone"] 
+       "Phone"]
+      ;; [TableHeadSortable
+      ;;  (conj props {:keyword :last_ping})
+      ;;  "Last Active"]
       [TableHeadSortable
        (conj props {:keyword :timestamp_created})
        "Joined"] 
