@@ -337,7 +337,8 @@
                                  :method "GET"}}
                               @accessible-routes)
                  [:div
-                  [analytics/stats-panel]])]]]]
+                  [analytics/stats-panel]
+                  [analytics/orders-by-hour]])]]]]
            ;; Search Resuls
            [TabContent
             {:toggle (r/cursor tab-content-toggle [:search-results-view])}

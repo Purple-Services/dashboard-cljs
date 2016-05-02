@@ -2,14 +2,15 @@
   (:require [reagent.core :as r]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt
-                                          continuous-update-until]]))
+                                          continuous-update-until]]
+            [dashboard-cljs.datastore :as datastore]
+            [cljsjs.plotly]))
 
 (def state (r/atom {:stats-status {:status ""
                                    :timestamp ""}
                     :alert-success ""
                     :alert-danger  ""
-                    :retrieving? false
-                    }))
+                    :retrieving? false}))
 
 (defn get-stats-status
   [stats-status]
@@ -24,6 +25,7 @@
                        (assoc @stats-status
                               :status (:status response)
                               :timestamp  (:timestamp response)))))))
+
 
 (defn stats-panel
   "A panel for downloading stats.csv"
@@ -141,3 +143,92 @@
             [:i {:class "fa fa-times"
                  :on-click #(reset! alert-danger "")}]]
            [:strong @alert-danger]])]])))
+
+(defn orders-within-dates
+  "Filter orders to those whose :target_time_start falls within from-date and
+  to-date"
+  [orders from-date to-date]
+  (filter #(<= from-date (:target_time_start %) to-date)
+          orders))
+
+(defn orders-with-statuses
+  "Filter orders to those who status is contained within the set statuses"
+  [orders statuses]
+  (filter #(contains? statuses (:status %)) orders))
+
+(defn orders-per-hour
+  "Given orders, count the amount of orders placed at each hour. return the
+  result in a coll of hashmaps."
+  [orders]
+  (let [order-count-per-hour-non-zero
+        (map #(hash-map (key %) (count (val %)))
+             (group-by #(unix-epoch->fmt
+                         (:target_time_start %) "h:00 A") orders))
+        hours-of-day-in-seconds (map #(unix-epoch->fmt % "h:00 A")
+                                     (range 0 (* 24 60 60) (* 60 60)))]
+    (->>
+     (merge-with +
+                 (apply merge
+                        (map #(hash-map (key %) (count (val %)))
+                             (group-by #(unix-epoch->fmt (:target_time_start %)
+                                                         "h:00 A") orders)))
+                 (apply merge (map #(hash-map % 0) hours-of-day-in-seconds)))
+     (sort-by #(.format (js/moment. (first %) "h:mm A") "HH:mm")))))
+
+(defn orders-by-hour
+  "A panel for displaying orders by hour"
+  []
+  (let [plotly-instance (atom nil)
+        trace1 (clj->js {:x ;;["giraffes", "orangutans", "monkeys"]
+                         (clj->js (into [] (map first (orders-per-hour (orders-within-dates @dashboard-cljs.datastore/orders 1459468800 1462165199)))))
+                         :y ;;[20, 14, 23]
+                         (clj->js (into [] (map second (orders-per-hour (orders-within-dates @dashboard-cljs.datastore/orders 1459468800 1462165199)))))
+                         :name "Orders / Hour"
+                         :type "bar"})
+        ;; trace2 (clj->js {:x ["giraffes", "orangutans", "monkeys"]
+        ;;                  :y [12, 18, 29]
+        ;;                  :name "LA Zoo"
+        ;;                  :type "bar"})
+        ;;data (clj->js [trace1 trace2])
+        data (clj->js [trace1])
+        layout (clj->js {;;:barmode "stack"
+                         :title "April 2016"
+                         :yaxis {:title "Orders"}
+                         })
+        ;; a list of buttons to remove:
+        ;; http://community.plot.ly/t/remove-options-from-the-hover-toolbar/130
+        config (clj->js {:modeBarButtonsToRemove ["toImage","sendDataToCloud"]})
+        ]
+    (r/create-class
+     {
+      :component-did-update
+      (fn [this]
+        (let [ data (clj->js [trace1])
+              node (r/dom-node this)]
+          ;; (reset!
+          ;;  plotly-instance
+          ;;  (js/Plotly.
+          ;;   (r/dom-node this)
+          ;;   data
+          ;;   layout))
+          ;; (js/Plotly.newPlot node data layout config)
+          ;; (.log js/console "component-did-update")
+          ;;(.log js/console (r/dom-node this))
+          )
+        ;; (.log js/console (clj->js
+        ;;                   (into []
+        ;;                         (map first (orders-per-hour
+        ;;                                     (orders-within-dates
+        ;;                                      @datastore/orders
+        ;;                                      1459468800 1461888000))))))
+        )
+      :component-did-mount
+      (fn [this]
+        (let [node (r/dom-node this)]
+          (reset! plotly-instance node)
+          (js/Plotly.newPlot node data layout config)
+          (.log js/console "component-did-mount")
+          ))
+      :reagent-render
+      (fn [args this]
+        [:div {:id "orders-by-hour"}])})))

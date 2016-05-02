@@ -9,6 +9,7 @@
                  [cljsjs/google-maps "3.18-1"]
                  [cljsjs/moment "2.10.6-0"]
                  [cljsjs/pikaday "1.3.2-0"]
+                 [cljsjs/plotly "1.10.0-0"]
                  [crate "0.2.5"]
                  [reagent "0.6.0-alpha"]]
   :jvm-opts ^:replace ["-Xmx1g" "-server"]
