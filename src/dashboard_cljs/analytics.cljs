@@ -2,7 +2,8 @@
   (:require [reagent.core :as r]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt
-                                          continuous-update-until]]
+                                          continuous-update-until
+                                          get-event-time]]
             [dashboard-cljs.datastore :as datastore]
             [cljsjs.plotly]))
 
@@ -10,7 +11,11 @@
                                    :timestamp ""}
                     :alert-success ""
                     :alert-danger  ""
-                    :retrieving? false}))
+                    :retrieving? false
+                    :total-orders-per-day {:data {:x ["2016-01-01"]
+                                                  :y [0]}
+                                           :from-date nil
+                                           :to-date nil}}))
 
 (defn get-stats-status
   [stats-status]
@@ -174,22 +179,51 @@
                                                          "h:00 A") orders)))
                  (apply merge (map #(hash-map % 0) hours-of-day-in-seconds)))
      (sort-by #(.format (js/moment. (first %) "h:mm A") "HH:mm")))))
+;; (clj->js (into [] (map first (orders-per-hour (orders-within-dates @dashboard-cljs.datastore/orders 1459468800 1462165199)))))
+
+(defn orders-per-day
+  "Given orders, count the amount of orders completed each day. return the
+  result in a coll of hashmaps."
+  [orders]
+  (let [completed-order-count-per-day-non-zero
+        (map #(hash-map (key %) (count (val %)))
+             (group-by
+              #(unix-epoch->fmt
+                ;;(get-event-time (:event_log %) "complete")
+                (:target_time_start %)
+                "M-D-YYYY") orders))]
+    ;; assuming there are orders everyday, for now
+    (sort-by first completed-order-count-per-day-non-zero)))
+
+(defn PlotlyComponent
+  [props]
+  (let [{:keys [data layout config]} props]
+    (r/create-class
+     {:component-did-mount
+      (fn [this]
+        (let [node (r/dom-node this)]
+          (js/Plotly.newPlot node data layout config)))
+
+      :display-name "PlotlyComponent"
+
+      :component-did-update
+      (fn [this old-argv]
+        (let [{:keys [data layout config]} (r/props this)]
+          (js/Plotly.newPlot (r/dom-node this) data layout config)))
+
+      :reagent-render
+      (fn [args this]
+        [:div])})))
 
 (defn orders-by-hour
   "A panel for displaying orders by hour"
   []
-  (let [plotly-instance (atom nil)
-        trace1 (clj->js {:x ;;["giraffes", "orangutans", "monkeys"]
-                         (clj->js (into [] (map first (orders-per-hour (orders-within-dates @dashboard-cljs.datastore/orders 1459468800 1462165199)))))
-                         :y ;;[20, 14, 23]
-                         (clj->js (into [] (map second (orders-per-hour (orders-within-dates @dashboard-cljs.datastore/orders 1459468800 1462165199)))))
-                         :name "Orders / Hour"
-                         :type "bar"})
-        ;; trace2 (clj->js {:x ["giraffes", "orangutans", "monkeys"]
-        ;;                  :y [12, 18, 29]
-        ;;                  :name "LA Zoo"
-        ;;                  :type "bar"})
-        ;;data (clj->js [trace1 trace2])
+  (let [orders (orders-per-hour (orders-within-dates
+                                 @dashboard-cljs.datastore/orders
+                                 1459468800 1462165199))
+        trace1 {:x (into [] (map first orders))
+                :y (into [] (map second orders))
+                :type "bar"}
         data (clj->js [trace1])
         layout (clj->js {;;:barmode "stack"
                          :title "April 2016"
@@ -197,38 +231,50 @@
                          })
         ;; a list of buttons to remove:
         ;; http://community.plot.ly/t/remove-options-from-the-hover-toolbar/130
+        config (clj->js {:modeBarButtonsToRemove ["toImage","sendDataToCloud"]})]
+    [PlotlyComponent {:data data
+                      :layout layout
+                      :config config}]))
+
+(defn total-orders-per-day-chart
+  "Display the total orders per day"
+  []
+  (let [data  (r/cursor state [:total-orders-per-day :data])
+        _     (retrieve-url
+               (str base-url "orders-per-day")
+               "GET"
+               {}
+               (partial xhrio-wrapper
+                        #(let [orders %]
+                           (if-not (nil? orders)
+                             (reset! data (js->clj orders :keywordize-keys true))))))
+        selector-options (clj->js {:buttons [{:step "month"
+                                              :stepmode "backward"
+                                              :count 1
+                                              :label "1m"},
+                                             {:step "month"
+                                              :stepmode "backward"
+                                              :count 6
+                                              :label "6m"},
+                                             {:step "year"
+                                              :stepmode "todate"
+                                              :count 1
+                                              :label "YTD"},
+                                             {:step "year"
+                                              :stepmode "backward"
+                                              :count 1
+                                              :label "1y"},
+                                             {:step "all"}]})
+        layout (clj->js {;;:barmode "stack"
+                         :title "Completed Orders / Day"
+                         :yaxis {:title "Completed Orders"
+                                 :fixedrange true}
+                         :xaxis {:rangeselector selector-options
+                                 :rangeslider {}}
+                         })
         config (clj->js {:modeBarButtonsToRemove ["toImage","sendDataToCloud"]})
         ]
-    (r/create-class
-     {
-      :component-did-update
-      (fn [this]
-        (let [ data (clj->js [trace1])
-              node (r/dom-node this)]
-          ;; (reset!
-          ;;  plotly-instance
-          ;;  (js/Plotly.
-          ;;   (r/dom-node this)
-          ;;   data
-          ;;   layout))
-          ;; (js/Plotly.newPlot node data layout config)
-          ;; (.log js/console "component-did-update")
-          ;;(.log js/console (r/dom-node this))
-          )
-        ;; (.log js/console (clj->js
-        ;;                   (into []
-        ;;                         (map first (orders-per-hour
-        ;;                                     (orders-within-dates
-        ;;                                      @datastore/orders
-        ;;                                      1459468800 1461888000))))))
-        )
-      :component-did-mount
-      (fn [this]
-        (let [node (r/dom-node this)]
-          (reset! plotly-instance node)
-          (js/Plotly.newPlot node data layout config)
-          (.log js/console "component-did-mount")
-          ))
-      :reagent-render
-      (fn [args this]
-        [:div {:id "orders-by-hour"}])})))
+    [PlotlyComponent {:data (clj->js [(merge @data
+                                             {:mode "lines"})])
+                      :layout layout
+                      :config config}]))

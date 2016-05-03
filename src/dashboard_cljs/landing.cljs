@@ -338,7 +338,9 @@
                               @accessible-routes)
                  [:div
                   [analytics/stats-panel]
-                  [analytics/orders-by-hour]])]]]]
+                  [analytics/orders-by-hour]
+                  [analytics/total-orders-per-day-chart]
+                  ])]]]]
            ;; Search Resuls
            [TabContent
             {:toggle (r/cursor tab-content-toggle [:search-results-view])}
