@@ -301,6 +301,7 @@
                          (reset! confirming? false))]
         [:form {:class "form-horizontal"}
          ;; email
+         [KeyVal "ID" (:id @user)]
          [KeyVal "Email" [Mailto (:email @user)]]
          ;; phone number
          [KeyVal "Phone" [TelephoneNumber (:phone_number @user)]]

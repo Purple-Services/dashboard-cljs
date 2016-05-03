@@ -237,6 +237,7 @@
     (fn [courier]
       [:form {:class "form-horizontal"}
        ;; email
+       [KeyVal "ID" (:id @current-courier)]
        [KeyVal "Email" [Mailto (:email @current-courier)]]
        ;; phone number
        [KeyVal "Phone Number" [TelephoneNumber
