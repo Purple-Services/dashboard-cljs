@@ -86,6 +86,19 @@
                              (* 60 60))
                       {:color "#d9534f"}))}
       (unix-epoch->hrf (:target_time_end order))]
+     ;; order completed
+     [:td
+      (when (contains? #{"complete"} (:status order))
+        (let [completed-time
+              (get-event-time (:event_log order) "complete")]
+          [:span {:style
+                  (when (> completed-time
+                           (:target_time_end order)) {:color "#d9534f"})}
+           (unix-epoch->hrf completed-time)]))
+      (when (contains? #{"cancelled"} (:status order))
+        "Cancelled")
+      (when-not (contains? #{"complete" "cancelled"} (:status order))
+        "In-Progress")]
      ;; delivery time (TODO: this should show minutes if non-zero)
      [:td (str (.diff (js/moment.unix (:target_time_end order))
                       (js/moment.unix (:target_time_start order))
@@ -128,6 +141,8 @@
       [TableHeadSortable
        (conj props {:keyword :target_time_end})
        "Deadline"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}} "Completed"]
       [:th {:style {:font-size "16px"
                     :font-weight "normal"}} "Limit"]
       [TableHeadSortable

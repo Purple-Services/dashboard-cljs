@@ -7,6 +7,26 @@
             [dashboard-cljs.datastore :as datastore]
             [cljsjs.plotly]))
 
+
+(def selector-options
+  (clj->js {:buttons [{:step "month"
+                       :stepmode "backward"
+                       :count 1
+                       :label "1m"},
+                      {:step "month"
+                       :stepmode "backward"
+                       :count 6
+                       :label "6m"},
+                      {:step "year"
+                       :stepmode "todate"
+                       :count 1
+                       :label "YTD"},
+                      {:step "year"
+                       :stepmode "backward"
+                       :count 1
+                       :label "1y"},
+                      {:step "all"}]}))
+
 (def state (r/atom {:stats-status {:status ""
                                    :timestamp ""}
                     :alert-success ""
@@ -15,7 +35,21 @@
                     :total-orders-per-day {:data {:x ["2016-01-01"]
                                                   :y [0]}
                                            :from-date nil
-                                           :to-date nil}}))
+                                           :to-date nil
+                                           :layout {;;:barmode "stack"
+                                                    :title "Completed Orders / Day"
+                                                    :yaxis {:title "Completed Orders"
+                                                            :fixedrange true
+                                                            }
+                                                    :xaxis {:rangeselector selector-options
+                                                            :rangeslider {}
+                                                            :tickmode "auto"
+                                                            }
+                                                    }
+                                           :config {:modeBarButtonsToRemove ["toImage","sendDataToCloud"]
+                                                    :autosizable true
+                                                    :displaylogo false}
+                                           }}))
 
 (defn get-stats-status
   [stats-status]
@@ -248,33 +282,43 @@
                         #(let [orders %]
                            (if-not (nil? orders)
                              (reset! data (js->clj orders :keywordize-keys true))))))
-        selector-options (clj->js {:buttons [{:step "month"
-                                              :stepmode "backward"
-                                              :count 1
-                                              :label "1m"},
-                                             {:step "month"
-                                              :stepmode "backward"
-                                              :count 6
-                                              :label "6m"},
-                                             {:step "year"
-                                              :stepmode "todate"
-                                              :count 1
-                                              :label "YTD"},
-                                             {:step "year"
-                                              :stepmode "backward"
-                                              :count 1
-                                              :label "1y"},
-                                             {:step "all"}]})
-        layout (clj->js {;;:barmode "stack"
-                         :title "Completed Orders / Day"
-                         :yaxis {:title "Completed Orders"
-                                 :fixedrange true}
-                         :xaxis {:rangeselector selector-options
-                                 :rangeslider {}}
-                         })
-        config (clj->js {:modeBarButtonsToRemove ["toImage","sendDataToCloud"]})
+        ;; selector-options (clj->js {:buttons [{:step "month"
+        ;;                                       :stepmode "backward"
+        ;;                                       :count 1
+        ;;                                       :label "1m"},
+        ;;                                      {:step "month"
+        ;;                                       :stepmode "backward"
+        ;;                                       :count 6
+        ;;                                       :label "6m"},
+        ;;                                      {:step "year"
+        ;;                                       :stepmode "todate"
+        ;;                                       :count 1
+        ;;                                       :label "YTD"},
+        ;;                                      {:step "year"
+        ;;                                       :stepmode "backward"
+        ;;                                       :count 1
+        ;;                                       :label "1y"},
+        ;;                                      {:step "all"}]})
+        ;; layout (clj->js {;;:barmode "stack"
+        ;;                  :title "Completed Orders / Day"
+        ;;                  :yaxis {:title "Completed Orders"
+        ;;                          :fixedrange true
+        ;;                          }
+        ;;                  :xaxis {:rangeselector selector-options
+        ;;                          :rangeslider {}
+        ;;                          :tickmode "auto"
+        ;;                          }
+        ;;                  })
+        ;; config (clj->js {:modeBarButtonsToRemove ["toImage","sendDataToCloud"]
+        ;;                  :autosizable true
+        ;;                  :displaylogo false})
         ]
     [PlotlyComponent {:data (clj->js [(merge @data
-                                             {:mode "lines"})])
-                      :layout layout
-                      :config config}]))
+                                             ;;{:mode "lines"}
+                                             {:type "scatter"}
+                                             )])
+                      :layout (clj->js @(r/cursor
+                                         state
+                                         [:total-orders-per-day :layout]))
+                      :config (clj->js @(r/cursor
+                                         state [:total-orders-per-day :config]))}]))
