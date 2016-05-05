@@ -5,6 +5,7 @@
                                           continuous-update-until
                                           get-event-time]]
             [dashboard-cljs.datastore :as datastore]
+            [dashboard-cljs.components :refer [RefreshButton]]
             [cljsjs.plotly]))
 
 
@@ -37,7 +38,6 @@
                                            :from-date nil
                                            :to-date nil
                                            :layout {;;:barmode "stack"
-                                                    :title "Completed Orders / Day"
                                                     :yaxis {:title "Completed Orders"
                                                             :fixedrange true
                                                             }
@@ -274,14 +274,27 @@
   "Display the total orders per day"
   []
   (let [data  (r/cursor state [:total-orders-per-day :data])
-        _     (retrieve-url
-               (str base-url "orders-per-day")
-               "GET"
-               {}
-               (partial xhrio-wrapper
-                        #(let [orders %]
-                           (if-not (nil? orders)
-                             (reset! data (js->clj orders :keywordize-keys true))))))
+        get-data (fn []
+                   (retrieve-url
+                    (str base-url "orders-per-day")
+                    "GET"
+                    {}
+                    (partial xhrio-wrapper
+                             #(let [orders %]
+                                (if-not (nil? orders)
+                                  (reset! data (js->clj orders :keywordize-keys true)))))))
+        _ (get-data)
+        refresh-fn (fn [refreshing?]
+                     (reset! refreshing? true)
+                     (retrieve-url
+                      (str base-url "orders-per-day")
+                      "GET"
+                      {}
+                      (partial xhrio-wrapper
+                               #(let [orders %]
+                                  (if-not (nil? orders)
+                                    (reset! data (js->clj orders :keywordize-keys true)))
+                                  (reset! refreshing? false)))))
         ;; selector-options (clj->js {:buttons [{:step "month"
         ;;                                       :stepmode "backward"
         ;;                                       :count 1
@@ -313,12 +326,15 @@
         ;;                  :autosizable true
         ;;                  :displaylogo false})
         ]
-    [PlotlyComponent {:data (clj->js [(merge @data
-                                             ;;{:mode "lines"}
-                                             {:type "scatter"}
-                                             )])
-                      :layout (clj->js @(r/cursor
-                                         state
-                                         [:total-orders-per-day :layout]))
-                      :config (clj->js @(r/cursor
-                                         state [:total-orders-per-day :config]))}]))
+    [:div [:h1 "Completed orders per day "
+           [RefreshButton {:refresh-fn
+                           refresh-fn}]]
+     [PlotlyComponent {:data (clj->js [(merge @data
+                                              ;;{:mode "lines"}
+                                              {:type "scatter"}
+                                              )])
+                       :layout (clj->js @(r/cursor
+                                          state
+                                          [:total-orders-per-day :layout]))
+                       :config (clj->js @(r/cursor
+                                          state [:total-orders-per-day :config]))}]]))
