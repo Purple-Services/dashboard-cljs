@@ -3,7 +3,7 @@
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt
                                           continuous-update-until
-                                          get-event-time]]
+                                          get-event-time timezone]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.components :refer [RefreshButton]]
             [cljsjs.plotly]))
@@ -277,8 +277,8 @@
         get-data (fn []
                    (retrieve-url
                     (str base-url "orders-per-day")
-                    "GET"
-                    {}
+                    "POST"
+                    (js/JSON.stringify (clj->js {:timezone @timezone}))
                     (partial xhrio-wrapper
                              #(let [orders %]
                                 (if-not (nil? orders)
@@ -288,8 +288,8 @@
                      (reset! refreshing? true)
                      (retrieve-url
                       (str base-url "orders-per-day")
-                      "GET"
-                      {}
+                      "POST"
+                      (js/JSON.stringify (clj->js {:timezone @timezone}))
                       (partial xhrio-wrapper
                                #(let [orders %]
                                   (if-not (nil? orders)

@@ -5,6 +5,8 @@
             [clojure.string :as s]
             [reagent.core :as r]))
 
+(def timezone (r/atom "America/Los_Angeles"))
+
 (defn unix-epoch->fmt
   "Convert a unix epoch (in seconds) to fmt"
   [unix-epoch fmt]
