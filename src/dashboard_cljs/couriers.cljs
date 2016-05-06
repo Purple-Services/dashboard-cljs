@@ -83,6 +83,10 @@
      ;;        "Never")]
      ;; joined
      [:td (unix-epoch->fmt (:timestamp_created courier) "M/D/YYYY")]
+     ;; os
+     [:td (:os courier)]
+     ;; app version
+     [:td (:app_version courier)]
      ;; status
      [:td
       (let [connected? (:connected courier)]
@@ -122,7 +126,13 @@
       ;;  "Last Active"]
       [TableHeadSortable
        (conj props {:keyword :timestamp_created})
-       "Joined"] 
+       "Joined"]
+      [TableHeadSortable
+       (conj props {:keyword :os})
+       "OS"]
+      [TableHeadSortable
+       (conj props {:keyword :app_version})
+       "App Version"]
       [TableHeadSortable
        (conj props {:keyword :connected})
        "Status"]]]))
@@ -227,6 +237,7 @@
     (fn [courier]
       [:form {:class "form-horizontal"}
        ;; email
+       [KeyVal "ID" (:id @current-courier)]
        [KeyVal "Email" [Mailto (:email @current-courier)]]
        ;; phone number
        [KeyVal "Phone Number" [TelephoneNumber

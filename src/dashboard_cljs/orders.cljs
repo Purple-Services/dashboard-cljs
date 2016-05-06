@@ -111,7 +111,9 @@
      ;; email
      [:td [Mailto (:email order)]]
      ;; street address
-     [:td [GoogleMapLink (:address_street order) (:lat order) (:lng order)]]
+     [:td [GoogleMapLink (str (:address_street order)
+                              ", " (:address_zip order))
+           (:lat order) (:lng order)]]
      ;; market
      [:td [:i {:class "fa fa-circle"
                :style {:color (:zone-color order)}}] " "
