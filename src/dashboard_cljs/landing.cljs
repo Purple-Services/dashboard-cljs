@@ -14,6 +14,7 @@
             [dashboard-cljs.coupons :as coupons]
             [dashboard-cljs.search :as search]
             [dashboard-cljs.zones :as zones]
+            [dashboard-cljs.marketing :as marketing]
             [dashboard-cljs.orders :as orders]
             [dashboard-cljs.analytics :as analytics]
             [dashboard-cljs.googlemaps :refer [get-cached-gmaps]]))
@@ -194,6 +195,14 @@
               :toggle (:tab-content-toggle props)
               :side-bar-toggle (:side-bar-toggle props)}
          [:div "Zones"]])
+      (when (subset? #{{:uri "/send-push-to-table-view"
+                        :method "POST"}}
+                     @accessible-routes)
+        [Tab {:default? false
+              :toggle-key :marketing-view
+              :toggle (:tab-content-toggle props)
+              :side-bar-toggle (:side-bar-toggle props)}
+         [:div "Marketing"]])
       (when (subset? #{{:uri "/generate-stats-csv"
                         :method "GET"}
                        {:uri "/download-stats-csv"
@@ -323,6 +332,16 @@
                               @accessible-routes)
                  [:div
                   [orders/orders-panel @datastore/orders orders/state]])]]]]
+           ;; marketing page
+           [TabContent
+            {:toggle (r/cursor tab-content-toggle [:marketing-view])}
+            [:div {:class "row"}
+             [:div {:class "col-lg-12"}
+              (when (subset? #{{:uri "/send-push-to-table-view"
+                                :method "POST"}}
+                             @accessible-routes)
+                [:div
+                 [marketing/push-to-table-view-panel]])]]]
            ;; analytics page
            [TabContent
             {:toggle (r/cursor tab-content-toggle [:analytics-view])}
