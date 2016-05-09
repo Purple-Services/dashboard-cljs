@@ -16,3 +16,4 @@ node_modules/
 .nrepl-port
 profiles.clj
 .cljs_rhino_repl/
+.DS_Store
