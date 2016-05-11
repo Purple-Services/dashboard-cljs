@@ -64,7 +64,7 @@
         (when (subset? #{{:uri "/orders-since-date"
                           :method "POST"}}
                        @accessible-routes)
-          [Tab {:default? false ;; true
+          [Tab {:default? true
                 :toggle-key :dashboard-view
                 :toggle (:tab-content-toggle props)
                 :on-click-tab on-click-tab}
@@ -100,7 +100,7 @@
         (when (subset? #{{:uri "/couriers"
                           :method "POST"}}
                        @accessible-routes)
-          [Tab {:default? false ;;true ;; false
+          [Tab {:default? false
                 :toggle-key :couriers-view
                 :toggle (:tab-content-toggle props)
                 :on-click-tab on-click-tab}
@@ -137,7 +137,7 @@
                          {:uri "/status-stats-csv"
                           :method "GET"}}
                        @accessible-routes)
-          [Tab {:default? true ;;false
+          [Tab {:default? false
                 :toggle-key :analytics-view
                 :toggle (:tab-content-toggle props)
                 :on-click-tab on-click-tab}
