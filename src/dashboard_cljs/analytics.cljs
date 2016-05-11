@@ -329,13 +329,16 @@
          (if (= @filename "no-data")
            [:span "CSV file is processing "
             [:i {:class "fa fa-lg fa-spinner fa-pulse "}]]
-           [DownloadCSVLink {:content  @data-atom
-                             :filename @filename}
-            (str "Download " @filename)])
-         " "
-         [RefreshButton {:refresh-fn (fn [refreshing?]
-                                       (reset! refreshing? true)
-                                       (reset! filename "no-data")
-                                       (retrieve-fn data-atom timeframe filename
-                                                    (reset! refreshing? false))
-                                       )}]])})))
+           [:span [DownloadCSVLink {:content  @data-atom
+                                    :filename @filename}
+                   (str "Download " @filename)]
+            " "
+            [RefreshButton {:refresh-fn (fn [refreshing?]
+                                          (reset! refreshing? true)
+                                          (reset! filename "no-data")
+                                          (retrieve-fn data-atom
+                                                       timeframe
+                                                       filename
+                                                       (reset! refreshing?
+                                                               false))
+                                          )}]])])})))
