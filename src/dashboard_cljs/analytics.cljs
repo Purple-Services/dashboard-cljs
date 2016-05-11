@@ -3,9 +3,13 @@
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt
                                           continuous-update-until
-                                          get-event-time timezone]]
+                                          get-event-time timezone
+                                          orders-per-hour
+                                          now]]
             [dashboard-cljs.datastore :as datastore]
-            [dashboard-cljs.components :refer [RefreshButton]]
+            [dashboard-cljs.components :refer [RefreshButton
+                                               Plotly
+                                               DownloadCSVLink]]
             [cljsjs.plotly]))
 
 
@@ -33,6 +37,15 @@
                     :alert-success ""
                     :alert-danger  ""
                     :retrieving? false
+
+                    :hourly-orders-per-courier [{}]
+                    :daily-orders-per-courier [{}]
+                    :weekly-orders-per-courier [{}]
+
+                    :hourly-total-orders [{}]
+                    :daily-total-orders [{}]
+                    :weekly-total-orders [{}]
+
                     :total-orders-per-day {:data {:x ["2016-01-01"]
                                                   :y [0]}
                                            :from-date nil
@@ -195,60 +208,7 @@
   [orders statuses]
   (filter #(contains? statuses (:status %)) orders))
 
-(defn orders-per-hour
-  "Given orders, count the amount of orders placed at each hour. return the
-  result in a coll of hashmaps."
-  [orders]
-  (let [order-count-per-hour-non-zero
-        (map #(hash-map (key %) (count (val %)))
-             (group-by #(unix-epoch->fmt
-                         (:target_time_start %) "h:00 A") orders))
-        hours-of-day-in-seconds (map #(unix-epoch->fmt % "h:00 A")
-                                     (range 0 (* 24 60 60) (* 60 60)))]
-    (->>
-     (merge-with +
-                 (apply merge
-                        (map #(hash-map (key %) (count (val %)))
-                             (group-by #(unix-epoch->fmt (:target_time_start %)
-                                                         "h:00 A") orders)))
-                 (apply merge (map #(hash-map % 0) hours-of-day-in-seconds)))
-     (sort-by #(.format (js/moment. (first %) "h:mm A") "HH:mm")))))
-;; (clj->js (into [] (map first (orders-per-hour (orders-within-dates @dashboard-cljs.datastore/orders 1459468800 1462165199)))))
-
-(defn orders-per-day
-  "Given orders, count the amount of orders completed each day. return the
-  result in a coll of hashmaps."
-  [orders]
-  (let [completed-order-count-per-day-non-zero
-        (map #(hash-map (key %) (count (val %)))
-             (group-by
-              #(unix-epoch->fmt
-                ;;(get-event-time (:event_log %) "complete")
-                (:target_time_start %)
-                "M-D-YYYY") orders))]
-    ;; assuming there are orders everyday, for now
-    (sort-by first completed-order-count-per-day-non-zero)))
-
-(defn PlotlyComponent
-  [props]
-  (let [{:keys [data layout config]} props]
-    (r/create-class
-     {:component-did-mount
-      (fn [this]
-        (let [node (r/dom-node this)]
-          (js/Plotly.newPlot node data layout config)))
-
-      :display-name "PlotlyComponent"
-
-      :component-did-update
-      (fn [this old-argv]
-        (let [{:keys [data layout config]} (r/props this)]
-          (js/Plotly.newPlot (r/dom-node this) data layout config)))
-
-      :reagent-render
-      (fn [args this]
-        [:div])})))
-
+;;!! not currently used
 (defn orders-by-hour
   "A panel for displaying orders by hour"
   []
@@ -266,9 +226,10 @@
         ;; a list of buttons to remove:
         ;; http://community.plot.ly/t/remove-options-from-the-hover-toolbar/130
         config (clj->js {:modeBarButtonsToRemove ["toImage","sendDataToCloud"]})]
-    [PlotlyComponent {:data data
-                      :layout layout
-                      :config config}]))
+    ;; [Plotly {:data data
+    ;;          :layout layout
+    ;;          :config config}]
+    ))
 
 (defn total-orders-per-day-chart
   "Display the total orders per day"
@@ -276,9 +237,11 @@
   (let [data  (r/cursor state [:total-orders-per-day :data])
         get-data (fn []
                    (retrieve-url
-                    (str base-url "orders-per-day")
+                    (str base-url "total-orders-per-timeframe")
                     "POST"
-                    (js/JSON.stringify (clj->js {:timezone @timezone}))
+                    (js/JSON.stringify (clj->js {:timezone @timezone
+                                                 :response-type "json"
+                                                 :timeframe "daily"}))
                     (partial xhrio-wrapper
                              #(let [orders %]
                                 (if-not (nil? orders)
@@ -287,54 +250,92 @@
         refresh-fn (fn [refreshing?]
                      (reset! refreshing? true)
                      (retrieve-url
-                      (str base-url "orders-per-day")
+                      (str base-url "total-orders-per-timeframe")
                       "POST"
                       (js/JSON.stringify (clj->js {:timezone @timezone}))
                       (partial xhrio-wrapper
                                #(let [orders %]
                                   (if-not (nil? orders)
-                                    (reset! data (js->clj orders :keywordize-keys true)))
-                                  (reset! refreshing? false)))))
-        ;; selector-options (clj->js {:buttons [{:step "month"
-        ;;                                       :stepmode "backward"
-        ;;                                       :count 1
-        ;;                                       :label "1m"},
-        ;;                                      {:step "month"
-        ;;                                       :stepmode "backward"
-        ;;                                       :count 6
-        ;;                                       :label "6m"},
-        ;;                                      {:step "year"
-        ;;                                       :stepmode "todate"
-        ;;                                       :count 1
-        ;;                                       :label "YTD"},
-        ;;                                      {:step "year"
-        ;;                                       :stepmode "backward"
-        ;;                                       :count 1
-        ;;                                       :label "1y"},
-        ;;                                      {:step "all"}]})
-        ;; layout (clj->js {;;:barmode "stack"
-        ;;                  :title "Completed Orders / Day"
-        ;;                  :yaxis {:title "Completed Orders"
-        ;;                          :fixedrange true
-        ;;                          }
-        ;;                  :xaxis {:rangeselector selector-options
-        ;;                          :rangeslider {}
-        ;;                          :tickmode "auto"
-        ;;                          }
-        ;;                  })
-        ;; config (clj->js {:modeBarButtonsToRemove ["toImage","sendDataToCloud"]
-        ;;                  :autosizable true
-        ;;                  :displaylogo false})
-        ]
+                                    (reset! data (js->clj orders
+                                                          :keywordize-keys true)))
+                                  (reset! refreshing? false)))))]
     [:div [:h1 "Completed orders per day "
            [RefreshButton {:refresh-fn
                            refresh-fn}]]
-     [PlotlyComponent {:data (clj->js [(merge @data
-                                              ;;{:mode "lines"}
-                                              {:type "scatter"}
-                                              )])
-                       :layout (clj->js @(r/cursor
-                                          state
-                                          [:total-orders-per-day :layout]))
-                       :config (clj->js @(r/cursor
-                                          state [:total-orders-per-day :config]))}]]))
+     [Plotly {:data  [(merge @data
+                             {:type "scatter"})]
+              :layout  @(r/cursor
+                         state
+                         [:total-orders-per-day :layout])
+              :config  @(r/cursor
+                         state [:total-orders-per-day :config])}]]))
+
+
+
+(defn retrieve-orders-per-courier
+  "Retrieve orders-per-courier data for timeframe for filename"
+  [data-atom timeframe filename & [refresh-fn]]
+  (retrieve-url
+   (str base-url "orders-per-courier")
+   "POST"
+   (js/JSON.stringify (clj->js {:timezone @timezone
+                                :timeframe timeframe
+                                :response-type "csv"}))
+   (partial xhrio-wrapper
+            (fn [r]
+              (let [response (js->clj r :keywordize-keys
+                                      true)]
+                (reset! data-atom (:data response))
+                (reset!
+                 filename
+                 (str timeframe "-orders-per-courier-"
+                      (unix-epoch->fmt (now) "YYYYMDHmmss")
+                      ".csv"))
+                (when refresh-fn (refresh-fn)))))))
+
+(defn retrieve-total-orders-per-timeframe
+  "Retrieve total-orders-per-timeframe data for timeframe for filename"
+  [data-atom timeframe filename & [refresh-fn]]
+  (retrieve-url
+   (str base-url "total-orders-per-timeframe")
+   "POST"
+   (js/JSON.stringify (clj->js {:timezone @timezone
+                                :timeframe timeframe
+                                :response-type "csv"}))
+   (partial xhrio-wrapper
+            (fn [r]
+              (let [response (js->clj r :keywordize-keys
+                                      true)]
+                (reset! data-atom (:data response))
+                (reset!
+                 filename
+                 (str timeframe "-total-orders-"
+                      (unix-epoch->fmt (now) "YYYYMDHmmss")
+                      ".csv"))
+                (when refresh-fn (refresh-fn)))))))
+
+
+(defn DownloadCSV
+  "Download links for obtaining the orders per courier"
+  [data-atom timeframe retrieve-fn]
+  (let [filename (r/atom "no-data")]
+    (r/create-class
+     {:component-did-mount
+      (fn [this]
+        (retrieve-fn data-atom timeframe filename))
+      :reagent-render
+      (fn [args this]
+        [:h3
+         (if (= @filename "no-data")
+           [:span "CSV file is processing "
+            [:i {:class "fa fa-lg fa-spinner fa-pulse "}]]
+           [DownloadCSVLink {:content  @data-atom
+                             :filename @filename}
+            (str "Download " @filename)])
+         " "
+         [RefreshButton {:refresh-fn (fn [refreshing?]
+                                       (reset! refreshing? true)
+                                       (reset! filename "no-data")
+                                       (retrieve-fn data-atom timeframe filename
+                                                    (reset! refreshing? false))
+                                       )}]])})))

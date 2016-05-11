@@ -1,7 +1,8 @@
 (ns dashboard-cljs.components
   (:require [reagent.core :as r]
             [cljsjs.pikaday.with-moment]
-            [dashboard-cljs.datastore :as datastore]))
+            [dashboard-cljs.datastore :as datastore]
+            [dashboard-cljs.utils :refer [update-values]]))
 
 ;; Reagent components
 
@@ -540,3 +541,98 @@
   [:a {:href (str "https://maps.google.com/?q=" lat "," lng)
        :target "_blank"}
    text])
+
+(defn Tab
+  "Tab component inserts child into its anchor element. props is a map of the
+  following form:
+  {
+  :toggle (reagent/atom map) ; required, a map of toggle-key's to toggle visible
+                             ; content
+  :toggle-key keyword        ; required, how this tab is identified
+  :default? boolean          ; optional, is this the default tab?
+  :on-click-tab              ; optional, fn to be called when tab is clicked
+  }
+
+  The anchor elements action when clicked is to set the val associated with
+  :toggle-key to true, while setting all other vals of :toggle to false. It will
+  also mark the current anchor as active.
+
+  child is the component to display inside of the tab"
+  [props child]
+  (when (:default? props)
+    (swap! (:toggle props) assoc (:toggle-key props) true))
+  (fn [{:keys [toggle toggle-key default? on-click-tab]} props]
+    [:li
+     ;; this needs to be done for cases where the li gets the active
+     ;; for example, nav-tabs
+     {:class (when (toggle-key @toggle) "active")}
+     [:a {:on-click
+          #(do
+             (.preventDefault %)
+             (swap! toggle update-values (fn [el] false))
+             (swap! toggle assoc toggle-key true)
+             (when on-click-tab (on-click-tab)))
+          :href "#"
+          :class
+          (str (when (toggle-key @toggle) "active"))}
+      child]]))
+
+(defn TabContent
+  "TabContent component, presumably controlled by a Tab component.
+  props is:
+  {
+  :toggle ; reagent atom, boolean
+  }
+  val in props is a reagent atom. When the val of :toggle is true, the content
+  is active and thus viewable. Otherwise, when the val of :toggle is false, the
+  content is not displayed."
+  [props content]
+  (fn [props content]
+    [:div {:class (str "tab-pane "
+                       (when @(:toggle props) "active"))}
+     content]))
+
+(defn Plotly
+  "Props are:
+  {:data   javascript array
+   :layout javascript obj
+   :config javascript obj
+  }"
+  [props]
+  (let [{:keys [data layout config]} props
+        data (clj->js data)
+        layout (clj->js layout)
+        config (clj->js config)]
+    (r/create-class
+     {:component-did-mount
+      (fn [this]
+        (let [node (r/dom-node this)]
+          (js/Plotly.newPlot node data layout config)))
+
+      :display-name "PlotlyComponent"
+
+      :component-did-update
+      (fn [this old-argv]
+        (let [{:keys [data layout config]} (r/props this)
+              data (clj->js data)
+              layout (clj->js layout)
+              config (clj->js config)]
+          (js/Plotly.newPlot (r/dom-node this) data layout config)))
+
+      :reagent-render
+      (fn [args this]
+        [:div])})))
+
+(defn DownloadCSVLink
+  "Create a link to download data as a file
+  see: http://stackoverflow.com/questions/3665115/create-a-file-in-memory-for-user-to-download-not-through-server
+       http://jsfiddle.net/VBJ9h/319/
+  Props are:
+  {:content r/atom str ; data that is being downloaded
+   :filename str ; filename to be downloaded
+  }"
+  [props child]
+  (fn [{:keys [content filename]} props]
+    [:a {:href (str "data:application/octet-stream," (js/encodeURIComponent
+                                                      content))
+         :download filename} child]))

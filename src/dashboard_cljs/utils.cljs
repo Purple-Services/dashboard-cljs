@@ -218,3 +218,38 @@
   "Get the current time in unix epoch seconds"
   []
   (.unix (js/moment)))
+
+(defn orders-per-hour
+  "Given orders, count the amount of orders placed at each hour. return the
+  result in a coll of hashmaps."
+  [orders]
+  (let [order-count-per-hour-non-zero
+        (map #(hash-map (key %) (count (val %)))
+             (group-by #(unix-epoch->fmt
+                         (:target_time_start %) "h:00 A") orders))
+        hours-of-day-in-seconds (map #(unix-epoch->fmt % "h:00 A")
+                                     (range 0 (* 24 60 60) (* 60 60)))]
+    (->>
+     (merge-with +
+                 (apply merge
+                        (map #(hash-map (key %) (count (val %)))
+                             (group-by #(unix-epoch->fmt (:target_time_start %)
+                                                         "h:00 A") orders)))
+                 (apply merge (map #(hash-map % 0) hours-of-day-in-seconds)))
+     (sort-by #(.format (js/moment. (first %) "h:mm A") "HH:mm")))))
+
+;; (clj->js (into [] (map first (orders-per-hour (orders-within-dates @dashboard-cljs.datastore/orders 1459468800 1462165199)))))
+
+(defn orders-per-day
+  "Given orders, count the amount of orders completed each day. return the
+  result in a coll of hashmaps."
+  [orders]
+  (let [completed-order-count-per-day-non-zero
+        (map #(hash-map (key %) (count (val %)))
+             (group-by
+              #(unix-epoch->fmt
+                ;;(get-event-time (:event_log %) "complete")
+                (:target_time_start %)
+                "M-D-YYYY") orders))]
+    ;; assuming there are orders everyday, for now
+    (sort-by first completed-order-count-per-day-non-zero)))

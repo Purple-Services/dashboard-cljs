@@ -16,7 +16,12 @@
                                                SubmitDismissConfirmGroup
                                                ConfirmationAlert
                                                AlertSuccess
-                                               GoogleMapLink]]
+                                               GoogleMapLink
+                                               Tab
+                                               TabContent
+                                               Plotly
+                                               Select
+                                               ]]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error]]
             [dashboard-cljs.datastore :as datastore]
@@ -24,7 +29,8 @@
                                           accessible-routes pager-helper!
                                           diff-message]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
-            [dashboard-cljs.googlemaps :refer [get-cached-gmaps gmap]]))
+            [dashboard-cljs.googlemaps :refer [get-cached-gmaps gmap
+                                               on-click-tab]]))
 
 (def default-courier {:editing? false
                       :retrieving? false
@@ -34,8 +40,27 @@
 (def state (r/atom {:edit-courier default-courier
                     :current-courier nil
                     :confirimng-edit? false
-                    :alert-success ""}))
-
+                    :alert-success ""
+                    :tab-content-toggle {}
+                    :orders-data {:data {:hourly {:x ["2016-05-01 22:23:00"
+                                                      "2016-05-01 12:20:00"
+                                                      "2016-05-02 22:23:00"
+                                                      "2016-05-02 10:00:00"
+                                                      "2016-05-02 2:30:00"
+                                                      "2016-05-03 22:23:00"]
+                                                  :y [1 1 1 1 1 1]}
+                                         :daily {:x ["2016-05-01"
+                                                     "2016-05-02"
+                                                     "2016-05-03"]
+                                                 :y [2 3 1]}
+                                         :weekly {:x ["2016-05-02"
+                                                      "2016-04-02"]
+                                                  :y [7 6]}}
+                                  :layout {:yaxis {:title "Completed Orders"}
+                                           :xaxis {:tickmode "auto"}}
+                                  :config {:autosizable true
+                                           :dismisslog false}
+                                  :selected-timeframe "t0"}}))
 (defn zones->str
   "Convert a vector of zones into a comma-seperated string"
   [zones]
@@ -310,6 +335,28 @@
        (when-not (empty? @alert-success)
          [AlertSuccess {:message @alert-success
                         :dismiss #(reset! alert-success "")}])])))
+(defn orders-per-courier
+  [props]
+  (let [id-datatype {"t0" :hourly
+                     "t1" :daily
+                     "t2" :weekly}
+        selected-timeframe (r/cursor state [:orders-data :selected-timeframe])]
+    (fn [props]
+      [:div {:class "row"}
+       [:div {:class "col-lg-12"}
+        [:h2 "Completed Orders per "
+         [Select {:value selected-timeframe
+                  :options #{{:id "t0" :time "Hour"}
+                             {:id "t1" :time "Day"}
+                             {:id "t2" :time "Week"}}
+                  :display-key :time
+                  :sort-keyword :id}]]
+        [Plotly {:data [(merge @(r/cursor state
+                                          [:orders-data :data
+                                           (id-datatype @selected-timeframe)])
+                               {:type "scatter"})]
+                 :layout @(r/cursor state [:orders-data :layout])
+                 :config @(r/cursor state [:orders-data :config])}]]])))
 
 (defn courier-panel
   "Display detailed and editable fields for an courier. current-courier is an
@@ -318,7 +365,7 @@
   (let [google-marker (atom nil)
         sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
-        show-orders? (r/atom false)
+        ;;show-orders? (r/atom false)
         current-page (r/atom 1)
         page-size 5]
     (fn [current-courier]
@@ -342,7 +389,13 @@
             sorted-orders (->> orders
                                sort-fn
                                (partition-all page-size))
-            paginated-orders (pager-helper! sorted-orders current-page)]
+            paginated-orders (pager-helper! sorted-orders current-page)
+            show-orders? (fn []
+                           (and (subset? #{{:uri "/orders-since-date"
+                                            :method "POST"}}
+                                         @accessible-routes)
+                                (> (count paginated-orders) 0)))
+            toggle (r/cursor state [:tab-content-toggle])]
         ;; create and insert courier marker
         (when (:lat @current-courier)
           (when @google-marker
@@ -350,53 +403,67 @@
           (reset! google-marker (js/google.maps.Marker.
                                  (clj->js {:position
                                            {:lat (:lat @current-courier)
-                                            :lng (:lng @current-courier)
-                                            }
+                                            :lng (:lng @current-courier)}
                                            :map (second (get-cached-gmaps
                                                          :couriers))
                                            }))))
         ;; populate the current courier with additional information
         [:div {:class "panel-body"}
          [:div {:class "row"}
-          [:div {:class "col-xs-6 pull-left"}
+          [:div {:class "col-xs-7 pull-left"}
            [:div [:h3 {:style {:margin-top 0}} (:name @current-courier)]]
+           ;; courier info tab navigation
+           [:ul {:class "nav nav-tabs"}
+            [Tab {:default? true
+                  :toggle-key :info-view
+                  :toggle toggle
+                  :on-click-tab on-click-tab}
+             "Info"]
+            [Tab {:default? false
+                  :toggle-key :orders-view
+                  :toggle toggle}
+             "Orders"]
+            ;; [Tab {:default? true
+            ;;       :toggle-key :history-view
+            ;;       :toggle toggle}
+            ;;  "History"]
+            ]
            ;; main display panel
-           [:div
-            [courier-form current-courier]
-            [:br]
-            [:button {:type "button"
-                      :class "btn btn-sm btn-default"
-                      :on-click #(swap! show-orders? not)}
-             (if @show-orders?
-               "Hide Orders"
-               "Show Orders")]]]
-          [:div {:class "pull-right hidden-xs"}
-           [gmap {:id :couriers
-                  :style {:height 300
-                          :width 300}
-                  :center {:lat (:lat @current-courier)
-                           :lng (:lng @current-courier)}}]]]
-         ;; Table of orders for current courier
-         (when (subset? #{{:uri "/orders-since-date"
-                           :method "POST"}}
-                        @accessible-routes)
-           (when (> (count paginated-orders)
-                    0)
-             [:div {:class "row"}
-              [:div {:class "table-responsive"
-                     :style (if @show-orders?
-                              {}
-                              {:display "none"})}
-               [StaticTable
-                {:table-header [courier-orders-header
-                                {:sort-keyword sort-keyword
-                                 :sort-reversed? sort-reversed?}]
-                 :table-row (courier-orders-row)}
-                paginated-orders]]
-              (when @show-orders?
-                [TablePager
-                 {:total-pages (count sorted-orders )
-                  :current-page current-page}])]))]))))
+           [:div {:class "tab-content"}
+            [TabContent
+             {:toggle (r/cursor toggle [:info-view])}
+             [:div {:id "main-panel"}
+              [:div {:id "panel"}
+               [:div {:class "pull-left"
+                      :style {:padding-right "1em"}}
+                [courier-form current-courier]]
+               [:div {:class "pull-right hidden-xs"}
+                [gmap {:id :couriers
+                       :style {:height 300
+                               :width 300}
+                       :center {:lat (:lat @current-courier)
+                                :lng (:lng @current-courier)}}]]]]]
+            [TabContent
+             {:toggle (r/cursor toggle [:orders-view])}
+             [:div {:class "row"
+                    :style (when-not (show-orders?)
+                             {:display "none"})}
+
+              [:div {:class "col-lg-12"}
+               [:div {:class "table-responsive"}
+                [StaticTable
+                 {:table-header [courier-orders-header
+                                 {:sort-keyword sort-keyword
+                                  :sort-reversed? sort-reversed?}]
+                  :table-row (courier-orders-row)}
+                 paginated-orders]]
+               [TablePager
+                {:total-pages (count sorted-orders )
+                 :current-page current-page}]]]]
+            ;; [TabContent
+            ;;  {:toggle (r/cursor toggle [:history-view])}
+            ;;  [orders-per-courier]]
+            ]]]]))))
 
 (defn couriers-panel
   "Display a table of selectable couriers with an indivdual courier panel
@@ -448,23 +515,27 @@
         (reset-edit-courier! edit-courier current-courier)
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
-          [courier-panel current-courier]
-          [:div {:class "btn-toolbar pull-left"
-                 :role "toolbar"}
-           [TableFilterButtonGroup {:hide-counts #{}}
-            filters couriers selected-filter]]
-          [:div {:class "btn-toolbar"
-                 :role "toolbar"}
-           [:div {:class "btn-group"
-                  :role "group"}
-            [RefreshButton {:refresh-fn refresh-fn}]]]]
-         [:div {:class "table-responsive"}
-          [StaticTable
-           {:table-header [courier-table-header
-                           {:sort-keyword sort-keyword
-                            :sort-reversed? sort-reversed?}]
-            :table-row (courier-row current-courier)}
-           paginated-couriers]]
-         [TablePager
-          {:total-pages (count sorted-couriers)
-           :current-page current-page}]]))))
+          [:div {:class "col-lg-12"}
+           [courier-panel current-courier]]
+          [:div {:class "col-lg-12"
+                 :style {:margin-top "1em"}}
+           [:div {:class "btn-toolbar pull-left"
+                  :role "toolbar"}
+            [TableFilterButtonGroup {:hide-counts #{}}
+             filters couriers selected-filter]]
+           [:div {:class "btn-toolbar"
+                  :role "toolbar"}
+            [:div {:class "btn-group"
+                   :role "group"}
+             [RefreshButton {:refresh-fn refresh-fn}]]]]
+          [:div {:class "col-lg-12"}
+           [:div {:class "table-responsive"}
+            [StaticTable
+             {:table-header [courier-table-header
+                             {:sort-keyword sort-keyword
+                              :sort-reversed? sort-reversed?}]
+              :table-row (courier-row current-courier)}
+             paginated-couriers]]]
+          [TablePager
+           {:total-pages (count sorted-couriers)
+            :current-page current-page}]]]))))
