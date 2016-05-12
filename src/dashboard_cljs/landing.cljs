@@ -48,7 +48,7 @@
          [:img {:src (str base-url "/images/logo-white.png")
                 :alt "PURPLE"
                 :class "purple-logo"}]]]
-       [:ul {:class "nav navbar-right top-nav"}
+       [:ul {:class "nav navbar-right top-nav hidden-xs hidden-sm"}
         [:li {:class "dropdown"}
          [search/search-bar {:tab-content-toggle
                              tab-content-toggle}]]
@@ -75,6 +75,11 @@
                            "in"))}
        ;; navbar-ex1-collapse
        [:ul {:class "nav navbar-nav side-nav side-nav-color"}
+        [:li {:class "hidden-lg hidden-md"}
+         [:a {:href (str base-url "logout")} "Logout"]]
+        [:li {:class "hidden-lg hidden-md"}
+         [search/search-bar {:tab-content-toggle
+                             tab-content-toggle}]]
         (when (subset? #{{:uri "/orders-since-date"
                           :method "POST"}}
                        @accessible-routes)
@@ -190,7 +195,8 @@
                    (:processed (meta datastore/orders)))
         [LoadScreen]
         [:div {:id "wrapper"}
-         [:nav {:class "navbar navbar-inverse navbar-fixed-top nav-bar-color"
+         [:nav {:class (str "navbar navbar-default navbar-fixed-top "
+                            "navbar-inverse nav-bar-color")
                 :role "navigation"}
           [top-navbar-comp {}]
           [side-navbar-comp {:tab-content-toggle tab-content-toggle}]]

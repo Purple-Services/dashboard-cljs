@@ -252,16 +252,20 @@
                      (retrieve-url
                       (str base-url "total-orders-per-timeframe")
                       "POST"
-                      (js/JSON.stringify (clj->js {:timezone @timezone}))
+                      (js/JSON.stringify (clj->js {:timezone @timezone
+                                                   :response-type "json"
+                                                   :timeframe "daily"}))
                       (partial xhrio-wrapper
                                #(let [orders %]
                                   (if-not (nil? orders)
                                     (reset! data (js->clj orders
                                                           :keywordize-keys true)))
                                   (reset! refreshing? false)))))]
-    [:div [:h1 "Completed orders per day "
-           [RefreshButton {:refresh-fn
-                           refresh-fn}]]
+    [:div {:class "table-responsive"
+           :style {:border "none !important;"}}
+     [:h1 "Completed orders per day "
+      [RefreshButton {:refresh-fn
+                      refresh-fn}]]
      [Plotly {:data  [(merge @data
                              {:type "scatter"})]
               :layout  @(r/cursor

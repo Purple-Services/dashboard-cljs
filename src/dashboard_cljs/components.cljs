@@ -561,21 +561,22 @@
   [props child]
   (when (:default? props)
     (swap! (:toggle props) assoc (:toggle-key props) true))
-  (fn [{:keys [toggle toggle-key default? on-click-tab]} props]
-    [:li
-     ;; this needs to be done for cases where the li gets the active
-     ;; for example, nav-tabs
-     {:class (when (toggle-key @toggle) "active")}
-     [:a {:on-click
-          #(do
-             (.preventDefault %)
-             (swap! toggle update-values (fn [el] false))
-             (swap! toggle assoc toggle-key true)
-             (when on-click-tab (on-click-tab)))
-          :href "#"
-          :class
-          (str (when (toggle-key @toggle) "active"))}
-      child]]))
+  (fn [props child]
+    (let [{:keys [toggle toggle-key default? on-click-tab]} props]
+      [:li
+       ;; this needs to be done for cases where the li gets the active
+       ;; for example, nav-tabs
+       {:class (when (toggle-key @toggle) "active")}
+       [:a {:on-click
+            #(do
+               (.preventDefault %)
+               (swap! toggle update-values (fn [el] false))
+               (swap! toggle assoc toggle-key true)
+               (when on-click-tab (on-click-tab)))
+            :href "#"
+            :class
+            (str (when (toggle-key @toggle) "active"))}
+        child]])))
 
 (defn TabContent
   "TabContent component, presumably controlled by a Tab component.
@@ -595,8 +596,8 @@
 (defn Plotly
   "Props are:
   {:data   javascript array
-   :layout javascript obj
-   :config javascript obj
+   :layout javascript obj ;;
+   :config javascript obj ;; see https://github.com/plotly/plotly.js/blob/master/src/plot_api/plot_config.js
   }"
   [props]
   (let [{:keys [data layout config]} props
