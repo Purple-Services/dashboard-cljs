@@ -22,29 +22,38 @@
 
 (def tab-content-toggle (r/atom {}))
 
+(def state (r/atom {:nav-bar-collapse true}))
+
 (defn top-navbar-comp
-  "A navbar for the top of the application"
+  "A navbar for the top of the application
+  props is:
+  {:nav-bar-collapse ; r/atom boolean
+  }"
   []
-  (fn []
-    [:div
-     [:div {:class "navbar-header"}
-      [:button {:type "button"
-                :class "navbar-toggle"
-                :on-click #(do (.preventDefault %))}
-       [:span {:class "sr-only"} "Toggle Navigation"]
-       [:span {:class "icon-bar"}]
-       [:span {:class "icon-bar"}]
-       [:span {:class "icon-bar"}]]
-      [:a {:class "navbar-brand" :href "#"}
-       [:img {:src (str base-url "/images/logo-white.png")
-              :alt "PURPLE"
-              :class "purple-logo"}]]]
-     [:ul {:class "nav navbar-right top-nav"}
-      [:li {:class "dropdown"}
-       [search/search-bar {:tab-content-toggle
-                           tab-content-toggle}]]
-      [:li
-       [:a {:href (str base-url "logout")} "Logout"]]]]))
+  (let [nav-bar-collapse (r/cursor state [:nav-bar-collapse])]
+    (fn []
+      [:div
+       [:div {:class "navbar-header"}
+        [:button {:type "button"
+                  :class "navbar-toggle"
+                  :on-click #(do (.preventDefault %)
+                                 (swap! nav-bar-collapse not))
+                  :data-toggle "collapse"
+                  :data-target ".navbar-collapse"}
+         [:span {:class "sr-only"} "Toggle Navigation"]
+         [:span {:class "icon-bar"}]
+         [:span {:class "icon-bar"}]
+         [:span {:class "icon-bar"}]]
+        [:a {:class "navbar-brand" :href "#"}
+         [:img {:src (str base-url "/images/logo-white.png")
+                :alt "PURPLE"
+                :class "purple-logo"}]]]
+       [:ul {:class "nav navbar-right top-nav"}
+        [:li {:class "dropdown"}
+         [search/search-bar {:tab-content-toggle
+                             tab-content-toggle}]]
+        [:li
+         [:a {:href (str base-url "logout")} "Logout"]]]])))
 
 (defn side-navbar-comp
   "Props contains:
@@ -55,11 +64,16 @@
   }
   "
   [props]
-  (let [on-click-tab (fn []
+  (let [nav-bar-collapse (r/cursor state [:nav-bar-collapse])
+        on-click-tab (fn []
                        (.scrollTo js/window 0 0)
-                       (on-click-tab))]
+                       (on-click-tab)
+                       (reset! nav-bar-collapse true))]
     (fn []
-      [:div {:class (str "collapse navbar-collapse navbar-ex1-collapse ")}
+      [:div {:class (str "collapse navbar-collapse sidebar-nav "
+                         (when-not @nav-bar-collapse
+                           "in"))}
+       ;; navbar-ex1-collapse
        [:ul {:class "nav navbar-nav side-nav side-nav-color"}
         (when (subset? #{{:uri "/orders-since-date"
                           :method "POST"}}
@@ -285,19 +299,20 @@
                   [analytics/stats-panel]
                   ;;[analytics/orders-by-hour]
                   [analytics/total-orders-per-day-chart]
-                  [analytics/DownloadCSV
-                   (r/cursor analytics/state [:daily-total-orders])
-                   "daily" analytics/retrieve-total-orders-per-timeframe]
-                  [:h2 "Completed Orders Per Courier"]
-                  [analytics/DownloadCSV
-                   (r/cursor analytics/state [:weekly-order-per-courier])
-                   "weekly" analytics/retrieve-orders-per-courier]
-                  [analytics/DownloadCSV
-                   (r/cursor analytics/state [:daily-order-per-courier])
-                   "daily" analytics/retrieve-orders-per-courier]
-                  [analytics/DownloadCSV
-                   (r/cursor analytics/state [:hourly-order-per-courier])
-                   "hourly" analytics/retrieve-orders-per-courier]])]]]]
+                  [:div {:class "hidden-xs hidden-sm"}
+                   [analytics/DownloadCSV
+                    (r/cursor analytics/state [:daily-total-orders])
+                    "daily" analytics/retrieve-total-orders-per-timeframe]
+                   [:h2 "Completed Orders Per Courier"]
+                   [analytics/DownloadCSV
+                    (r/cursor analytics/state [:weekly-order-per-courier])
+                    "weekly" analytics/retrieve-orders-per-courier]
+                   [analytics/DownloadCSV
+                    (r/cursor analytics/state [:daily-order-per-courier])
+                    "daily" analytics/retrieve-orders-per-courier]
+                   [analytics/DownloadCSV
+                    (r/cursor analytics/state [:hourly-order-per-courier])
+                    "hourly" analytics/retrieve-orders-per-courier]]])]]]]
            ;; Search Resuls
            [TabContent
             {:toggle (r/cursor tab-content-toggle [:search-results-view])}
