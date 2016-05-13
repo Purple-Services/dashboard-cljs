@@ -1,5 +1,6 @@
 (ns dashboard-cljs.utils
   (:require [cljsjs.moment]
+            [moment-timezone]
             [cljs.reader :refer [read-string]]
             [clojure.data :refer [diff]]
             [clojure.string :as s]

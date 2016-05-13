@@ -9,7 +9,9 @@
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.components :refer [RefreshButton
                                                Plotly
-                                               DownloadCSVLink]]
+                                               DownloadCSVLink
+                                               KeyVal
+                                               DatePicker]]
             [cljsjs.plotly]))
 
 
@@ -262,7 +264,7 @@
                                                           :keywordize-keys true)))
                                   (reset! refreshing? false)))))]
     [:div {:class "table-responsive"
-           :style {:border "none !important;"}}
+           :style {:border "none !important"}}
      [:h1 "Completed orders per day "
       [RefreshButton {:refresh-fn
                       refresh-fn}]]
@@ -322,27 +324,71 @@
 (defn DownloadCSV
   "Download links for obtaining the orders per courier"
   [data-atom timeframe retrieve-fn]
-  (let [filename (r/atom "no-data")]
+  (let [filename (r/atom "no-data")
+        from-date (r/atom (-> (js/moment)
+                              (.endOf "month")
+                              (.unix)))
+        to-date (r/atom (-> (js/moment)
+                            (.endOf "day")
+                            (.unix)))]
     (r/create-class
      {:component-did-mount
       (fn [this]
         (retrieve-fn data-atom timeframe filename))
       :reagent-render
       (fn [args this]
-        [:h3
-         (if (= @filename "no-data")
-           [:span "CSV file is processing "
-            [:i {:class "fa fa-lg fa-spinner fa-pulse "}]]
-           [:span [DownloadCSVLink {:content  @data-atom
-                                    :filename @filename}
-                   (str "Download " @filename)]
-            " "
-            [RefreshButton {:refresh-fn (fn [refreshing?]
-                                          (reset! refreshing? true)
-                                          (reset! filename "no-data")
-                                          (retrieve-fn data-atom
-                                                       timeframe
-                                                       filename
-                                                       (reset! refreshing?
-                                                               false))
-                                          )}]])])})))
+        ;;(.log js/console "from-date:" @from-date)
+        [:div
+         [:h3
+          (if (= @filename "no-data")
+            [:span "CSV file is processing "
+             [:i {:class "fa fa-lg fa-spinner fa-pulse "}]]
+            [:span [DownloadCSVLink {:content  @data-atom
+                                     :filename @filename}
+                    (str "Download " @filename)]
+             " "
+             [RefreshButton {:refresh-fn (fn [refreshing?]
+                                           (reset! refreshing? true)
+                                           (reset! filename "no-data")
+                                           (retrieve-fn data-atom
+                                                        timeframe
+                                                        filename
+                                                        (reset! refreshing?
+                                                                false))
+                                           )}]])]
+
+         ;; [:div {:class "form-group"
+         ;;        :style {:margin-left "1px"}}
+         ;;  [:label {:for "expires?"
+         ;;           :class "control-label"}
+         ;;   "From: "
+         ;;   [:div {:style {:display "inline-block"}}
+         ;;    [:input {:type "checkbox"
+         ;;             :checked @expires?
+         ;;             :style {:margin-left "4px"}
+         ;;             :on-change (fn [e]
+         ;;                          (reset!
+         ;;                           expires?
+         ;;                           (-> e
+         ;;                               (aget "target")
+         ;;                               (aget "checked")))
+         ;;                          (when @expires?
+         ;;                            (reset! expiration-time
+         ;;                                    (-> (js/moment)
+         ;;                                        (.endOf "day")
+         ;;                                        (.unix))))
+         ;;                          (when-not @expires?
+         ;;                            (reset! expiration-time
+         ;;                                    1999999999)))}]]]
+         ;;  ;; [:div
+         ;;  ;;  [:div {:class "input-group"}
+         ;;  ;;   (when @expires?
+         ;;  ;;     [DatePicker expiration-time])]
+         ;;  ;;  (when (:expiration_time @errors)
+         ;;  ;;    [:div {:class "alert alert-danger"}
+         ;;  ;;     (first (:expiration_time @errors))])]
+         ;;  ]
+         ;;[KeyVal "From: " [DatePicker from-date]]
+         ;;[KeyVal "To: "   [DatePicker to-date]]
+         ]
+        )})))

@@ -49,9 +49,10 @@
                 :alt "PURPLE"
                 :class "purple-logo"}]]]
        [:ul {:class "nav navbar-right top-nav hidden-xs hidden-sm"}
-        [:li {:class "dropdown"}
-         [search/search-bar {:tab-content-toggle
-                             tab-content-toggle}]]
+        [:li
+         [:form {:class "navbar-form" :role "search"}
+          [search/search-bar {:tab-content-toggle
+                              tab-content-toggle}]]]
         [:li
          [:a {:href (str base-url "logout")} "Logout"]]]])))
 
@@ -77,9 +78,12 @@
        [:ul {:class "nav navbar-nav side-nav side-nav-color"}
         [:li {:class "hidden-lg hidden-md"}
          [:a {:href (str base-url "logout")} "Logout"]]
-        [:li {:class "hidden-lg hidden-md"}
+        [:li {:class "hidden-lg hidden-md"
+              :style {:padding "15px"}}
          [search/search-bar {:tab-content-toggle
-                             tab-content-toggle}]]
+                             tab-content-toggle
+                             :nav-bar-collapse
+                             nav-bar-collapse}]]
         (when (subset? #{{:uri "/orders-since-date"
                           :method "POST"}}
                        @accessible-routes)

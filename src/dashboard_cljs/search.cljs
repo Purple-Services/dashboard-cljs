@@ -133,28 +133,29 @@
                                  (put! datastore/modify-data-chan
                                        {:topic "orders"
                                         :data (:orders response)}))))))]
-    (fn [{:keys [tab-content-toggle]} props]
-      [:form {:class "navbar-form" :role "search"}
-       [:div {:class "input-group"}
-        [:input {:type "text"
-                 :class "form-control"
-                 :placeholder "Search"
-                 :on-change (fn [e]
-                              (reset! search-term
-                                      (-> e
-                                          (aget "target")
-                                          (aget "value"))))}]
-        [:div {:class "input-group-btn"}
-         [:button {:class "btn btn-default"
-                   :type "submit"
-                   :on-click (fn [e]
-                               (.preventDefault e)
-                               (when-not (s/blank? @search-term)
-                                 (reset! retrieving? true)
-                                 (retrieve-results @search-term)
-                                 (reset! tab-content-toggle
-                                         {:search-results-view true})))}
-          [:i {:class "fa fa-search"}]]]]])))
+    (fn [{:keys [tab-content-toggle nav-bar-collapse]} props]
+      [:div {:class "input-group"}
+       [:input {:type "text"
+                :class "form-control"
+                :placeholder "Search"
+                :on-change (fn [e]
+                             (reset! search-term
+                                     (-> e
+                                         (aget "target")
+                                         (aget "value"))))}]
+       [:div {:class "input-group-btn"}
+        [:button {:class "btn btn-default"
+                  :type "submit"
+                  :on-click (fn [e]
+                              (.preventDefault e)
+                              (when-not (s/blank? @search-term)
+                                (reset! retrieving? true)
+                                (retrieve-results @search-term)
+                                (reset! tab-content-toggle
+                                        {:search-results-view true})
+                                (when nav-bar-collapse
+                                  (swap! nav-bar-collapse not))))}
+         [:i {:class "fa fa-search"}]]]])))
 
 (defn search-results
   "Display search results"
