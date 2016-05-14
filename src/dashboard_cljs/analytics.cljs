@@ -34,19 +34,43 @@
                        :label "1y"},
                       {:step "all"}]}))
 
+(def data-default
+  {:data [{}]})
+
+(def hourly-defaults
+  (merge data-default
+         {:from-date (-> (js/moment)
+                         (.startOf "month")
+                         (.unix))
+          :to-date (now)}))
+
+(def daily-defaults
+  (merge data-default
+         {:from-date (-> (js/moment)
+                         (.startOf "month")
+                         (.unix))
+          :to-date (now)}))
+
+(def weekly-defaults
+  (merge data-default
+         {:from-date (-> (js/moment)
+                         (.startOf "year")
+                         (.unix))
+          :to-date (now)}))
+
 (def state (r/atom {:stats-status {:status ""
                                    :timestamp ""}
                     :alert-success ""
                     :alert-danger  ""
                     :retrieving? false
 
-                    :hourly-orders-per-courier [{}]
-                    :daily-orders-per-courier [{}]
-                    :weekly-orders-per-courier [{}]
+                    :hourly-orders-per-courier hourly-defaults
+                    :daily-orders-per-courier daily-defaults
+                    :weekly-orders-per-courier weekly-defaults
 
-                    :hourly-total-orders [{}]
-                    :daily-total-orders [{}]
-                    :weekly-total-orders [{}]
+                    :hourly-total-orders hourly-defaults
+                    :daily-total-orders daily-defaults
+                    :weekly-total-orders weekly-defaults
 
                     :total-orders-per-day {:data {:x ["2016-01-01"]
                                                   :y [0]}
@@ -59,12 +83,10 @@
                                                     :xaxis {:rangeselector selector-options
                                                             :rangeslider {}
                                                             :tickmode "auto"
-                                                            }
-                                                    }
+                                                            }}
                                            :config {:modeBarButtonsToRemove ["toImage","sendDataToCloud"]
                                                     :autosizable true
-                                                    :displaylogo false}
-                                           }}))
+                                                    :displaylogo false}}}))
 
 (defn get-stats-status
   [stats-status]
@@ -198,6 +220,10 @@
                  :on-click #(reset! alert-danger "")}]]
            [:strong @alert-danger]])]])))
 
+(defn unix-epoch->YYYY-MM-DD
+  [epoch]
+  (unix-epoch->fmt epoch "YYYY-MM-DD"))
+
 (defn orders-within-dates
   "Filter orders to those whose :target_time_start falls within from-date and
   to-date"
@@ -243,7 +269,11 @@
                     "POST"
                     (js/JSON.stringify (clj->js {:timezone @timezone
                                                  :response-type "json"
-                                                 :timeframe "daily"}))
+                                                 :timeframe "daily"
+                                                 :from-date "2015-04-1"
+                                                 :to-date
+                                                 (unix-epoch->YYYY-MM-DD (now))
+                                                 }))
                     (partial xhrio-wrapper
                              #(let [orders %]
                                 (if-not (nil? orders)
@@ -256,7 +286,11 @@
                       "POST"
                       (js/JSON.stringify (clj->js {:timezone @timezone
                                                    :response-type "json"
-                                                   :timeframe "daily"}))
+                                                   :timeframe "daily"
+                                                   :from-date "2015-04-01"
+                                                   :to-date
+                                                   (unix-epoch->YYYY-MM-DD (now))
+                                                   }))
                       (partial xhrio-wrapper
                                #(let [orders %]
                                   (if-not (nil? orders)
@@ -278,35 +312,16 @@
 
 
 
-(defn retrieve-orders-per-courier
-  "Retrieve orders-per-courier data for timeframe for filename"
-  [data-atom timeframe filename & [refresh-fn]]
-  (retrieve-url
-   (str base-url "orders-per-courier")
-   "POST"
-   (js/JSON.stringify (clj->js {:timezone @timezone
-                                :timeframe timeframe
-                                :response-type "csv"}))
-   (partial xhrio-wrapper
-            (fn [r]
-              (let [response (js->clj r :keywordize-keys
-                                      true)]
-                (reset! data-atom (:data response))
-                (reset!
-                 filename
-                 (str timeframe "-orders-per-courier-"
-                      (unix-epoch->fmt (now) "YYYYMDHmmss")
-                      ".csv"))
-                (when refresh-fn (refresh-fn)))))))
-
 (defn retrieve-total-orders-per-timeframe
   "Retrieve total-orders-per-timeframe data for timeframe for filename"
-  [data-atom timeframe filename & [refresh-fn]]
+  [data-atom timeframe filename from-date to-date & [refresh-fn]]
   (retrieve-url
    (str base-url "total-orders-per-timeframe")
    "POST"
    (js/JSON.stringify (clj->js {:timezone @timezone
                                 :timeframe timeframe
+                                :from-date from-date
+                                :to-date to-date
                                 :response-type "csv"}))
    (partial xhrio-wrapper
             (fn [r]
@@ -316,28 +331,61 @@
                 (reset!
                  filename
                  (str timeframe "-total-orders-"
-                      (unix-epoch->fmt (now) "YYYYMDHmmss")
+                      from-date
+                      "-through-"
+                      to-date
                       ".csv"))
                 (when refresh-fn (refresh-fn)))))))
 
 
+
+(defn retrieve-orders-per-courier
+  "Retrieve orders-per-courier data for timeframe for filename"
+  [data-atom timeframe filename from-date to-date & [refresh-fn]]
+  (retrieve-url
+   (str base-url "orders-per-courier")
+   "POST"
+   (js/JSON.stringify (clj->js {:timezone @timezone
+                                :timeframe timeframe
+                                :from-date from-date
+                                :to-date   to-date
+                                :response-type "csv"}))
+   (partial xhrio-wrapper
+            (fn [r]
+              (let [response (js->clj r :keywordize-keys
+                                      true)]
+                (reset! data-atom (:data response))
+                (reset!
+                 filename
+                 (str timeframe "-orders-per-courier-"
+                      from-date
+                      "-through-"
+                      to-date
+                      ".csv"))
+                (when refresh-fn (refresh-fn)))))))
+
 (defn DownloadCSV
-  "Download links for obtaining the orders per courier"
-  [data-atom timeframe retrieve-fn]
-  (let [filename (r/atom "no-data")
-        from-date (r/atom (-> (js/moment)
-                              (.endOf "month")
-                              (.unix)))
-        to-date (r/atom (-> (js/moment)
-                            (.endOf "day")
-                            (.unix)))]
+  "Download links for obtaining the orders per courier
+  props is:
+  {:data        ; r/atom
+   :timeframe   ; str
+   :retrieve-fn ; fn
+  }
+  "
+  [props]
+  (let [{:keys [data timeframe retrieve-fn]} props
+        data-atom (r/cursor data [:data])
+        from-date (r/cursor data [:from-date])
+        to-date   (r/cursor data [:to-date])
+        filename (r/atom "no-data")]
     (r/create-class
      {:component-did-mount
       (fn [this]
-        (retrieve-fn data-atom timeframe filename))
+        (retrieve-fn data-atom timeframe filename
+                     (unix-epoch->YYYY-MM-DD @from-date)
+                     (unix-epoch->YYYY-MM-DD @to-date)))
       :reagent-render
       (fn [args this]
-        ;;(.log js/console "from-date:" @from-date)
         [:div
          [:h3
           (if (= @filename "no-data")
@@ -345,50 +393,32 @@
              [:i {:class "fa fa-lg fa-spinner fa-pulse "}]]
             [:span [DownloadCSVLink {:content  @data-atom
                                      :filename @filename}
-                    (str "Download " @filename)]
+                    @filename]
              " "
-             [RefreshButton {:refresh-fn (fn [refreshing?]
-                                           (reset! refreshing? true)
-                                           (reset! filename "no-data")
-                                           (retrieve-fn data-atom
-                                                        timeframe
-                                                        filename
-                                                        (reset! refreshing?
-                                                                false))
-                                           )}]])]
-
-         ;; [:div {:class "form-group"
-         ;;        :style {:margin-left "1px"}}
-         ;;  [:label {:for "expires?"
-         ;;           :class "control-label"}
-         ;;   "From: "
-         ;;   [:div {:style {:display "inline-block"}}
-         ;;    [:input {:type "checkbox"
-         ;;             :checked @expires?
-         ;;             :style {:margin-left "4px"}
-         ;;             :on-change (fn [e]
-         ;;                          (reset!
-         ;;                           expires?
-         ;;                           (-> e
-         ;;                               (aget "target")
-         ;;                               (aget "checked")))
-         ;;                          (when @expires?
-         ;;                            (reset! expiration-time
-         ;;                                    (-> (js/moment)
-         ;;                                        (.endOf "day")
-         ;;                                        (.unix))))
-         ;;                          (when-not @expires?
-         ;;                            (reset! expiration-time
-         ;;                                    1999999999)))}]]]
-         ;;  ;; [:div
-         ;;  ;;  [:div {:class "input-group"}
-         ;;  ;;   (when @expires?
-         ;;  ;;     [DatePicker expiration-time])]
-         ;;  ;;  (when (:expiration_time @errors)
-         ;;  ;;    [:div {:class "alert alert-danger"}
-         ;;  ;;     (first (:expiration_time @errors))])]
-         ;;  ]
-         ;;[KeyVal "From: " [DatePicker from-date]]
-         ;;[KeyVal "To: "   [DatePicker to-date]]
-         ]
-        )})))
+             [RefreshButton
+              {:refresh-fn (fn [refreshing?]
+                             (reset! refreshing? true)
+                             (reset! filename "no-data")
+                             (retrieve-fn data-atom
+                                          timeframe
+                                          filename
+                                          (unix-epoch->YYYY-MM-DD @from-date)
+                                          (unix-epoch->YYYY-MM-DD @to-date)
+                                          (reset! refreshing?
+                                                  false)))}]])]
+         [:div {:class "form-group"
+                :style {:margin-left "1px"}}
+          [:label {:for "expires?"
+                   :class "control-label"}
+           [:div {:style {:display "inline-block"}}
+            [:div
+             [:div {:class "input-group"}
+              [DatePicker from-date]]]]]
+          [:span {:style {:font-size "3em"
+                          :color "grey"}} " - "]
+          [:label {:for "expires?"
+                   :class "control-label"}
+           [:div {:style {:display "inline-block"}}
+            [:div
+             [:div {:class "input-group"}
+              [DatePicker to-date]]]]]]])})))

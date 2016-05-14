@@ -311,18 +311,28 @@
                   [analytics/total-orders-per-day-chart]
                   [:div {:class "hidden-xs hidden-sm"}
                    [analytics/DownloadCSV
+                    {:data (r/cursor analytics/state [:daily-total-orders])
+                     :timeframe "daily"
+                     :retrieve-fn analytics/retrieve-total-orders-per-timeframe}
                     (r/cursor analytics/state [:daily-total-orders])
                     "daily" analytics/retrieve-total-orders-per-timeframe]
                    [:h2 "Completed Orders Per Courier"]
                    [analytics/DownloadCSV
-                    (r/cursor analytics/state [:weekly-order-per-courier])
-                    "weekly" analytics/retrieve-orders-per-courier]
+                    {:data (r/cursor analytics/state
+                                     [:weekly-orders-per-courier])
+                     :timeframe "weekly"
+                     :retrieve-fn  analytics/retrieve-orders-per-courier}]
                    [analytics/DownloadCSV
-                    (r/cursor analytics/state [:daily-order-per-courier])
-                    "daily" analytics/retrieve-orders-per-courier]
+                    {:data (r/cursor analytics/state
+                                     [:daily-orders-per-courier])
+                     :timeframe "daily"
+                     :retrieve-fn analytics/retrieve-orders-per-courier}]
                    [analytics/DownloadCSV
-                    (r/cursor analytics/state [:hourly-order-per-courier])
-                    "hourly" analytics/retrieve-orders-per-courier]]])]]]]
+                    {:data (r/cursor analytics/state
+                                     [:hourly-orders-per-courier])
+                     :timeframe "hourly"
+                     :retrieve-fn analytics/retrieve-orders-per-courier}]
+                   ]])]]]]
            ;; Search Resuls
            [TabContent
             {:toggle (r/cursor tab-content-toggle [:search-results-view])}
