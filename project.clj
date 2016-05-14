@@ -31,8 +31,6 @@
                         :foreign-libs [;; https://github.com/googlemaps/js-map-label
                                        {:file "resources/js/maplabel.js"
                                         :provides ["maplabel"]}
-                                       {:file "resources/js/moment-timezone-with-data-2010-2020.min.js"
-                                        :provides ["moment-timezone"]}
                                        ]}}
             {:id "release"
              :source-paths ["src"]
@@ -42,6 +40,4 @@
                         :verbose true
                         :foreign-libs [{:file "resources/js/maplabel.js"
                                         :provides ["maplabel"]}
-                                       {:file "resources/js/moment-timezone-with-data-2010-2020.min.js"
-                                        :provides ["moment-timezone"]}
                                        ]}}]})
