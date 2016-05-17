@@ -410,6 +410,32 @@
                      :timeframe "hourly"
                      :retrieve-fn (partial analytics/retrieve-csv
                                            "revenue-per-courier")}]
+                   [:h2 "Total Fuel Price"]
+                   [analytics/DownloadCSV
+                    {:data (r/cursor analytics/state
+                                     [:weekly-fuel-price])
+                     :timeframe "weekly"
+                     :retrieve-fn  (partial analytics/retrieve-csv
+                                            "fuel-price")}]
+                   [analytics/DownloadCSV
+                    {:data (r/cursor analytics/state
+                                     [:daily-fuel-price])
+                     :timeframe "daily"
+                     :retrieve-fn (partial analytics/retrieve-csv
+                                           "fuel-price")}]
+                   [:h2 "Total Fuel Price Per Courier"]
+                   [analytics/DownloadCSV
+                    {:data (r/cursor analytics/state
+                                     [:weekly-fuel-price-per-courier])
+                     :timeframe "weekly"
+                     :retrieve-fn  (partial analytics/retrieve-csv
+                                            "fuel-price-per-courier")}]
+                   [analytics/DownloadCSV
+                    {:data (r/cursor analytics/state
+                                     [:daily-fuel-price-per-courier])
+                     :timeframe "daily"
+                     :retrieve-fn (partial analytics/retrieve-csv
+                                           "fuel-price-per-courier")}]
                    ]])]]]]
            ;; Search Resuls
            [TabContent

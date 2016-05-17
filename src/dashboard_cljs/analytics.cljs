@@ -89,6 +89,13 @@
                     :daily-revenue-per-courier daily-defaults
                     :hourly-revenue-per-courier hourly-defaults
 
+                    ;; fuel price
+                    :weekly-fuel-price weekly-defaults
+                    :daily-fuel-price daily-defaults
+
+                    :weekly-fuel-price-per-courier weekly-defaults
+                    :daily-fuel-price-per-courier daily-defaults
+
                     :total-orders-per-day
                     {:data {:x ["2016-01-01"]
                             :y [0]}
