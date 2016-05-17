@@ -39,9 +39,7 @@
 
 (def hourly-defaults
   (merge data-default
-         {:from-date (-> (js/moment)
-                         (.startOf "month")
-                         (.unix))
+         {:from-date (-> (now))
           :to-date (now)}))
 
 (def daily-defaults
@@ -64,29 +62,50 @@
                     :alert-danger  ""
                     :retrieving? false
 
-                    :hourly-orders-per-courier hourly-defaults
-                    :daily-orders-per-courier daily-defaults
-                    :weekly-orders-per-courier weekly-defaults
-
-                    :hourly-total-orders hourly-defaults
-                    :daily-total-orders daily-defaults
+                    ;; order counts
                     :weekly-total-orders weekly-defaults
+                    :daily-total-orders daily-defaults
+                    :hourly-total-orders hourly-defaults
 
-                    :total-orders-per-day {:data {:x ["2016-01-01"]
-                                                  :y [0]}
-                                           :from-date nil
-                                           :to-date nil
-                                           :layout {;;:barmode "stack"
-                                                    :yaxis {:title "Completed Orders"
-                                                            :fixedrange true
-                                                            }
-                                                    :xaxis {:rangeselector selector-options
-                                                            :rangeslider {}
-                                                            :tickmode "auto"
-                                                            }}
-                                           :config {:modeBarButtonsToRemove ["toImage","sendDataToCloud"]
-                                                    :autosizable true
-                                                    :displaylogo false}}}))
+                    :weekly-orders-per-courier weekly-defaults
+                    :daily-orders-per-courier daily-defaults
+                    :hourly-orders-per-courier hourly-defaults
+
+                    ;; gallons count
+                    :weekly-total-gallons weekly-defaults
+                    :daily-total-gallons daily-defaults
+                    :hourly-total-gallons hourly-defaults
+
+                    :weekly-gallons-per-courier weekly-defaults
+                    :daily-gallons-per-courier daily-defaults
+                    :hourly-gallons-per-courier hourly-defaults
+
+                    ;; revenue count
+                    :weekly-revenue weekly-defaults
+                    :daily-revenue daily-defaults
+                    :hourly-revenue hourly-defaults
+
+                    :weekly-revenue-per-courier weekly-defaults
+                    :daily-revenue-per-courier daily-defaults
+                    :hourly-revenue-per-courier hourly-defaults
+
+                    :total-orders-per-day
+                    {:data {:x ["2016-01-01"]
+                            :y [0]}
+                     :from-date nil
+                     :to-date nil
+                     :layout {;;:barmode "stack"
+                              :yaxis {:title "Completed Orders"
+                                      :fixedrange true
+                                      }
+                              :xaxis {:rangeselector selector-options
+                                      :rangeslider {}
+                                      :tickmode "auto"
+                                      }}
+                     :config {:modeBarButtonsToRemove
+                              ["toImage","sendDataToCloud"]
+                              :autosizable true
+                              :displaylogo false}}}))
 
 (defn get-stats-status
   [stats-status]
@@ -111,8 +130,7 @@
         timestamp   (r/cursor stats-status [:timestamp])
         alert-success (r/cursor state [:alert-success])
         alert-danger   (r/cursor state [:alert-danger])
-        retrieving? (r/cursor state [:retrieving?])
-        ]
+        retrieving? (r/cursor state [:retrieving?])]
     (get-stats-status stats-status)
     (fn []
       [:div {:class "panel panel-default"}
@@ -253,7 +271,8 @@
                          })
         ;; a list of buttons to remove:
         ;; http://community.plot.ly/t/remove-options-from-the-hover-toolbar/130
-        config (clj->js {:modeBarButtonsToRemove ["toImage","sendDataToCloud"]})]
+        config (clj->js {:modeBarButtonsToRemove
+                         ["toImage","sendDataToCloud"]})]
     ;; [Plotly {:data data
     ;;          :layout layout
     ;;          :config config}]
@@ -265,7 +284,7 @@
   (let [data  (r/cursor state [:total-orders-per-day :data])
         get-data (fn []
                    (retrieve-url
-                    (str base-url "total-orders-per-timeframe")
+                    (str base-url "total-orders")
                     "POST"
                     (js/JSON.stringify (clj->js {:timezone @timezone
                                                  :response-type "json"
@@ -277,7 +296,8 @@
                     (partial xhrio-wrapper
                              #(let [orders %]
                                 (if-not (nil? orders)
-                                  (reset! data (js->clj orders :keywordize-keys true)))))))
+                                  (reset! data (js->clj orders :keywordize-keys
+                                                        true)))))))
         _ (get-data)
         refresh-fn (fn [refreshing?]
                      (reset! refreshing? true)
@@ -289,13 +309,14 @@
                                                    :timeframe "daily"
                                                    :from-date "2015-04-01"
                                                    :to-date
-                                                   (unix-epoch->YYYY-MM-DD (now))
-                                                   }))
+                                                   (unix-epoch->YYYY-MM-DD
+                                                    (now))}))
                       (partial xhrio-wrapper
                                #(let [orders %]
                                   (if-not (nil? orders)
-                                    (reset! data (js->clj orders
-                                                          :keywordize-keys true)))
+                                    (reset! data (js->clj
+                                                  orders
+                                                  :keywordize-keys true)))
                                   (reset! refreshing? false)))))]
     [:div {:class "table-responsive"
            :style {:border "none !important"}}
@@ -309,14 +330,11 @@
                          [:total-orders-per-day :layout])
               :config  @(r/cursor
                          state [:total-orders-per-day :config])}]]))
-
-
-
-(defn retrieve-total-orders-per-timeframe
-  "Retrieve total-orders-per-timeframe data for timeframe for filename"
-  [data-atom timeframe filename from-date to-date & [refresh-fn]]
+(defn retrieve-csv
+  "Retrieve totals from server using url"
+  [url data-atom timeframe filename from-date to-date & [refresh-fn]]
   (retrieve-url
-   (str base-url "total-orders-per-timeframe")
+   (str base-url url)
    "POST"
    (js/JSON.stringify (clj->js {:timezone @timezone
                                 :timeframe timeframe
@@ -330,34 +348,7 @@
                 (reset! data-atom (:data response))
                 (reset!
                  filename
-                 (str timeframe "-total-orders-"
-                      from-date
-                      "-through-"
-                      to-date
-                      ".csv"))
-                (when refresh-fn (refresh-fn)))))))
-
-
-
-(defn retrieve-orders-per-courier
-  "Retrieve orders-per-courier data for timeframe for filename"
-  [data-atom timeframe filename from-date to-date & [refresh-fn]]
-  (retrieve-url
-   (str base-url "orders-per-courier")
-   "POST"
-   (js/JSON.stringify (clj->js {:timezone @timezone
-                                :timeframe timeframe
-                                :from-date from-date
-                                :to-date   to-date
-                                :response-type "csv"}))
-   (partial xhrio-wrapper
-            (fn [r]
-              (let [response (js->clj r :keywordize-keys
-                                      true)]
-                (reset! data-atom (:data response))
-                (reset!
-                 filename
-                 (str timeframe "-orders-per-courier-"
+                 (str timeframe "-" url "-"
                       from-date
                       "-through-"
                       to-date
