@@ -307,135 +307,23 @@
                               @accessible-routes)
                  [:div
                   [analytics/stats-panel]
-                  ;;[analytics/orders-by-hour]
                   [analytics/total-orders-per-day-chart]
+                  [analytics/DownloadCSV {:url "total-orders"}]
                   [:div {:class "hidden-xs hidden-sm"}
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state [:daily-total-orders])
-                     :timeframe "daily"
-                     :retrieve-fn (partial analytics/retrieve-csv
-                                           "total-orders")}]
                    [:h2 "Completed Orders Per Courier"]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:weekly-orders-per-courier])
-                     :timeframe "weekly"
-                     :retrieve-fn  (partial analytics/retrieve-csv
-                                            "orders-per-courier")}]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:daily-orders-per-courier])
-                     :timeframe "daily"
-                     :retrieve-fn (partial analytics/retrieve-csv
-                                           "orders-per-courier")}]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:hourly-orders-per-courier])
-                     :timeframe "hourly"
-                     :retrieve-fn (partial analytics/retrieve-csv
-                                           "orders-per-courier")}]
+                   [analytics/DownloadCSV {:url "orders-per-courier"}]
                    [:h2 "Total Gallons Sold"]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:weekly-total-gallons])
-                     :timeframe "weekly"
-                     :retrieve-fn  (partial analytics/retrieve-csv
-                                            "total-gallons")}]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:daily-total-gallons])
-                     :timeframe "daily"
-                     :retrieve-fn (partial analytics/retrieve-csv
-                                           "total-gallons")}]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:hourly-total-gallons])
-                     :timeframe "hourly"
-                     :retrieve-fn (partial analytics/retrieve-csv
-                                           "total-gallons")}]
-                   [:h2 "Total Gallons Sold Per Courier"]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:weekly-gallons-per-courier])
-                     :timeframe "weekly"
-                     :retrieve-fn  (partial analytics/retrieve-csv
-                                            "gallons-per-courier")}]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:daily-gallons-per-courier])
-                     :timeframe "daily"
-                     :retrieve-fn (partial analytics/retrieve-csv
-                                           "gallons-per-courier")}]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:hourly-gallons-per-courier])
-                     :timeframe "hourly"
-                     :retrieve-fn (partial analytics/retrieve-csv
-                                           "gallons-per-courier")}]
+                   [analytics/DownloadCSV {:url "total-gallons"}]
+                   [:h2 "Gallons Sold Per Courier"]
+                   [analytics/DownloadCSV {:url "gallons-per-courier"}]
                    [:h2 "Total Revenue"]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:weekly-revenue])
-                     :timeframe "weekly"
-                     :retrieve-fn  (partial analytics/retrieve-csv
-                                            "total-revenue")}]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:daily-revenue])
-                     :timeframe "daily"
-                     :retrieve-fn (partial analytics/retrieve-csv
-                                           "total-revenue")}]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:hourly-revenue])
-                     :timeframe "hourly"
-                     :retrieve-fn (partial analytics/retrieve-csv
-                                           "total-revenue")}]
-                   [:h2 "Revenue Per Courier "]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:weekly-revenue-per-courier])
-                     :timeframe "weekly"
-                     :retrieve-fn  (partial analytics/retrieve-csv
-                                            "revenue-per-courier")}]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:daily-revenue-per-courier])
-                     :timeframe "daily"
-                     :retrieve-fn (partial analytics/retrieve-csv
-                                           "revenue-per-courier")}]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:hourly-revenue-per-courier])
-                     :timeframe "hourly"
-                     :retrieve-fn (partial analytics/retrieve-csv
-                                           "revenue-per-courier")}]
+                   [analytics/DownloadCSV {:url "total-revenue"}]
+                   [:h2 "Revenue Per Courier"]
+                   [analytics/DownloadCSV {:url "revenue-per-courier"}]
                    [:h2 "Total Fuel Price"]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:weekly-fuel-price])
-                     :timeframe "weekly"
-                     :retrieve-fn  (partial analytics/retrieve-csv
-                                            "fuel-price")}]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:daily-fuel-price])
-                     :timeframe "daily"
-                     :retrieve-fn (partial analytics/retrieve-csv
-                                           "fuel-price")}]
-                   [:h2 "Total Fuel Price Per Courier"]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:weekly-fuel-price-per-courier])
-                     :timeframe "weekly"
-                     :retrieve-fn  (partial analytics/retrieve-csv
-                                            "fuel-price-per-courier")}]
-                   [analytics/DownloadCSV
-                    {:data (r/cursor analytics/state
-                                     [:daily-fuel-price-per-courier])
-                     :timeframe "daily"
-                     :retrieve-fn (partial analytics/retrieve-csv
-                                           "fuel-price-per-courier")}]
+                   [analytics/DownloadCSV {:url "fuel-price"}]
+                   [:h2 "Fuel Price Per Courier"]
+                   [analytics/DownloadCSV {:url "fuel-price-per-courier"}]
                    ]])]]]]
            ;; Search Resuls
            [TabContent

@@ -11,7 +11,8 @@
                                                Plotly
                                                DownloadCSVLink
                                                KeyVal
-                                               DatePicker]]
+                                               DatePicker
+                                               Select]]
             [cljsjs.plotly]))
 
 
@@ -56,53 +57,35 @@
                          (.unix))
           :to-date (now)}))
 
+(defn csv-data-default
+  [timeframe]
+  (merge {:data [{}]
+          :timeframe timeframe}
+         (condp = timeframe
+           "hourly" {:from-date (-> (now))
+                     :to-date (now)}
+           "daily"  {:from-date (-> (js/moment)
+                                    (.startOf "month")
+                                    (.unix))
+                     :to-date (now)}
+           "weekly" {:from-date (-> (js/moment)
+                                    (.startOf "year")
+                                    (.unix))
+                     :to-date (now)})))
+
+
 (def state (r/atom {:stats-status {:status ""
                                    :timestamp ""}
                     :alert-success ""
                     :alert-danger  ""
                     :retrieving? false
 
-                    ;; order counts
-                    :weekly-total-orders weekly-defaults
-                    :daily-total-orders daily-defaults
-                    :hourly-total-orders hourly-defaults
-
-                    :weekly-orders-per-courier weekly-defaults
-                    :daily-orders-per-courier daily-defaults
-                    :hourly-orders-per-courier hourly-defaults
-
-                    ;; gallons count
-                    :weekly-total-gallons weekly-defaults
-                    :daily-total-gallons daily-defaults
-                    :hourly-total-gallons hourly-defaults
-
-                    :weekly-gallons-per-courier weekly-defaults
-                    :daily-gallons-per-courier daily-defaults
-                    :hourly-gallons-per-courier hourly-defaults
-
-                    ;; revenue count
-                    :weekly-revenue weekly-defaults
-                    :daily-revenue daily-defaults
-                    :hourly-revenue hourly-defaults
-
-                    :weekly-revenue-per-courier weekly-defaults
-                    :daily-revenue-per-courier daily-defaults
-                    :hourly-revenue-per-courier hourly-defaults
-
-                    ;; fuel price
-                    :weekly-fuel-price weekly-defaults
-                    :daily-fuel-price daily-defaults
-
-                    :weekly-fuel-price-per-courier weekly-defaults
-                    :daily-fuel-price-per-courier daily-defaults
-
                     :total-orders-per-day
                     {:data {:x ["2016-01-01"]
                             :y [0]}
                      :from-date nil
                      :to-date nil
-                     :layout {;;:barmode "stack"
-                              :yaxis {:title "Completed Orders"
+                     :layout {:yaxis {:title "Completed Orders"
                                       :fixedrange true
                                       }
                               :xaxis {:rangeselector selector-options
@@ -285,46 +268,42 @@
     ;;          :config config}]
     ))
 
+(defn retrieve-json
+  "Retrieve analytics json from server using url"
+  [{:keys [url data-atom timeframe from-date to-date refresh-fn]}]
+  (retrieve-url
+   (str base-url url)
+   "POST"
+   (js/JSON.stringify (clj->js {:timezone @timezone
+                                :timeframe timeframe
+                                :from-date from-date
+                                :to-date to-date
+                                :response-type "json"}))
+   (partial xhrio-wrapper
+            (fn [r]
+              (let [response (js->clj r :keywordize-keys
+                                      true)]
+                (reset! data-atom response)
+                (when refresh-fn
+                  (refresh-fn)))))))
+
 (defn total-orders-per-day-chart
   "Display the total orders per day"
   []
   (let [data  (r/cursor state [:total-orders-per-day :data])
-        get-data (fn []
-                   (retrieve-url
-                    (str base-url "total-orders")
-                    "POST"
-                    (js/JSON.stringify (clj->js {:timezone @timezone
-                                                 :response-type "json"
-                                                 :timeframe "daily"
-                                                 :from-date "2015-04-1"
-                                                 :to-date
-                                                 (unix-epoch->YYYY-MM-DD (now))
-                                                 }))
-                    (partial xhrio-wrapper
-                             #(let [orders %]
-                                (if-not (nil? orders)
-                                  (reset! data (js->clj orders :keywordize-keys
-                                                        true)))))))
-        _ (get-data)
+        _ (retrieve-json {:url "total-orders"
+                          :data-atom data
+                          :timeframe "daily"
+                          :from-date "2015-04-01"
+                          :to-date (unix-epoch->YYYY-MM-DD (now))})
         refresh-fn (fn [refreshing?]
                      (reset! refreshing? true)
-                     (retrieve-url
-                      (str base-url "total-orders-per-timeframe")
-                      "POST"
-                      (js/JSON.stringify (clj->js {:timezone @timezone
-                                                   :response-type "json"
-                                                   :timeframe "daily"
-                                                   :from-date "2015-04-01"
-                                                   :to-date
-                                                   (unix-epoch->YYYY-MM-DD
-                                                    (now))}))
-                      (partial xhrio-wrapper
-                               #(let [orders %]
-                                  (if-not (nil? orders)
-                                    (reset! data (js->clj
-                                                  orders
-                                                  :keywordize-keys true)))
-                                  (reset! refreshing? false)))))]
+                     (retrieve-json {:url "total-orders"
+                                     :data-atom data
+                                     :timeframe "daily"
+                                     :from-date "2015-04-01"
+                                     :to-date (unix-epoch->YYYY-MM-DD (now))
+                                     :refresh-fn (reset! refreshing? false)}))]
     [:div {:class "table-responsive"
            :style {:border "none !important"}}
      [:h1 "Completed orders per day "
@@ -338,8 +317,8 @@
               :config  @(r/cursor
                          state [:total-orders-per-day :config])}]]))
 (defn retrieve-csv
-  "Retrieve totals from server using url"
-  [url data-atom timeframe filename from-date to-date & [refresh-fn]]
+  "Retrieve analytics csv from server using url"
+  [{:keys [url data-atom timeframe filename from-date to-date refresh-fn]}]
   (retrieve-url
    (str base-url url)
    "POST"
@@ -365,23 +344,42 @@
 (defn DownloadCSV
   "Download links for obtaining the orders per courier
   props is:
-  {:data        ; r/atom
-   :timeframe   ; str
-   :retrieve-fn ; fn
-  }
-  "
+  {:url ; str }"
   [props]
-  (let [{:keys [data timeframe retrieve-fn]} props
-        data-atom (r/cursor data [:data])
+  (let [{:keys [url]} props
+        data (r/atom (csv-data-default "daily"))
+        data-atom (r/atom [{}])
         from-date (r/cursor data [:from-date])
         to-date   (r/cursor data [:to-date])
-        filename (r/atom "no-data")]
+        filename (r/atom "no-data")
+        timeframe-id->timeframe-str {"t0" "hourly"
+                                     "t1" "daily"
+                                     "t2" "weekly"}
+        timeframe-id (r/atom "t1")
+        refresh-fn (fn [refreshing?]
+                     (reset! refreshing? true)
+                     (reset! filename "no-data")
+                     (retrieve-csv {:url url
+                                    :data-atom data-atom
+                                    :timeframe (timeframe-id->timeframe-str
+                                                @timeframe-id)
+                                    :filename filename
+                                    :from-date (unix-epoch->YYYY-MM-DD
+                                                @from-date)
+                                    :to-date (unix-epoch->YYYY-MM-DD @to-date)
+                                    :refresh-fn (reset! refreshing?
+                                                        false)}))
+        refreshing? (r/atom false)]
     (r/create-class
      {:component-did-mount
       (fn [this]
-        (retrieve-fn data-atom timeframe filename
-                     (unix-epoch->YYYY-MM-DD @from-date)
-                     (unix-epoch->YYYY-MM-DD @to-date)))
+        (retrieve-csv {:url url
+                       :data-atom data-atom
+                       :timeframe (timeframe-id->timeframe-str
+                                   @timeframe-id)
+                       :filename filename
+                       :from-date (unix-epoch->YYYY-MM-DD @from-date)
+                       :to-date   (unix-epoch->YYYY-MM-DD @to-date)}))
       :reagent-render
       (fn [args this]
         [:div
@@ -394,16 +392,15 @@
                     @filename]
              " "
              [RefreshButton
-              {:refresh-fn (fn [refreshing?]
-                             (reset! refreshing? true)
-                             (reset! filename "no-data")
-                             (retrieve-fn data-atom
-                                          timeframe
-                                          filename
-                                          (unix-epoch->YYYY-MM-DD @from-date)
-                                          (unix-epoch->YYYY-MM-DD @to-date)
-                                          (reset! refreshing?
-                                                  false)))}]])]
+              {:refresh-fn
+               refresh-fn
+               :refreshing? refreshing?
+               }]])]
+         [Select {:value timeframe-id
+                  :options #{{:id "t0" :display-key "hourly"}
+                             {:id "t1"  :display-key "daily"}
+                             {:id "t2" :display-key "weekly"}}
+                  :display-key :display-key}]
          [:div {:class "form-group"
                 :style {:margin-left "1px"}}
           [:label {:for "expires?"

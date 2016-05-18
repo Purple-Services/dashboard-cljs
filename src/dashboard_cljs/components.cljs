@@ -73,9 +73,11 @@
   :refresh-fn ; fn, called when the refresh button is pressed
               ; is a function of refreshing? which is essentially
               ; just the status of the button
+  :refreshing? ; ratom, optional
   }"
   [props]
-  (let [refreshing? (r/atom false)]
+  (let [refreshing? (or (:refreshing? props)
+                        (r/atom false))]
     (fn [props]
       [:button
        {:type "button"
