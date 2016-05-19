@@ -123,7 +123,7 @@
         retrieving? (r/cursor state [:retrieving?])]
     (get-stats-status stats-status)
     (fn []
-      [:div {:class "panel panel-default"}
+      [:div {:class "panel panel-default hidden-xs hidden-sm"}
        [:div {:class "panel-body"}
         [:h2 "stats.csv"]
         [:h3
@@ -303,7 +303,7 @@
                                      :timeframe "daily"
                                      :from-date "2015-04-01"
                                      :to-date (unix-epoch->YYYY-MM-DD (now))
-                                     :refresh-fn (reset! refreshing? false)}))]
+                                     :refresh-fn #(reset! refreshing? false)}))]
     [:div {:class "table-responsive"
            :style {:border "none !important"}}
      [:h1 "Completed orders per day "
@@ -367,7 +367,7 @@
                                     :from-date (unix-epoch->YYYY-MM-DD
                                                 @from-date)
                                     :to-date (unix-epoch->YYYY-MM-DD @to-date)
-                                    :refresh-fn (reset! refreshing?
+                                    :refresh-fn #(reset! refreshing?
                                                         false)}))
         refreshing? (r/atom false)]
     (r/create-class

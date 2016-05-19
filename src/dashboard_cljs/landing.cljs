@@ -308,8 +308,9 @@
                  [:div
                   [analytics/stats-panel]
                   [analytics/total-orders-per-day-chart]
-                  [analytics/DownloadCSV {:url "total-orders"}]
                   [:div {:class "hidden-xs hidden-sm"}
+                   [:h2 "Total Completed Orders"]
+                   [analytics/DownloadCSV {:url "total-orders"}]
                    [:h2 "Completed Orders Per Courier"]
                    [analytics/DownloadCSV {:url "orders-per-courier"}]
                    [:h2 "Total Gallons Sold"]
