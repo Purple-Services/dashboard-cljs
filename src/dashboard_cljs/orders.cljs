@@ -492,13 +492,12 @@
     (fn [order]
       (when-not @editing-notes?
         (reset! notes (:notes @order)))
-      [:form {:class "form-horizontal"}
+      [:form
        (if @editing-notes?
          [:div [FormGroup {:label "Notes"
                            :label-for "order notes"}
                 [TextAreaInput {:value @notes
                                 :rows 2
-                                :cols 50
                                 :on-change #(reset!
                                              notes
                                              (-> %
@@ -667,126 +666,146 @@
                                            (second (get-cached-gmaps :orders))}
                                           ))))
         ;; populate the current order with additional information
-        [:div {:class "panel-body"}
+        [:div
          [:div {:class "row"}
-          [:div {:class "col-xs-6 pull-left"}
-           [:h3 {:style {:margin-top 0}} "Order Details"]
-           ;; order id
-           [KeyVal "Order ID" (:id @order)]
-           ;; order price
-           [KeyVal "Total Price"
-            [:span
-             (cents->$dollars (:total_price @order))
-             " "
-             ;; declined payment?
-             (if (declined-payment? @order)
-               [:span {:class "text-danger"} "Payment declined!"])]]
-           ;; payment info
-           (let [payment-info (json-string->clj (:payment_info @order))]
-             (when (not (nil? payment-info))
-               [KeyVal "Payment Info" (str (:brand payment-info)
-                                           " "
-                                           (:last4 payment-info)
-                                           " "
-                                           (:exp_month payment-info) "/"
-                                           (:exp_year payment-info))]))
-           ;; coupon code
-           (when (not (s/blank? (:coupon_code @order)))
-             [KeyVal "Coupon" (:coupon_code @order)])
-           ;; gallons and type
-           [KeyVal "Gallons" (str (:gallons @order)
-                                  " ("
-                                  (:gas_type @order)
-                                  " Octane)")]
-           ;; time order was placed
-           [KeyVal "Order Placed" (unix-epoch->hrf (:target_time_start
-                                                    @order))]
-           ;; completion time
-           (when-let [completion-time (get-event-time
-                                       (:event_log @order) "complete")]
-             [KeyVal "Completion Time" (unix-epoch->hrf completion-time)])
-           ;; delivery time
-           [KeyVal "Delivery Time"
-            (str (.diff (js/moment.unix (:target_time_end @order))
-                        (js/moment.unix (:target_time_start @order))
-                        "hours")
-                 " Hr")]
-           ;; special instructions field
-           (when (not (s/blank? (:special_instructions @order)))
-             [KeyVal "Special Instructions" (:special_instructions
-                                             @order)])
-           ;;  name
-           [KeyVal "Customer" (:customer_name @order)]
-           ;;  phone number
-           [KeyVal "Phone" [TelephoneNumber (:customer_phone_number @order)]]
-           ;;  email
-           [KeyVal "Email" [Mailto (:email @order)]]
-           ;; rating
-           (let [number-rating (:number_rating @order)]
-             (when number-rating
-               [KeyVal "Rating"
-                [:span (for [x (range number-rating)]
-                         ^{:key x} [:i {:class "fa fa-star fa-lg"}])
-                 (for [x (range (- 5 number-rating))]
-                   ^{:key x} [:i {:class "fa fa-star-o fa-lg"}])]]))
-           ;; review
-           (when (not (s/blank? (:text_rating @order)))
-             [KeyVal "Review" (:text_rating @order)])
-           ;; market
-           [KeyVal "Market"
-            [:span
-             [:i {:class "fa fa-circle"
-                  :style {:color (:zone-color @order)}}]
-             " "
-             (->> (:zone @order)
-                  (get-by-id @datastore/zones)
-                  :name)]]
-           ;; delivery address
-           [KeyVal "Address"
-            [:span [GoogleMapLink
-                    (:address_street @order)
-                    (:lat @order)
-                    (:lng @order)] ", " (:address_zip @order)]]
-           ;; vehicle description
-           (let [{:keys [year make model color]} (:vehicle @order)]
-             [KeyVal "Vehicle" (str year " " make " " model " " "(" color ")")])
-           ;; license plate
-           [KeyVal "License Plate" (:license_plate @order)]
-           ;; ETAs
-           ;; note: the server only populates ETA values when the orders
-           ;; are: "unassigned" "assigned" "accepted" "enroute"
-           (when (contains? #{"unassigned" "assigned" "accepted" "enroute"}
-                            (:status @order))
-             [KeyVal "ETAs"
-              [:span [get-etas-button order]
-               (when (:etas @order)
-                 (map (fn [eta]
-                        ^{:key (:name eta)}
-                        [:p (str (:name eta) " - ")
-                         [:strong {:class (when (:busy eta)
-                                            "text-danger")}
-                          (:minutes eta)]])
-                      (sort-by :minutes (:etas @order))))]])
-           ;; assigned courier display and editing
-           [order-courier-comp {:editing? editing-assignment?
-                                :assigned-courier assigned-courier
-                                :couriers couriers
-                                :order order}]
-           ;; status and editing
-           [status-comp {:editing? editing-status?
-                         :status order-status
-                         :order order} state]
-           ;; cancellation reason
-           (when (= "cancelled" (:status @order))
-             [cancel-reason-comp order state])
-           ;; notes
-           [order-notes-comp order state]]
-          [:div {:class "pull-right hidden-xs"}
-           [gmap {:id :orders
-                  :style {:height 300
-                          :width 300}
-                  :center {:lat (:lat @order)
-                           :lng (:lng @order)}}]]]]))))
+          [:div {:class "col-xs-12 col-lg-12"}
+           [:h2 {:style {:margin-top 0}} "Order Details"]]]
+         [:div {:class "row"}
+          [:div {:class "col-xs-12 col-lg-6"}
+           [:div {:id "customer-info"
+                  :style {:border "solid 2px #ddd"}}
+            [:div {:class "row"}
+             [:div {:class "col-xs-12 col-lg-6"}
+              [:div {:id "customer-info-text"
+                     :style {:padding-left "1em"
+                             :padding-bottom "1em"}}
+               [:h3 "Customer Info"]
+               ;; map
+               [:div {:id "customer-info-highlighted"
+                      :style {:background-color "#eee"
+                              :border "solid 2px #ddd"
+                              :padding-left "5px"}}
+                ;;  name
+                [:h5 (:customer_name @order)]
+                [:h5 [:span [GoogleMapLink
+                             (:address_street @order)
+                             (:lat @order)
+                             (:lng @order)] ", " (:address_zip @order)]]
+                ;;  email
+                [:h5 [Mailto (:email @order)]]
+                ;;  phone number
+                [:h5  [TelephoneNumber (:customer_phone_number @order)]]]
+               ;; vehicle description
+               (let [{:keys [year make model color]} (:vehicle @order)]
+                 [KeyVal "Vehicle" (str year " " make " " model " " "(" color ")")])
+               ;; license plate
+               [KeyVal "License Plate" (:license_plate @order)]]]
+             [:div {:class "col-lg-6 col-xs-12"}
+              [gmap {:id :orders
+                     :style {:height "300px"
+                             :margin "10px"}
+                     :center {:lat (:lat @order)
+                              :lng (:lng @order)}}]]]]]
+          [:div {:class "col-xs-12 col-lg-6"}
+           [:div {:id "order-info"
+                  :style {:border "solid 2px #ddd"
+                          :padding-left "1em"
+                          :padding-bottom "1em"}}
+            [:h3 "Order Info"]
+            ;; order id
+            [KeyVal "Order ID" (:id @order)]
+            ;; order price
+            [KeyVal "Total Price"
+             [:span
+              (cents->$dollars (:total_price @order))
+              " "
+              ;; declined payment?
+              (if (declined-payment? @order)
+                [:span {:class "text-danger"} "Payment declined!"])]]
+            ;; payment info
+            (let [payment-info (json-string->clj (:payment_info @order))]
+              (when (not (nil? payment-info))
+                [KeyVal "Payment Info" (str (:brand payment-info)
+                                            " "
+                                            (:last4 payment-info)
+                                            " "
+                                            (:exp_month payment-info) "/"
+                                            (:exp_year payment-info))]))
+            ;; coupon code
+            (when (not (s/blank? (:coupon_code @order)))
+              [KeyVal "Coupon" (:coupon_code @order)])
+            ;; gallons and type
+            [KeyVal "Gallons" (str (:gallons @order)
+                                   " ("
+                                   (:gas_type @order)
+                                   " Octane)")]
+            ;; time order was placed
+            [KeyVal "Order Placed" (unix-epoch->hrf (:target_time_start
+                                                     @order))]
+            ;; completion time
+            (when-let [completion-time (get-event-time
+                                        (:event_log @order) "complete")]
+              [KeyVal "Completion Time" (unix-epoch->hrf completion-time)])
+            ;; delivery time
+            [KeyVal "Delivery Time"
+             (str (.diff (js/moment.unix (:target_time_end @order))
+                         (js/moment.unix (:target_time_start @order))
+                         "hours")
+                  " Hr")]
+            ;; special instructions field
+            (when (not (s/blank? (:special_instructions @order)))
+              [KeyVal "Special Instructions" (:special_instructions
+                                              @order)])
+            ;; rating
+            (let [number-rating (:number_rating @order)]
+              (when number-rating
+                [KeyVal "Rating"
+                 [:span (for [x (range number-rating)]
+                          ^{:key x} [:i {:class "fa fa-star fa-lg"}])
+                  (for [x (range (- 5 number-rating))]
+                    ^{:key x} [:i {:class "fa fa-star-o fa-lg"}])]]))
+            ;; review
+            (when (not (s/blank? (:text_rating @order)))
+              [KeyVal "Review" (:text_rating @order)])
+            ;; market
+            [KeyVal "Market"
+             [:span
+              [:i {:class "fa fa-circle"
+                   :style {:color (:zone-color @order)}}]
+              " "
+              (->> (:zone @order)
+                   (get-by-id @datastore/zones)
+                   :name)]]
+            ;; ETAs
+            ;; note: the server only populates ETA values when the orders
+            ;; are: "unassigned" "assigned" "accepted" "enroute"
+            (when (contains? #{"unassigned" "assigned" "accepted" "enroute"}
+                             (:status @order))
+              [KeyVal "ETAs"
+               [:span [get-etas-button order]
+                (when (:etas @order)
+                  (map (fn [eta]
+                         ^{:key (:name eta)}
+                         [:p (str (:name eta) " - ")
+                          [:strong {:class (when (:busy eta)
+                                             "text-danger")}
+                           (:minutes eta)]])
+                       (sort-by :minutes (:etas @order))))]])
+            ;; assigned courier display and editing
+            [order-courier-comp {:editing? editing-assignment?
+                                 :assigned-courier assigned-courier
+                                 :couriers couriers
+                                 :order order}]
+            ;; status and editing
+            [status-comp {:editing? editing-status?
+                          :status order-status
+                          :order order} state]
+            ;; cancellation reason
+            (when (= "cancelled" (:status @order))
+              [cancel-reason-comp order state])
+            ;; notes
+            [order-notes-comp order state]
+            [:div {:class "pull-right hidden-xs"}]]]]]))))
 
 (defn new-orders-button
   "A component for allowing the user to see new orders on the server"

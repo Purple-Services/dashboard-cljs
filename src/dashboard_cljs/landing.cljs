@@ -275,13 +275,11 @@
            [TabContent
             {:toggle (r/cursor tab-content-toggle [:orders-view])}
             [:div
-             [:div {:class "row"}
-              [:div {:class "col-lg-12"}
-               (when (subset? #{{:uri "/orders-since-date"
-                                 :method "POST"}}
-                              @accessible-routes)
-                 [:div
-                  [orders/orders-panel @datastore/orders orders/state]])]]]]
+             (when (subset? #{{:uri "/orders-since-date"
+                               :method "POST"}}
+                            @accessible-routes)
+               [:div
+                [orders/orders-panel @datastore/orders orders/state]])]]
            ;; marketing page
            [TabContent
             {:toggle (r/cursor tab-content-toggle [:marketing-view])}
