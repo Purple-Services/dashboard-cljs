@@ -40,7 +40,15 @@
                        :on-click (fn [e]
                                    (reset! table-view "ActiveUsersWithPush")
                                    (reset! confirming? false))}
-              "Active Users"]]]]
+              "Active Users"]
+             [:button {:type "button"
+                       :class (str "btn btn-default "
+                                   (when (= @table-view "ActiveUsersInLAWithPush")
+                                     "active"))
+                       :on-click (fn [e]
+                                   (reset! table-view "ActiveUsersInLAWithPush")
+                                   (reset! confirming? false))}
+              "Active LA Users"]]]]
           (if @confirming?
             ;; confirmation
             [ConfirmationAlert
