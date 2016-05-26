@@ -522,7 +522,8 @@
            [:div {:class "btn-toolbar pull-left"
                   :role "toolbar"}
             [TableFilterButtonGroup {:hide-counts #{}}
-             filters couriers selected-filter]]
+             filters (->> couriers
+                         (filter :active)) selected-filter]]
            [:div {:class "btn-toolbar"
                   :role "toolbar"}
             [:div {:class "btn-group"
