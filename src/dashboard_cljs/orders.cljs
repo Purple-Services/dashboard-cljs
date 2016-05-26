@@ -105,7 +105,9 @@
                       "hours")
                " Hr")]
      ;; username
-     [:td (:customer_name order)]
+     [:td {:style (when-not (= 0 (:subscription_id order))
+                    {:color "#5cb85c"})}
+      (:customer_name order)]
      ;; phone #
      [:td [TelephoneNumber (:customer_phone_number order)]]
      ;; email
@@ -682,11 +684,14 @@
                [:h3 "Customer Info"]
                ;; map
                [:div {:id "customer-info-highlighted"
-                      :style {:background-color "#eee"
+                      :style {:background-color "#efefff"
                               :border "solid 2px #ddd"
                               :padding-left "5px"}}
                 ;;  name
-                [:h5 (:customer_name @order)]
+                [:h5 (:customer_name @order)
+                 (when-not (= 0 (:subscription_id @order))
+                   [:span {:style {:color "#5cb85c"}}
+                    " Purple Plus Member"])]
                 [:h5 [:span [GoogleMapLink
                              (:address_street @order)
                              (:lat @order)
