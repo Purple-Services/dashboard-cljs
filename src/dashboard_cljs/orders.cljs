@@ -639,9 +639,9 @@
 
 (defn order-panel
   "Display detailed and editable fields for current-order"
-  [order state]
+  [props]
   (let [google-marker (atom nil)]
-    (fn [order]
+    (fn [{:keys [order state gmap-keyword]} props]
       (let [editing-assignment? (r/atom false)
             editing-status?     (r/atom false)
             couriers
@@ -664,13 +664,13 @@
         (when (:lat @order)
           (when @google-marker
             (.setMap @google-marker nil))
-          (reset! google-marker (js/google.maps.Marker.
-                                 (clj->js {:position
-                                           {:lat (:lat @order)
-                                            :lng (:lng @order)}
-                                           :map
-                                           (second (get-cached-gmaps :orders))}
-                                          ))))
+          (reset! google-marker
+                  (js/google.maps.Marker.
+                   (clj->js {:position
+                             {:lat (:lat @order)
+                              :lng (:lng @order)}
+                             :map
+                             (second (get-cached-gmaps gmap-keyword))}))))
         ;; populate the current order with additional information
         [:div
          [:div {:class "row"}
@@ -710,7 +710,7 @@
                ;; license plate
                [KeyVal "License Plate" (:license_plate @order)]]]
              [:div {:class "col-lg-6 col-xs-12"}
-              [gmap {:id :orders
+              [gmap {:id gmap-keyword
                      :style {:height "300px"
                              :margin "10px"}
                      :center {:lat (:lat @order)
@@ -889,7 +889,9 @@
         (when (nil? @current-order)
           (reset! current-order (first paginated-orders)))
         [:div {:class "panel panel-default"}
-         [order-panel current-order state]
+         [order-panel {:order current-order
+                       :state state
+                       :gmap-keyword :orders}]
          [:div {:class "panel-body"
                 :style {:margin-top "15px"}}
           [:div {:class "btn-toolbar"

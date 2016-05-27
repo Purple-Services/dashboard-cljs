@@ -57,7 +57,9 @@
         (when (nil? @current-order)
           (reset! current-order (first paginated-orders)))
         [:div {:class "panel panel-default"}
-         [orders/order-panel current-order state]
+         [orders/order-panel {:order current-order
+                              :state state
+                              :gmap-keyword :search-orders}]
          [:div {:class "table-responsive"}
           [StaticTable
            {:table-header [orders/order-table-header
