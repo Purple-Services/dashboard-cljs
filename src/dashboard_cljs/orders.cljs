@@ -85,7 +85,11 @@
                                 (now))
                              (* 60 60))
                       {:color "#d9534f"}))}
-      (unix-epoch->hrf (:target_time_end order))]
+      (unix-epoch->hrf (:target_time_end order)) " "
+      (when (:tire_pressure_check order)
+        ;; http://www.flaticon.com/free-icon/car-wheel_75660#term=wheel&page=1&position=34
+        [:img {:src (str base-url "/images/car-wheel.png")
+               :alt "tire-check"}])]
      ;; order completed
      [:td
       (when (contains? #{"complete"} (:status order))
@@ -781,6 +785,12 @@
               (->> (:zone @order)
                    (get-by-id @datastore/zones)
                    :name)]]
+            ;; tire pressure check
+            [KeyVal "Tire Pressure Check"
+             (if (:tire_pressure_check @order)
+               [:span {:class "text-danger"}
+                "Yes"]
+               "No")]
             ;; ETAs
             ;; note: the server only populates ETA values when the orders
             ;; are: "unassigned" "assigned" "accepted" "enroute"
