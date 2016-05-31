@@ -25,9 +25,10 @@
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error]]
             [dashboard-cljs.datastore :as datastore]
-            [dashboard-cljs.utils :refer [unix-epoch->fmt base-url markets
+            [dashboard-cljs.utils :refer [unix-epoch->fmt unix-epoch->hrf
+                                          base-url markets
                                           accessible-routes pager-helper!
-                                          diff-message]]
+                                          diff-message now get-event-time]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [get-cached-gmaps gmap
                                                on-click-tab]]))
@@ -80,13 +81,15 @@
           (displayed-courier @current-courier)))
 
 (defn courier-row
-  "A table row for an courier in a table. current-courier is an r/atom."
+  "A table row for a courier in a table. current-courier is an r/atom."
   [current-courier]
   (fn [courier]
     [:tr {:class (when (= (:id courier)
                           (:id @current-courier))
                    "active")
-          :on-click #(reset! current-courier courier)}
+          :on-click #(do (reset! current-courier courier)
+                         (reset! )
+                         )}
      ;; name
      [:td (:name courier)]
      ;; market
@@ -173,20 +176,25 @@
     [:thead
      [:tr
       [TableHeadSortable
-       (conj props {:keyword :address_street})
-       "Order Address"]
-      [TableHeadSortable
-       (conj props {:keyword :customer_name})
-       "Username"]
-      [TableHeadSortable
-       (conj props {:keyword :customer_phone_number})
-       "Phone #"]
-      [TableHeadSortable
-       (conj props {:keyword :email})
-       "Email"]
-      [TableHeadSortable
        (conj props {:keyword :status})
        "Status"]
+      [TableHeadSortable
+       (conj props {:keyword :target_time_start})
+       "Placed"]
+      [TableHeadSortable
+       (conj props {:keyword :target_time_end})
+       "Deadline"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}} "Completed"]
+      [TableHeadSortable
+       (conj props {:keyword :customer_name})
+       "Customer Name"]
+      [TableHeadSortable
+       (conj props {:keyword :customer_phone_number})
+       "Customer Phone"]
+      [TableHeadSortable
+       (conj props {:keyword :address_street})
+       "Order Address"]
       [TableHeadSortable
        (conj props {:keyword :number_rating})
        "Courier Rating"]]]))
@@ -196,19 +204,44 @@
   []
   (fn [order]
     [:tr
-     ;; order address
-     [:td [:i {:class "fa fa-circle"
-               :style {:color (:zone-color order)}}]
-      " "
-      [GoogleMapLink (:address_street order) (:lat order) (:lng order)]]
+     ;; order status
+     [:td (:status order)]
+     ;; order placed
+     [:td (unix-epoch->hrf (:target_time_start order))]
+     ;; order dealine
+     [:td {:style (when-not (contains? #{"complete" "cancelled"} (:status order))
+                    (when (< (- (:target_time_end order)
+                                (now))
+                             (* 60 60))
+                      {:color "#d9534f"}))}
+      (unix-epoch->hrf (:target_time_end order)) " "
+      (when (:tire_pressure_check order)
+        ;; http://www.flaticon.com/free-icon/car-wheel_75660#term=wheel&page=1&position=34
+        [:img {:src (str base-url "/images/car-wheel.png")
+               :alt "tire-check"}])]
+     ;; order completed
+     [:td
+      (when (contains? #{"complete"} (:status order))
+        (let [completed-time
+              (get-event-time (:event_log order) "complete")]
+          [:span {:style
+                  (when (> completed-time
+                           (:target_time_end order)) {:color "#d9534f"})}
+           (unix-epoch->hrf completed-time)]))
+      (when (contains? #{"cancelled"} (:status order))
+        "Cancelled")
+      (when-not (contains? #{"complete" "cancelled"} (:status order))
+        "In-Progress")]
      ;; username
-     [:td (:customer_name order)]
+     [:td {:style (when-not (= 0 (:subscription_id order))
+                    {:color "#5cb85c"})}
+      (:customer_name order)]
      ;; phone #
      [:td [TelephoneNumber (:customer_phone_number order)]]
-     ;; email
-     [:td [Mailto (:email order)]]
-     ;; status
-     [:td (:status order)]
+     ;; street address
+     [:td [GoogleMapLink (str (:address_street order)
+                              ", " (:address_zip order))
+           (:lat order) (:lng order)]]
      ;; star rating
      [:td
       (let [number-rating (:number_rating order)]
@@ -410,7 +443,7 @@
         ;; populate the current courier with additional information
         [:div {:class "panel-body"}
          [:div {:class "row"}
-          [:div {:class "col-xs-7 pull-left"}
+          [:div {:class "col-xs-12 col-lg-12 pull-left"}
            [:div [:h3 {:style {:margin-top 0}} (:name @current-courier)]]
            ;; courier info tab navigation
            [:ul {:class "nav nav-tabs"}
@@ -432,24 +465,26 @@
            [:div {:class "tab-content"}
             [TabContent
              {:toggle (r/cursor toggle [:info-view])}
-             [:div {:id "main-panel"}
-              [:div {:id "panel"}
-               [:div {:class "pull-left"
-                      :style {:padding-right "1em"}}
-                [courier-form current-courier]]
-               [:div {:class "pull-right hidden-xs"}
-                [gmap {:id :couriers
-                       :style {:height 300
-                               :width 300}
-                       :center {:lat (:lat @current-courier)
-                                :lng (:lng @current-courier)}}]]]]]
+             ;; [:div {:id "main-panel"}
+             ;;  [:div {:id "panel"}
+             ;;   [:div {:class "pull-left"
+             ;;          :style {:padding-right "1em"}}]]]
+             [:div {:class "panel-body"}
+              [:div {:class "row"}
+               [:div {:class "col-xs-12 col-lg-12"}
+                [:div {:class "row"}
+                 [:div {:class "col-xs-12 col-lg-3"}
+                  [courier-form current-courier]]
+                 [:div {:class "col-xs-12 col-lg-3"}
+                  [gmap {:id :couriers
+                         :style {:height "300px"
+                                 :margin "10px"}
+                         :center {:lat (:lat @current-courier)
+                                  :lng (:lng @current-courier)}}]]]]]]]
             [TabContent
              {:toggle (r/cursor toggle [:orders-view])}
-             [:div {:class "row"
-                    :style (when-not (show-orders?)
-                             {:display "none"})}
-
-              [:div {:class "col-lg-12"}
+             [:div {:class "row"}
+              [:div {:class "col-lg-12 col-xs-12"}
                [:div {:class "table-responsive"}
                 [StaticTable
                  {:table-header [courier-orders-header
@@ -523,7 +558,7 @@
                   :role "toolbar"}
             [TableFilterButtonGroup {:hide-counts #{}}
              filters (->> couriers
-                         (filter :active)) selected-filter]]
+                          (filter :active)) selected-filter]]
            [:div {:class "btn-toolbar"
                   :role "toolbar"}
             [:div {:class "btn-group"

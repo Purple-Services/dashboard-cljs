@@ -4,11 +4,13 @@
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.forms :refer [entity-save retrieve-entity
                                           edit-on-success edit-on-error]]
-            [dashboard-cljs.utils :refer [base-url unix-epoch->fmt markets
+            [dashboard-cljs.orders :refer [order-row order-table-header]]
+            [dashboard-cljs.utils :refer [base-url unix-epoch->fmt
+                                          unix-epoch->hrf markets
                                           json-string->clj pager-helper!
                                           integer->comma-sep-string
                                           parse-to-number? diff-message
-                                          accessible-routes]]
+                                          accessible-routes get-event-time now]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton KeyVal StarRating
@@ -18,7 +20,7 @@
                                                SubmitDismissConfirmGroup
                                                TextAreaInput ViewHideButton
                                                TelephoneNumber Mailto
-                                               GoogleMapLink]]
+                                               GoogleMapLink Tab TabContent]]
             [clojure.set :refer [subset?]]
             [clojure.string :as s]))
 
@@ -35,7 +37,8 @@
                     :edit-user default-user
                     :alert-success ""
                     :view-log? false
-                    :users-count 0}))
+                    :users-count 0
+                    :tab-content-toggle {}}))
 
 (defn update-user-count
   []
@@ -95,7 +98,8 @@
                      "active")
             :on-click (fn [_]
                         (reset! current-user user)
-                        (reset! (r/cursor state [:alert-success]) ""))}
+                        (reset! (r/cursor state [:alert-success]) "")
+                        (reset! (r/cursor state [:tab-content-toggle :info-view]) true))}
        ;; name
        [:td (:name user)]
        ;; market
@@ -178,36 +182,65 @@
     [:thead
      [:tr
       [TableHeadSortable
-       (conj props {:keyword :address_street})
-       "Order Address"]
-      [TableHeadSortable
-       (conj props {:keyword :courier_name})
-       "Courier Name"]
-      ;; [:th {:style {:font-size "16px"
-      ;;               :font-weight "normal"}} "Payment"]
-      [TableHeadSortable
        (conj props {:keyword :status})
        "Status"]
       [TableHeadSortable
+       (conj props {:keyword :courier_name})
+       "Courier"]
+      [TableHeadSortable
+       (conj props {:keyword :target_time_start})
+       "Placed"]
+      [TableHeadSortable
+       (conj props {:keyword :target_time_end})
+       "Deadline"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}} "Completed"]
+      [TableHeadSortable
+       (conj props {:keyword :address_street})
+       "Order Address"]
+      [TableHeadSortable
        (conj props {:keyword :number_rating})
-       "Rating"]]]))
+       "Courier Rating"]]]))
 
 (defn user-orders-row
   "Table row to display a users orders"
   []
   (fn [order]
     [:tr
-     ;; order address
-     [:td [:i {:class "fa fa-circle"
-               :style {:color (:zone-color order)}}]
-      " "
-      [GoogleMapLink (:address_street order) (:lat order) (:lng order)]]
-     ;; courier name
-     [:td (:courier_name order)]
-     ;; payment info
-     ;;[:td (:customer_phone_number order)]
-     ;; status
+     ;; order status
      [:td (:status order)]
+     ;; courier assigned
+     [:td (:courier_name order)]
+     ;; order placed
+     [:td (unix-epoch->hrf (:target_time_start order))]
+     ;; order dealine
+     [:td {:style (when-not (contains? #{"complete" "cancelled"} (:status order))
+                    (when (< (- (:target_time_end order)
+                                (now))
+                             (* 60 60))
+                      {:color "#d9534f"}))}
+      (unix-epoch->hrf (:target_time_end order)) " "
+      (when (:tire_pressure_check order)
+        ;; http://www.flaticon.com/free-icon/car-wheel_75660#term=wheel&page=1&position=34
+        [:img {:src (str base-url "/images/car-wheel.png")
+               :alt "tire-check"}])]
+     ;; order completed
+     [:td
+      (when (contains? #{"complete"} (:status order))
+        (let [completed-time
+              (get-event-time (:event_log order) "complete")]
+          [:span {:style
+                  (when (> completed-time
+                           (:target_time_end order)) {:color "#d9534f"})}
+           (unix-epoch->hrf completed-time)]))
+      (when (contains? #{"cancelled"} (:status order))
+        "Cancelled")
+      (when-not (contains? #{"complete" "cancelled"} (:status order))
+        "In-Progress")]
+     ;; street address
+     [:td [GoogleMapLink (str (:address_street order)
+                              ", " (:address_zip order))
+           (:lat order) (:lng order)]]
      ;; star rating
      [:td
       (let [number-rating (:number_rating order)]
@@ -426,7 +459,8 @@
             paginated-orders (pager-helper! sorted-orders current-page)
             most-recent-order (->> orders
                                    (sort-by :target_time_start)
-                                   first)]
+                                   first)
+            toggle (r/cursor state [:tab-content-toggle])]
         ;; edit-user should correspond to current-user
         (when-not (:editing? @edit-user)
           (reset! edit-user (assoc @edit-user
@@ -440,51 +474,65 @@
         ;; populate the current user with additional information
         [:div {:class "panel-body"}
          [:div {:class "row"}
-          [:div {:class "col-xs-3"}
+          [:div {:class "col-xs-12 col-lg-12"}
            [:div [:h3 {:style {:margin-top 0}} (:name @current-user)]]
+           ;; users info tab navigation
+           [:ul {:class "nav nav-tabs"}
+            [Tab {:default? true
+                  :toggle-key :info-view
+                  :toggle toggle}
+             "Info"]
+            (when (> (count paginated-orders)
+                     0)
+              [Tab {:default? false
+                    :toggle-key :orders-view
+                    :toggle toggle}
+               "Orders"])]
            ;; main display panel
-           [user-form current-user state]
-           ;; below is for showing user logs,
-           ;; implemented, but not used yet
-           ;; [:br]
-           ;; [ViewHideButton {:class "btn btn-sm btn-default"
-           ;;                  :view-content "View Logs"
-           ;;                  :hide-content "Hide Logs"
-           ;;                  :on-click #(swap! view-log? not)
-           ;;                  :view? view-log?}]
-           ;; (when @view-log?
-           ;;   [:div {:class "table-responsive"
-           ;;          :style (if @view-log?
-           ;;                   {}
-           ;;                   {:display "none"})}
-           ;;    [StaticTable
-           ;;     {:table-header [user-history-header
-           ;;                     {;;:sort-keyword sort-keyword-logs
-           ;;                      ;;:sort-reversed? sort-reversed-logs?
-           ;;                      }]
-           ;;      :table-row (user-history-row)}
-           ;;     (sort-by :timestamp (:admin_event_log @current-user))]])
-           ]
-          ;; Table of orders for current user
-          (when (> (count paginated-orders)
-                   0)
-            [:div {:class "col-xs-9"}
-             [:div {:class "table-responsive"
-                    :style (if @show-orders?
-                             {}
-                             {:display "none"})}
-              [StaticTable
-               {:table-header [user-orders-header
-                               {:sort-keyword sort-keyword
-                                :sort-reversed? sort-reversed?}]
-                :table-row (user-orders-row)}
-               paginated-orders]]
-             [:div {:style (if @show-orders?
-                             {}
-                             {:display "none"})}
-              [TablePager
-               {:total-pages (count sorted-orders)
-                :current-page current-page}]]])]]))))
+           [:div {:class "tab-content"}
+            [TabContent {:toggle (r/cursor toggle [:info-view])}
+             [user-form current-user state]]
+            ;; below is for showing user logs,
+            ;; implemented, but not used yet
+            ;; [:br]
+            ;; [ViewHideButton {:class "btn btn-sm btn-default"
+            ;;                  :view-content "View Logs"
+            ;;                  :hide-content "Hide Logs"
+            ;;                  :on-click #(swap! view-log? not)
+            ;;                  :view? view-log?}]
+            ;; (when @view-log?
+            ;;   [:div {:class "table-responsive"
+            ;;          :style (if @view-log?
+            ;;                   {}
+            ;;                   {:display "none"})}
+            ;;    [StaticTable
+            ;;     {:table-header [user-history-header
+            ;;                     {;;:sort-keyword sort-keyword-logs
+            ;;                      ;;:sort-reversed? sort-reversed-logs?
+            ;;                      }]
+            ;;      :table-row (user-history-row)}
+            ;;     (sort-by :timestamp (:admin_event_log @current-user))]])
+            [TabContent
+             {:toggle (r/cursor toggle [:orders-view])}
+             [:div {:class "row"}
+              [:div {:class "col-lg-12 col-xs-12"}
+               ;; Table of orders for current user
+               [:div {:class "table-responsive"
+                      :style (if @show-orders?
+                               {}
+                               {:display "none"})}
+                [StaticTable
+                 {:table-header [user-orders-header
+                                 {:sort-keyword sort-keyword
+                                  :sort-reversed? sort-reversed?}]
+                  :table-row (user-orders-row)}
+                 paginated-orders]]
+               [:div {:style (if @show-orders?
+                               {}
+                               {:display "none"})}
+                [TablePager
+                 {:total-pages (count sorted-orders)
+                  :current-page current-page}]]]]]]]]]))))
 
 (defn users-panel
   "Display a table of selectable users with an indivdual user panel

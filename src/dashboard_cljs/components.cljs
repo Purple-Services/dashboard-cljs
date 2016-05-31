@@ -564,17 +564,20 @@
   (when (:default? props)
     (swap! (:toggle props) assoc (:toggle-key props) true))
   (fn [props child]
-    (let [{:keys [toggle toggle-key default? on-click-tab]} props]
+    (let [{:keys [toggle toggle-key default? on-click-tab]} props
+          tab-selected-fn  #(do
+                              (swap! toggle update-values (fn [el] false))
+                              (swap! toggle assoc toggle-key true)
+                              (when on-click-tab (on-click-tab)))]
+      (when (toggle-key @toggle)
+        (tab-selected-fn))
       [:li
        ;; this needs to be done for cases where the li gets the active
        ;; for example, nav-tabs
        {:class (when (toggle-key @toggle) "active")}
-       [:a {:on-click
-            #(do
-               (.preventDefault %)
-               (swap! toggle update-values (fn [el] false))
-               (swap! toggle assoc toggle-key true)
-               (when on-click-tab (on-click-tab)))
+       [:a {:on-click #(do
+                         (.preventDefault %)
+                         (tab-selected-fn))
             :href "#"
             :class
             (str (when (toggle-key @toggle) "active"))}
