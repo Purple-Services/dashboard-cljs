@@ -861,9 +861,10 @@
                                 sort-fn
                                 (filter (get filters @selected-filter))
                                 (partition-all page-size))
-            paginated-orders  (-> sorted-orders
-                                  (nth (- @current-page 1)
-                                       '()))
+            paginated-orders (fn []
+                               (-> sorted-orders
+                                   (nth (- @current-page 1)
+                                        '())))
             refresh-fn (fn [saving?]
                          (reset! saving? true)
                          (retrieve-url
@@ -885,9 +886,13 @@
                                (when (> (count orders)
                                         0)
                                  (datastore/process-orders orders true))
-                               (reset! saving? false))))))]
+                               (reset! saving? false))))))
+            table-pager-on-click (fn []
+                                   (.log js/console "table-pager-on-click")
+                                   (reset! current-order
+                                           (first (paginated-orders))))]
         (when (nil? @current-order)
-          (reset! current-order (first paginated-orders)))
+          (reset! current-order (first (paginated-orders))))
         [:div {:class "panel panel-default"}
          [order-panel {:order current-order
                        :state state
@@ -911,7 +916,8 @@
            {:table-header [order-table-header {:sort-keyword sort-keyword
                                                :sort-reversed? sort-reversed?}]
             :table-row (order-row current-order)}
-           paginated-orders]]
+           (paginated-orders)]]
          [TablePager
           {:total-pages (count sorted-orders)
-           :current-page current-page}]]))))
+           :current-page current-page
+           :on-click table-pager-on-click}]]))))

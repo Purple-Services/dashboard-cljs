@@ -168,9 +168,10 @@
   "props is:
   {:total-pages  integer ; the amount of pages
    :current-page integer ; r/atom, the current page number we are on
+   :on-click     fn      ; called whenever a pager element is clicked,optional
   }"
   [props]
-  (fn [{:keys [total-pages current-page]} props]
+  (fn [{:keys [total-pages current-page on-click]} props]
     (let [page-width 5
           pages (->> (range 1 (+ 1 total-pages))
                      (partition-all page-width))
@@ -189,7 +190,8 @@
                 :class "page-link"
                 :on-click (fn [e]
                             (.preventDefault e)
-                            (reset! current-page 1))}
+                            (reset! current-page 1)
+                            (when on-click (on-click)))}
             ;; the symbol here is called a Guillemet
             ;; html character entity reference &laquo;
             "«"]]
@@ -202,7 +204,8 @@
                   (let [new-current-page (- (first displayed-pages) 1)]
                     (if (< new-current-page 1)
                       (reset! current-page 1)
-                      (reset! current-page new-current-page))))}
+                      (reset! current-page new-current-page)))
+                  (when on-click (on-click)))}
             ;; html character entity reference &lsaquo;
             "‹"]]
           (doall (map (fn [page-number]
@@ -217,7 +220,8 @@
                               :class "page-link"
                               :on-click (fn [e]
                                           (.preventDefault e)
-                                          (reset! current-page page-number))}
+                                          (reset! current-page page-number)
+                                          (when on-click (on-click)))}
                           page-number]])
                       ;;(range 1 (+ 1 total-pages))
                       displayed-pages))
@@ -229,7 +233,8 @@
                             (let [new-current-page (+ (last displayed-pages) 1)]
                               (if (> new-current-page total-pages)
                                 (reset! current-page total-pages)
-                                (reset! current-page new-current-page))))}
+                                (reset! current-page new-current-page)))
+                            (when on-click (on-click)))}
             ;; html character entity reference &rsaquo;
             "›"]]
           [:li {:class "page-item"}
@@ -237,7 +242,8 @@
                 :class "page-link"
                 :on-click (fn [e]
                             (.preventDefault e)
-                            (reset! current-page total-pages))}
+                            (reset! current-page total-pages)
+                            (when on-click (on-click)))}
             ;; html character entity reference &raquo;
             "»"]]]]))))
 
