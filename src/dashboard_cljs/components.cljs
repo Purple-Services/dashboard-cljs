@@ -223,7 +223,6 @@
                                           (reset! current-page page-number)
                                           (when on-click (on-click)))}
                           page-number]])
-                      ;;(range 1 (+ 1 total-pages))
                       displayed-pages))
           [:li {:class "page-item"}
            [:a {:href "#"
@@ -284,11 +283,13 @@
 (defn TableFilterButton
   "Filter button for btn-group. Shows number of records that meet filter."
   [props data selected-filter]
-  (fn [{:keys [text filter-fn hide-count]} data selected-filter]
+  (fn [{:keys [text filter-fn hide-count on-click]} data selected-filter]
     [:button {:type "button"
               :class (str "btn btn-default "
                           (when (= @selected-filter text) "active"))
-              :on-click #(reset! selected-filter text)}
+              :on-click (fn [e]
+                          (reset! selected-filter text)
+                          (when on-click (on-click)))}
      text
      (when-not hide-count
        (str " (" (count (filter filter-fn data)) ")"))]))
@@ -296,11 +297,12 @@
 (defn TableFilterButtonGroup
   "Group of filter buttons for a table."
   [props filters data selected-filter]
-  (fn [{:keys [hide-counts]} filters data selected-filter]
+  (fn [{:keys [hide-counts on-click]} filters data selected-filter]
     [:div {:class "btn-group" :role "group"}
      (for [f (map #(hash-map :text (key %)
-                             :filter-fn (val %)
-                             :hide-count (contains? hide-counts (key %)))
+                             :filter-fn  (val %)
+                             :hide-count (contains? hide-counts (key %))
+                             :on-click on-click)
                   filters)]
        ^{:key (:text f)} [TableFilterButton f data selected-filter])]))
 

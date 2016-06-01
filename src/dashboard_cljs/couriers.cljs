@@ -87,9 +87,7 @@
     [:tr {:class (when (= (:id courier)
                           (:id @current-courier))
                    "active")
-          :on-click #(do (reset! current-courier courier)
-                         (reset! )
-                         )}
+          :on-click #(do (reset! current-courier courier))}
      ;; name
      [:td (:name courier)]
      ;; market
@@ -518,14 +516,16 @@
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
             displayed-couriers couriers
-            sorted-couriers (->> displayed-couriers
-                                 sort-fn
-                                 (filter (get filters @selected-filter))
-                                 (filter :active)
-                                 (partition-all page-size))
-            paginated-couriers (-> sorted-couriers
-                                   (nth (- @current-page 1)
-                                        '()))
+            sorted-couriers (fn []
+                              (->> displayed-couriers
+                                   sort-fn
+                                   (filter (get filters @selected-filter))
+                                   (filter :active)
+                                   (partition-all page-size)))
+            paginated-couriers (fn []
+                                 (-> (sorted-couriers)
+                                     (nth (- @current-page 1)
+                                          '())))
             refresh-fn (fn [saving?]
                          (reset! saving? true)
                          (retrieve-url
@@ -543,10 +543,13 @@
                                (put! datastore/modify-data-chan
                                      {:topic "couriers"
                                       :data  couriers})
-                               (reset! saving? false))))))]
+                               (reset! saving? false))))))
+            table-pager-on-click (fn []
+                                   (reset! current-courier
+                                           (first (paginated-couriers))))]
         ;; reset the current-courier if it is nil
         (when (nil? @current-courier)
-          (reset! current-courier (first paginated-couriers)))
+          (table-pager-on-click))
         (reset-edit-courier! edit-courier current-courier)
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
@@ -556,7 +559,8 @@
                  :style {:margin-top "1em"}}
            [:div {:class "btn-toolbar pull-left"
                   :role "toolbar"}
-            [TableFilterButtonGroup {:hide-counts #{}}
+            [TableFilterButtonGroup {:hide-counts #{}
+                                     :on-click table-pager-on-click}
              filters (->> couriers
                           (filter :active)) selected-filter]]
            [:div {:class "btn-toolbar"
@@ -571,7 +575,8 @@
                              {:sort-keyword sort-keyword
                               :sort-reversed? sort-reversed?}]
               :table-row (courier-row current-courier)}
-             paginated-couriers]]]
+             (paginated-couriers)]]]
           [TablePager
-           {:total-pages (count sorted-couriers)
-            :current-page current-page}]]]))))
+           {:total-pages (count (sorted-couriers))
+            :current-page current-page
+            :on-click table-pager-on-click}]]]))))

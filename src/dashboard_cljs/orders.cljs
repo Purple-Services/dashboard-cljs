@@ -857,12 +857,12 @@
                                           (:target_time_start
                                            @datastore/last-acknowledged-order))
                                      orders)
-            sorted-orders  (->> displayed-orders
-                                sort-fn
-                                (filter (get filters @selected-filter))
-                                (partition-all page-size))
+            sorted-orders  (fn [] (->> displayed-orders
+                                       sort-fn
+                                       (filter (get filters @selected-filter))
+                                       (partition-all page-size)))
             paginated-orders (fn []
-                               (-> sorted-orders
+                               (-> (sorted-orders)
                                    (nth (- @current-page 1)
                                         '())))
             refresh-fn (fn [saving?]
@@ -888,11 +888,10 @@
                                  (datastore/process-orders orders true))
                                (reset! saving? false))))))
             table-pager-on-click (fn []
-                                   (.log js/console "table-pager-on-click")
                                    (reset! current-order
                                            (first (paginated-orders))))]
         (when (nil? @current-order)
-          (reset! current-order (first (paginated-orders))))
+          (table-pager-on-click))
         [:div {:class "panel panel-default"}
          [order-panel {:order current-order
                        :state state
@@ -901,7 +900,8 @@
                 :style {:margin-top "15px"}}
           [:div {:class "btn-toolbar"
                  :role "toolbar"}
-           [TableFilterButtonGroup {:hide-counts #{"Show All"}}
+           [TableFilterButtonGroup {:hide-counts #{"Show All"}
+                                    :on-click table-pager-on-click}
             filters orders selected-filter]
            [:div {:class "btn-group"
                   :role "group"
@@ -918,6 +918,6 @@
             :table-row (order-row current-order)}
            (paginated-orders)]]
          [TablePager
-          {:total-pages (count sorted-orders)
+          {:total-pages (count (sorted-orders))
            :current-page current-page
            :on-click table-pager-on-click}]]))))

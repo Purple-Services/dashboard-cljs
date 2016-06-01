@@ -474,15 +474,17 @@
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
             displayed-coupons coupons
-            sorted-coupons (->> displayed-coupons
-                                ;; remove all groupon coupons
-                                (filter #(not (re-matches #"GR.*" (:code %))))
-                                (filter (get filters @selected-filter))
-                                sort-fn
-                                (partition-all page-size))
-            paginated-coupons (-> sorted-coupons
-                                  (nth (- @current-page 1)
-                                       '()))
+            sorted-coupons (fn []
+                             (->> displayed-coupons
+                                  ;; remove all groupon coupons
+                                  (filter #(not (re-matches #"GR.*" (:code %))))
+                                  (filter (get filters @selected-filter))
+                                  sort-fn
+                                  (partition-all page-size)))
+            paginated-coupons (fn []
+                                (-> (sorted-coupons)
+                                    (nth (- @current-page 1)
+                                         '())))
             refresh-fn (fn [refreshing?]
                          (reset! refreshing? true)
                          (retrieve-url
@@ -497,9 +499,12 @@
                                    {:topic "coupons"
                                     :data (js->clj response :keywordize-keys
                                                    true)})
-                             (reset! refreshing? false)))))]
+                             (reset! refreshing? false)))))
+            table-pager-on-click (fn []
+                                   (reset! current-coupon
+                                           (first (paginated-coupons))))]
         (if (nil? @current-coupon)
-          (reset! current-coupon (first paginated-coupons)))
+          (table-pager-on-click))
         ;; set the edit-coupon values to match those of current-coupon
         (reset-edit-coupon! edit-coupon current-coupon)
         [:div {:class "panel panel-default"}
@@ -512,7 +517,8 @@
          [:div {:class "panel-body"}
           [:div {:class "btn-toolbar pull-left"
                  :role "toolbar"}
-           [TableFilterButtonGroup {:hide-counts #{"Show All"}}
+           [TableFilterButtonGroup {:hide-counts #{"Show All"}
+                                    :on-click table-pager-on-click}
             filters coupons selected-filter]]
           [:div {:class "btn-toolbar"
                  :role "toolbar"}
@@ -526,7 +532,8 @@
                            {:sort-keyword sort-keyword
                             :sort-reversed? sort-reversed?}]
             :table-row (coupon-row current-coupon)}
-           paginated-coupons]]
+           (paginated-coupons)]]
          [TablePager
-          {:total-pages (count sorted-coupons)
-           :current-page  current-page}]]))))
+          {:total-pages (count (sorted-coupons))
+           :current-page current-page
+           :on-click table-pager-on-click}]]))))
