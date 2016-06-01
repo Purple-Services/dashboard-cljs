@@ -901,7 +901,9 @@
           [:div {:class "btn-toolbar"
                  :role "toolbar"}
            [TableFilterButtonGroup {:hide-counts #{"Show All"}
-                                    :on-click table-pager-on-click}
+                                    :on-click (fn [_]
+                                                (reset! current-page 1)
+                                                (table-pager-on-click))}
             filters orders selected-filter]
            [:div {:class "btn-group"
                   :role "group"

@@ -518,7 +518,9 @@
           [:div {:class "btn-toolbar pull-left"
                  :role "toolbar"}
            [TableFilterButtonGroup {:hide-counts #{"Show All"}
-                                    :on-click table-pager-on-click}
+                                    :on-click (fn [_]
+                                                (reset! current-page 1)
+                                                (table-pager-on-click))}
             filters coupons selected-filter]]
           [:div {:class "btn-toolbar"
                  :role "toolbar"}

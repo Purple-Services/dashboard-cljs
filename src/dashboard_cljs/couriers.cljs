@@ -560,7 +560,9 @@
            [:div {:class "btn-toolbar pull-left"
                   :role "toolbar"}
             [TableFilterButtonGroup {:hide-counts #{}
-                                     :on-click table-pager-on-click}
+                                     :on-click (fn [_]
+                                                 (reset! current-page 1)
+                                                 (table-pager-on-click))}
              filters (->> couriers
                           (filter :active)) selected-filter]]
            [:div {:class "btn-toolbar"
