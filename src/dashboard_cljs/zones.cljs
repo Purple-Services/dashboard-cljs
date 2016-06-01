@@ -414,12 +414,14 @@
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
             displayed-zones zones
-            sorted-zones (->> displayed-zones
-                              sort-fn
-                              (partition-all page-size))
-            paginated-zones (-> sorted-zones
-                                (nth (- @current-page 1)
-                                     '()))
+            sorted-zones (fn []
+                           (->> displayed-zones
+                                sort-fn
+                                (partition-all page-size)))
+            paginated-zones (fn []
+                              (-> (sorted-zones)
+                                  (nth (- @current-page 1)
+                                       '())))
             refresh-fn (fn [refreshing?]
                          (reset! refreshing? true)
                          (retrieve-url
@@ -434,9 +436,13 @@
                                    {:topic "zones"
                                     :data (js->clj response :keywordize-keys
                                                    true)})
-                             (reset! refreshing? false)))))]
+                             (reset! refreshing? false)))))
+            table-pager-on-click (fn []
+                                   (reset! current-zone
+                                           (first (paginated-zones))))]
         (if (nil? @current-zone)
-          (reset! current-zone (first paginated-zones)))
+          ;;(reset! current-zone (first paginated-zones))
+          (table-pager-on-click))
         (reset-edit-zone! edit-zone current-zone)
         [:div {:class "panel panel-default"}
          (when (subset? #{{:uri "/zone"
@@ -465,7 +471,8 @@
                            {:sort-keyword sort-keyword
                             :sort-reversed? sort-reversed?}]
             :table-row (zone-row current-zone)}
-           paginated-zones]]
+           (paginated-zones)]]
          [TablePager
-          {:total-pages (count sorted-zones)
-           :current-page current-page}]]))))
+          {:total-pages (count (sorted-zones))
+           :current-page current-page
+           :on-click table-pager-on-click}]]))))

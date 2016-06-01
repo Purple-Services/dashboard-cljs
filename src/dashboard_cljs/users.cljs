@@ -549,12 +549,14 @@
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
             displayed-users users
-            sorted-users (->> displayed-users
-                              sort-fn
-                              (partition-all page-size))
-            paginated-users (-> sorted-users
-                                (nth (- @current-page 1)
-                                     '()))
+            sorted-users (fn []
+                           (->> displayed-users
+                                sort-fn
+                                (partition-all page-size)))
+            paginated-users (fn []
+                              (-> (sorted-users)
+                                  (nth (- @current-page 1)
+                                       '())))
             refresh-fn (fn [saving?]
                          (reset! saving? true)
                          (update-user-count)
@@ -570,9 +572,14 @@
                                    {:topic "users"
                                     :data (js->clj response :keywordize-keys
                                                    true)})
-                             (reset! saving? false)))))]
+                             (reset! saving? false)))))
+            table-pager-on-click (fn []
+                                   (reset! current-user
+                                           (first (paginated-users))))
+            ]
         (when (nil? @current-user)
-          (reset! current-user (first paginated-users)))
+          ;;(reset! current-user (first paginated-users))
+          (table-pager-on-click))
         (reset-edit-user! edit-user current-user)
         ;; set the edit-user values to match those of current-user 
         [:div {:class "panel panel-default"}
@@ -596,10 +603,11 @@
                             {:sort-keyword sort-keyword
                              :sort-reversed? sort-reversed?}]
              :table-row (user-row current-user)}
-            paginated-users]]]
+            (paginated-users)]]]
          [TablePager
-          {:total-pages (count sorted-users)
-           :current-page current-page}]]))))
+          {:total-pages (count (sorted-users))
+           :current-page current-page
+           :on-click table-pager-on-click}]]))))
 
 (defn user-notification-header
   "props is:
