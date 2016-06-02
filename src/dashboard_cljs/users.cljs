@@ -38,7 +38,9 @@
                     :alert-success ""
                     :view-log? false
                     :users-count 0
-                    :tab-content-toggle {}}))
+                    :tab-content-toggle {}
+                    :user-orders-current-page 1
+                    }))
 
 (defn update-user-count
   []
@@ -92,14 +94,25 @@
                       (filter (fn [order] (= (:id user)
                                              (:user_id order))))
                       (filter (fn [order] (contains? #{"complete"}
-                                                     (:status order)))))]
+                                                     (:status order)))))
+          user-orders (fn [user]
+                        (->> @datastore/orders
+                             (filter (fn [order]
+                                       (= (:id user)
+                                          (:user_id order))))))
+          ]
       [:tr {:class (when (= (:id user)
                             (:id @current-user))
                      "active")
             :on-click (fn [_]
                         (reset! current-user user)
                         (reset! (r/cursor state [:alert-success]) "")
-                        (reset! (r/cursor state [:tab-content-toggle :info-view]) true))}
+                        (when (<= (count (user-orders user))
+                                  0)
+                          (reset!
+                           (r/cursor state [:tab-content-toggle :info-view])
+                           true))
+                        (reset! (r/cursor state [:user-orders-current-page]) 1))}
        ;; name
        [:td (:name user)]
        ;; market
@@ -437,7 +450,7 @@
   (let [sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
         show-orders? (r/atom true)
-        current-page (r/atom 1)
+        current-page (r/cursor state [:user-orders-current-page])
         page-size 5
         edit-user    (r/cursor state [:edit-user])
         view-log?    (r/cursor state [:view-log?])]

@@ -61,7 +61,8 @@
                                            :xaxis {:tickmode "auto"}}
                                   :config {:autosizable true
                                            :dismisslog false}
-                                  :selected-timeframe "t0"}}))
+                                  :selected-timeframe "t0"}
+                    :courier-orders-current-page 1}))
 (defn zones->str
   "Convert a vector of zones into a comma-seperated string"
   [zones]
@@ -84,48 +85,62 @@
   "A table row for a courier in a table. current-courier is an r/atom."
   [current-courier]
   (fn [courier]
-    [:tr {:class (when (= (:id courier)
-                          (:id @current-courier))
-                   "active")
-          :on-click #(do (reset! current-courier courier))}
-     ;; name
-     [:td (:name courier)]
-     ;; market
-     [:td (markets (quot (first (:zones courier)) 50))]
-     ;; orders count
-     [:td (->> @datastore/orders
-               (filter (fn [order] (= (:id courier)
-                                      (:courier_id order))))
-               (filter (fn [order] (not (contains? #{"cancelled" "complete"}
-                                                   (:status order)))))
-               count)]
-     ;; phone
-     [:td [TelephoneNumber (:phone_number courier)]]
-     ;; last active
-     ;; [:td (if-not (= (:last_ping courier) 0)
-     ;;        (unix-epoch->fmt
-     ;;         (:last_ping courier)
-     ;;         "M/D/YYYY h:mm A")
-     ;;        "Never")]
-     ;; joined
-     [:td (unix-epoch->fmt (:timestamp_created courier) "M/D/YYYY")]
-     ;; os
-     [:td (:os courier)]
-     ;; app version
-     [:td (:app_version courier)]
-     ;; status
-     [:td
-      (let [connected? (:connected courier)]
-        [:div
-         [:i {:class
-              (str "fa fa-circle "
-                   (if connected?
-                     "courier-active"
-                     "courier-inactive"
-                     ))}]
-         (if connected?
-           " Connected"
-           " Disconnected")])]]))
+    (let [courier-orders (fn [courier]
+                           (->> @datastore/orders
+                                (filter (fn [order]
+                                          (= (:id courier)
+                                             (:courier_id order))))))]
+      [:tr {:class (when (= (:id courier)
+                            (:id @current-courier))
+                     "active")
+            :on-click #(do
+                         (reset! current-courier courier)
+                         (reset! (r/cursor state [:alert-success]) "")
+                         (when (<= (count (courier-orders courier))
+                                   0)
+                           (reset!
+                            (r/cursor state [:tab-content-toggle :info-view])
+                            true))
+                         (reset! (r/cursor state [:courier-orders-current-page])
+                                 1))}
+       ;; name
+       [:td (:name courier)]
+       ;; market
+       [:td (markets (quot (first (:zones courier)) 50))]
+       ;; orders count
+       [:td (->> @datastore/orders
+                 (filter (fn [order] (= (:id courier)
+                                        (:courier_id order))))
+                 (filter (fn [order] (not (contains? #{"cancelled" "complete"}
+                                                     (:status order)))))
+                 count)]
+       ;; phone
+       [:td [TelephoneNumber (:phone_number courier)]]
+       ;; last active
+       ;; [:td (if-not (= (:last_ping courier) 0)
+       ;;        (unix-epoch->fmt
+       ;;         (:last_ping courier)
+       ;;         "M/D/YYYY h:mm A")
+       ;;        "Never")]
+       ;; joined
+       [:td (unix-epoch->fmt (:timestamp_created courier) "M/D/YYYY")]
+       ;; os
+       [:td (:os courier)]
+       ;; app version
+       [:td (:app_version courier)]
+       ;; status
+       [:td
+        (let [connected? (:connected courier)]
+          [:div
+           [:i {:class
+                (str "fa fa-circle "
+                     (if connected?
+                       "courier-active"
+                       "courier-inactive"
+                       ))}]
+           (if connected?
+             " Connected"
+             " Disconnected")])]])))
 
 (defn courier-table-header
   "props is:
@@ -397,7 +412,7 @@
         sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
         ;;show-orders? (r/atom false)
-        current-page (r/atom 1)
+        current-page (r/cursor state [:courier-orders-current-page])
         page-size 5]
     (fn [current-courier]
       (let [editing-zones? (r/atom false)
@@ -450,10 +465,12 @@
                   :toggle toggle
                   :on-click-tab on-click-tab}
              "Info"]
-            [Tab {:default? false
-                  :toggle-key :orders-view
-                  :toggle toggle}
-             "Orders"]
+            (when (> (count paginated-orders)
+                     0)
+              [Tab {:default? false
+                    :toggle-key :orders-view
+                    :toggle toggle}
+               "Orders"])
             ;; [Tab {:default? true
             ;;       :toggle-key :history-view
             ;;       :toggle toggle}
