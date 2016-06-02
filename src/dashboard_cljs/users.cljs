@@ -92,15 +92,12 @@
   (fn [user]
     (let [orders (->> @datastore/orders
                       (filter (fn [order] (= (:id user)
-                                             (:user_id order))))
-                      (filter (fn [order] (contains? #{"complete"}
-                                                     (:status order)))))
+                                             (:user_id order)))))
           user-orders (fn [user]
                         (->> @datastore/orders
                              (filter (fn [order]
                                        (= (:id user)
-                                          (:user_id order))))))
-          ]
+                                          (:user_id order))))))]
       [:tr {:class (when (= (:id user)
                             (:id @current-user))
                      "active")
@@ -112,7 +109,8 @@
                           (reset!
                            (r/cursor state [:tab-content-toggle :info-view])
                            true))
-                        (reset! (r/cursor state [:user-orders-current-page]) 1))}
+                        (reset! (r/cursor state [:user-orders-current-page]) 1))
+            }
        ;; name
        [:td (:name user)]
        ;; market

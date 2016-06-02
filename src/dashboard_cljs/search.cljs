@@ -156,7 +156,10 @@
                                 (reset! tab-content-toggle
                                         {:search-results-view true})
                                 (when nav-bar-collapse
-                                  (swap! nav-bar-collapse not))))}
+                                  (swap! nav-bar-collapse not))
+                                (reset! (r/cursor state [:current-user]) nil)
+                                (reset! (r/cursor state [:current-order]) nil)
+                                ))}
          [:i {:class "fa fa-search"}]]]])))
 
 (defn search-results
