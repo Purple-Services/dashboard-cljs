@@ -465,9 +465,9 @@
         selected (r/cursor state [:selected])
         current-page (r/atom 1)
         page-size 15
-        filters {"Show All" (constantly true)
-                 "Active" (complement expired-coupon?)
-                 "Expired" expired-coupon?}
+        filters {"Show All" {:filter-fn (constantly true)}
+                 "Active" {:filter-fn (complement expired-coupon?)}
+                 "Expired" {:filter-fn expired-coupon?}}
         selected-filter (r/atom "Active")]
     (fn [coupons]
       (let [sort-fn (if @sort-reversed?
@@ -478,7 +478,8 @@
                              (->> displayed-coupons
                                   ;; remove all groupon coupons
                                   (filter #(not (re-matches #"GR.*" (:code %))))
-                                  (filter (get filters @selected-filter))
+                                  (filter (:filter-fn
+                                           (get filters @selected-filter)))
                                   sort-fn
                                   (partition-all page-size)))
             paginated-coupons (fn []

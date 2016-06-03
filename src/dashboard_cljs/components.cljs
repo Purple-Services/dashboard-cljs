@@ -300,9 +300,11 @@
   (fn [{:keys [hide-counts on-click]} filters data selected-filter]
     [:div {:class "btn-group" :role "group"}
      (for [f (map #(hash-map :text (key %)
-                             :filter-fn  (val %)
+                             :filter-fn  (:filter-fn (val %))
                              :hide-count (contains? hide-counts (key %))
-                             :on-click on-click)
+                             :on-click (or (:on-click (val %))
+                                           on-click
+                                           nil))
                   filters)]
        ^{:key (:text f)} [TableFilterButton f data selected-filter])]))
 
@@ -577,8 +579,8 @@
                               (swap! toggle update-values (fn [el] false))
                               (swap! toggle assoc toggle-key true)
                               (when on-click-tab (on-click-tab)))]
-      (when (toggle-key @toggle)
-        (tab-selected-fn))
+      ;; (when (toggle-key @toggle)
+      ;;   (tab-selected-fn))
       [:li
        ;; this needs to be done for cases where the li gets the active
        ;; for example, nav-tabs

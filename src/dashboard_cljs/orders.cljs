@@ -846,8 +846,15 @@
         sort-reversed? (r/atom true)
         current-page (r/atom 1)
         page-size 20
-        filters {"Show All" (constantly true)
-                 "Current Orders" current-order?}
+        filters {"Show All" {:filter-fn (constantly true)
+                             :on-click (fn []
+                                         (reset! sort-keyword :target_time_end)
+                                         (reset! sort-reversed? false))}
+                 "Current Orders"
+                 {:filter-fn  current-order?
+                  :on-click (fn []
+                              (reset! sort-keyword :target_time_end)
+                              (reset! sort-reversed? true))}}
         selected-filter (r/atom "Current Orders")]
     (fn [orders]
       (let [sort-fn (if @sort-reversed?
@@ -859,7 +866,8 @@
                                      orders)
             sorted-orders  (fn [] (->> displayed-orders
                                        sort-fn
-                                       (filter (get filters @selected-filter))
+                                       (filter (:filter-fn
+                                                (get filters @selected-filter)))
                                        (partition-all page-size)))
             paginated-orders (fn []
                                (-> (sorted-orders)

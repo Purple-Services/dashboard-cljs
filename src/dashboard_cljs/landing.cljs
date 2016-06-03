@@ -7,7 +7,8 @@
                                           unix-epoch->hrf accessible-routes
                                           new-orders-count
                                           same-timestamp?]]
-            [dashboard-cljs.components :refer [Tab TabContent DownloadCSVLink]]
+            [dashboard-cljs.components :refer [Tab TabContent DownloadCSVLink
+                                               LoadScreen]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.home :as home]
             [dashboard-cljs.couriers :as couriers]
@@ -172,23 +173,6 @@
            [:a {:href (str base-url "dash-map-couriers")
                 :target "_blank"}
             "Real-time Map"]])]])))
-
-(defn LoadScreen
-  []
-  (fn []
-    [:div {:style {:width "100%"
-                   :height "100%"
-                   :color "white"
-                   :z-index "999"
-                   :position "fixed"}}
-     [:div {:style {:left "40%"
-                    :top "40%"
-                    :height "2em"
-                    :position "fixed"}}
-      [:h2 {:style {:display "inline-block"
-                    :color "black"}}
-       "Loading   " [:i {:class "fa fa-spinner fa-pulse"
-                         :style {:color "black"}}]]]]))
 
 ;; based on https://github.com/IronSummitMedia/startbootstrap-sb-admin
 (defn app
