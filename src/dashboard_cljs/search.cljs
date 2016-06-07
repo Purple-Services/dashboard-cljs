@@ -53,7 +53,10 @@
                                (partition-all page-size))
             paginated-orders  (-> sorted-orders
                                   (nth (- @current-page 1)
-                                       '()))]
+                                       '()))
+            table-pager-on-click (fn []
+                                   (reset! current-order
+                                           (first (paginated-orders))))]
         (when (nil? @current-order)
           (reset! current-order (first paginated-orders)))
         [:div {:class "panel panel-default"}
@@ -69,7 +72,8 @@
            paginated-orders]]
          [TablePager
           {:total-pages (count sorted-orders)
-           :current-page current-page}]]))))
+           :current-page current-page
+           :on-click table-pager-on-click}]]))))
 
 (defn search-users-results-panel
   "Display a table of selectable users with an indivdual user panel
@@ -90,7 +94,10 @@
                               (partition-all page-size))
             paginated-users (-> sorted-users
                                 (nth (- @current-page 1)
-                                     '()))]
+                                     '()))
+            table-pager-on-click (fn []
+                                   (reset! current-user
+                                           (first (paginated-users))))]
         (when (nil? @current-user)
           (reset! current-user (first paginated-users)))
         (users/reset-edit-user! edit-user current-user)
@@ -109,7 +116,8 @@
             paginated-users]]]
          [TablePager
           {:total-pages (count sorted-users)
-           :current-page current-page}]]))))
+           :current-page current-page
+           :on-click table-pager-on-click}]]))))
 
 
 
