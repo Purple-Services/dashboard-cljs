@@ -91,6 +91,7 @@
                               :xaxis {:rangeselector selector-options
                                       :rangeslider {}
                                       :tickmode "auto"
+                                      :tickformat "%a, %b %d"
                                       }}
                      :config {:modeBarButtonsToRemove
                               ["toImage","sendDataToCloud"]
@@ -368,7 +369,7 @@
                                                 @from-date)
                                     :to-date (unix-epoch->YYYY-MM-DD @to-date)
                                     :refresh-fn #(reset! refreshing?
-                                                        false)}))
+                                                         false)}))
         refreshing? (r/atom false)]
     (r/create-class
      {:component-did-mount
