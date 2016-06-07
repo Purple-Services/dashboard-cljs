@@ -282,8 +282,8 @@
 
 (defn TableFilterButton
   "Filter button for btn-group. Shows number of records that meet filter."
-  [props data selected-filter]
-  (fn [{:keys [text filter-fn hide-count on-click]} data selected-filter]
+  [props]
+  (fn [{:keys [text filter-fn hide-count on-click data selected-filter]}]
     [:button {:type "button"
               :class (str "btn btn-default "
                           (when (= @selected-filter text) "active"))
@@ -302,11 +302,12 @@
      (for [f (map #(hash-map :text (key %)
                              :filter-fn  (:filter-fn (val %))
                              :hide-count (contains? hide-counts (key %))
-                             :on-click (or (:on-click (val %))
-                                           on-click
-                                           nil))
+                             :on-click on-click
+                             :data data
+                             :selected-filter selected-filter
+                             )
                   filters)]
-       ^{:key (:text f)} [TableFilterButton f data selected-filter])]))
+       ^{:key (:text f)} [TableFilterButton f])]))
 
 (defn LoadScreen
   ""

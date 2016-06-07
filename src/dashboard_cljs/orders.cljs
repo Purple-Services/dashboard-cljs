@@ -6,6 +6,7 @@
             [reagent.core :as r]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton ErrorComp
+                                               TableFilterButton
                                                TableFilterButtonGroup
                                                TablePager ConfirmationAlert
                                                KeyVal ProcessingIcon FormGroup
@@ -846,29 +847,23 @@
         sort-reversed? (r/atom true)
         current-page (r/atom 1)
         page-size 20
-        filters {"Show All" {:filter-fn (constantly true)
-                             :on-click (fn []
-                                         (reset! sort-keyword :target_time_end)
-                                         (reset! sort-reversed? false))}
-                 "Current Orders"
-                 {:filter-fn  current-order?
-                  :on-click (fn []
-                              (reset! sort-keyword :target_time_end)
-                              (reset! sort-reversed? true))}}
-        selected-filter (r/atom "Current Orders")]
+        selected-filter (r/atom "Current Orders")
+        filters {"Show All" (constantly true)
+                 "Current Orders" current-order?}]
     (fn [orders]
-      (let [sort-fn (if @sort-reversed?
-                      (partial sort-by @sort-keyword)
-                      (comp reverse (partial sort-by @sort-keyword)))
+      (let [sort-fn (fn []
+                      (if @sort-reversed?
+                        (partial sort-by @sort-keyword)
+                        (comp reverse (partial sort-by @sort-keyword))))
             displayed-orders (filter #(<= (:target_time_start %)
                                           (:target_time_start
                                            @datastore/last-acknowledged-order))
                                      orders)
-            sorted-orders  (fn [] (->> displayed-orders
-                                       sort-fn
-                                       (filter (:filter-fn
-                                                (get filters @selected-filter)))
-                                       (partition-all page-size)))
+            sorted-orders  (fn []
+                             (->> displayed-orders
+                                  (filter (get filters @selected-filter))
+                                  ((sort-fn))
+                                  (partition-all page-size)))
             paginated-orders (fn []
                                (-> (sorted-orders)
                                    (nth (- @current-page 1)
@@ -897,7 +892,13 @@
                                (reset! saving? false))))))
             table-pager-on-click (fn []
                                    (reset! current-order
-                                           (first (paginated-orders))))]
+                                           (first (paginated-orders))))
+            table-filter-button-on-click (fn []
+                                           (reset! sort-keyword
+                                                   :target_time_end)
+                                           (reset! current-page 1)
+                                           (table-pager-on-click))
+            ]
         (when (nil? @current-order)
           (table-pager-on-click))
         [:div {:class "panel panel-default"}
@@ -908,11 +909,23 @@
                 :style {:margin-top "15px"}}
           [:div {:class "btn-toolbar"
                  :role "toolbar"}
-           [TableFilterButtonGroup {:hide-counts #{"Show All"}
-                                    :on-click (fn [_]
-                                                (reset! current-page 1)
-                                                (table-pager-on-click))}
-            filters orders selected-filter]
+           [:div {:class "btn-group" :role "group"}
+            [TableFilterButton {:text "Show All"
+                                :filter-fn (constantly true)
+                                :hide-count true
+                                :on-click  (fn []
+                                             (reset! sort-reversed? false)
+                                             (table-filter-button-on-click))
+                                :data orders
+                                :selected-filter selected-filter}]
+            [TableFilterButton {:text "Current Orders"
+                                :filter-fn current-order?
+                                :hide-count false
+                                :on-click (fn []
+                                            (reset! sort-reversed? true)
+                                            (table-filter-button-on-click))
+                                :data orders
+                                :selected-filter selected-filter}]]
            [:div {:class "btn-group"
                   :role "group"
                   :aria-label "refresh group"}
