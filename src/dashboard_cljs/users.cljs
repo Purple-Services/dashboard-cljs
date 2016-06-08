@@ -10,7 +10,8 @@
                                           json-string->clj pager-helper!
                                           integer->comma-sep-string
                                           parse-to-number? diff-message
-                                          accessible-routes get-event-time now]]
+                                          accessible-routes get-event-time now
+                                          update-values]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton KeyVal StarRating
@@ -106,6 +107,8 @@
                         (reset! (r/cursor state [:alert-success]) "")
                         (when (<= (count (user-orders user))
                                   0)
+                          (swap! (r/cursor state [:tab-content-toggle])
+                                 update-values (fn [el] false))
                           (reset!
                            (r/cursor state [:tab-content-toggle :info-view])
                            true))
@@ -447,7 +450,6 @@
   [current-user state]
   (let [sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
-        show-orders? (r/atom true)
         current-page (r/cursor state [:user-orders-current-page])
         page-size 5
         edit-user    (r/cursor state [:edit-user])
@@ -529,8 +531,8 @@
               [:div {:class "col-lg-12 col-xs-12"}
                ;; Table of orders for current user
                [:div {:class "table-responsive"
-                      :style (if @show-orders?
-                               {}
+                      :style (when-not (> (count paginated-orders)
+                                          0)
                                {:display "none"})}
                 [StaticTable
                  {:table-header [user-orders-header
@@ -538,8 +540,8 @@
                                   :sort-reversed? sort-reversed?}]
                   :table-row (user-orders-row)}
                  paginated-orders]]
-               [:div {:style (if @show-orders?
-                               {}
+               [:div {:style (when-not (> (count paginated-orders)
+                                          0)
                                {:display "none"})}
                 [TablePager
                  {:total-pages (count sorted-orders)
