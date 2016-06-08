@@ -89,7 +89,7 @@
 (defn user-row
   "A table row for an user in a table. current-user is the one currently 
   being viewed"
-  [current-user]
+  [current-user state]
   (fn [user]
     (let [orders (->> @datastore/orders
                       (filter (fn [order] (= (:id user)
@@ -615,7 +615,7 @@
             {:table-header [user-table-header
                             {:sort-keyword sort-keyword
                              :sort-reversed? sort-reversed?}]
-             :table-row (user-row current-user)}
+             :table-row (user-row current-user state)}
             (paginated-users)]]]
          [TablePager
           {:total-pages (count (sorted-users))

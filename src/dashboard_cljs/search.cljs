@@ -89,17 +89,19 @@
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
-            sorted-users (->> users
-                              sort-fn
-                              (partition-all page-size))
-            paginated-users (-> sorted-users
-                                (nth (- @current-page 1)
-                                     '()))
+            sorted-users (fn []
+                           (->> users
+                                sort-fn
+                                (partition-all page-size)))
+            paginated-users (fn []
+                              (-> (sorted-users)
+                                  (nth (- @current-page 1)
+                                       '())))
             table-pager-on-click (fn []
                                    (reset! current-user
                                            (first (paginated-users))))]
         (when (nil? @current-user)
-          (reset! current-user (first paginated-users)))
+          (table-pager-on-click))
         (users/reset-edit-user! edit-user current-user)
         ;; set the edit-user values to match those of current-user
         [:div {:class "panel panel-default"}
@@ -112,14 +114,12 @@
             {:table-header [users/user-table-header
                             {:sort-keyword sort-keyword
                              :sort-reversed? sort-reversed?}]
-             :table-row (users/user-row current-user)}
-            paginated-users]]]
+             :table-row (users/user-row current-user state)}
+            (paginated-users)]]]
          [TablePager
-          {:total-pages (count sorted-users)
+          {:total-pages (count (sorted-users))
            :current-page current-page
            :on-click table-pager-on-click}]]))))
-
-
 
 (defn search-bar
   [props]
