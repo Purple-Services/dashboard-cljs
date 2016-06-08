@@ -48,17 +48,17 @@
                                            :id (:orders
                                                 (:search-results @state))))
                                      (:id %)) @dashboard-cljs.datastore/orders)
-            sorted-orders (->> search-results-orders
-                               sort-fn
-                               (partition-all page-size))
-            paginated-orders  (-> sorted-orders
-                                  (nth (- @current-page 1)
-                                       '()))
+            sorted-orders (fn [] (->> search-results-orders
+                                      sort-fn
+                                      (partition-all page-size)))
+            paginated-orders (fn [] (-> (sorted-orders)
+                                        (nth (- @current-page 1)
+                                             '())))
             table-pager-on-click (fn []
                                    (reset! current-order
                                            (first (paginated-orders))))]
         (when (nil? @current-order)
-          (reset! current-order (first paginated-orders)))
+          (table-pager-on-click))
         [:div {:class "panel panel-default"}
          [orders/order-panel {:order current-order
                               :state state
@@ -69,9 +69,9 @@
                            {:sort-keyword sort-keyword
                             :sort-reversed? sort-reversed?}]
             :table-row (orders/order-row current-order)}
-           paginated-orders]]
+           (paginated-orders)]]
          [TablePager
-          {:total-pages (count sorted-orders)
+          {:total-pages (count (sorted-orders))
            :current-page current-page
            :on-click table-pager-on-click}]]))))
 
@@ -142,7 +142,10 @@
                                  (reset! search-results response)
                                  (put! datastore/modify-data-chan
                                        {:topic "orders"
-                                        :data (:orders response)}))))))]
+                                        :data (:orders response)})
+                                 (put! datastore/modify-data-chan
+                                       {:topic "users"
+                                        :data (:users response)}))))))]
     (fn [{:keys [tab-content-toggle nav-bar-collapse]} props]
       [:div {:class "input-group"}
        [:input {:type "text"
