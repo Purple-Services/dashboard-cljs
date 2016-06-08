@@ -488,7 +488,11 @@
         [:div {:class "panel-body"}
          [:div {:class "row"}
           [:div {:class "col-xs-12 col-lg-12"}
-           [:div [:h3 {:style {:margin-top 0}} (:name @current-user)]]
+           [:div [:h3 {:style {:margin-top 0}} (:name @current-user)
+                  (when-not (= 0 (:subscription_id @current-user))
+                    [:span {:style {:color "#5cb85c"
+                                    :font-size "0.7em !important"}}
+                     "    Purple Plus Member"])]]
            ;; users info tab navigation
            [:ul {:class "nav nav-tabs"}
             [Tab {:default? true
