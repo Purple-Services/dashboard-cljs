@@ -39,6 +39,7 @@
                     :alert-success ""
                     :view-log? false
                     :users-count 0
+                    :members-count 0
                     :tab-content-toggle {}
                     :user-orders-current-page 1
                     }))
@@ -56,9 +57,25 @@
         (reset! (r/cursor state [:users-count]) (integer->comma-sep-string
                                                  (:total (first res)))))))))
 
+(defn update-members-count
+  []
+  (retrieve-url
+   (str base-url "members-count")
+   "GET"
+   {}
+   (partial
+    xhrio-wrapper
+    (fn [response]
+      (let [res (js->clj response :keywordize-keys true)]
+        (reset! (r/cursor state [:members-count]) (integer->comma-sep-string
+                                                   (:total (first res)))))))))
+
 (defonce
   users-count-result
   (update-user-count))
+
+(defonce members-count-result
+  (update-members-count))
 
 
 (defn displayed-user
@@ -115,7 +132,9 @@
                         (reset! (r/cursor state [:user-orders-current-page]) 1))
             }
        ;; name
-       [:td (:name user)]
+       [:td {:style (when-not (= 0 (:subscription_id user))
+                      {:color "#5cb85c"})}
+        (:name user)]
        ;; market
        [:td
         (-> orders
@@ -577,6 +596,7 @@
             refresh-fn (fn [saving?]
                          (reset! saving? true)
                          (update-user-count)
+                         (update-members-count)
                          (retrieve-url
                           (str base-url "users")
                           "GET"
@@ -607,7 +627,10 @@
           [:div [:h3 {:class "pull-left"
                       :style {:margin-top "4px"
                               :margin-bottom 0}}
-                 (str "Users (" @(r/cursor state [:users-count]) ")")]]
+                 (str "Users (" @(r/cursor state [:users-count]) ")")
+                 " "
+                 [:span {:style {:color "#5cb85c"}}
+                  (str  "Members (" @(r/cursor state [:members-count]) ")")]]]
           [:div {:class "btn-toolbar"
                  :role "toolbar"}
            [:div {:class "btn-group"
