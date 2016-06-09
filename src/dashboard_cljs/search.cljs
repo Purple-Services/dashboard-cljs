@@ -75,52 +75,6 @@
            :current-page current-page
            :on-click table-pager-on-click}]]))))
 
-(defn search-users-results-panel
-  "Display a table of selectable users with an indivdual user panel
-  for the selected user"
-  [users state]
-  (let [current-user (r/cursor state [:current-user])
-        edit-user    (r/cursor state [:edit-user])
-        sort-keyword (r/atom :timestamp_created)
-        sort-reversed? (r/atom false)
-        current-page (r/atom 1)
-        page-size 15]
-    (fn [users]
-      (let [sort-fn (if @sort-reversed?
-                      (partial sort-by @sort-keyword)
-                      (comp reverse (partial sort-by @sort-keyword)))
-            sorted-users (fn []
-                           (->> users
-                                sort-fn
-                                (partition-all page-size)))
-            paginated-users (fn []
-                              (-> (sorted-users)
-                                  (nth (- @current-page 1)
-                                       '())))
-            table-pager-on-click (fn []
-                                   (reset! current-user
-                                           (first (paginated-users))))]
-        (when (nil? @current-user)
-          (table-pager-on-click))
-        (users/reset-edit-user! edit-user current-user)
-        ;; set the edit-user values to match those of current-user
-        [:div {:class "panel panel-default"}
-         [:div {:class "panel-body"}
-          [users/user-panel current-user state]]
-         [:div {:class "panel"
-                :style {:margin-top "15px"}}
-          [:div {:class "table-responsive"}
-           [StaticTable
-            {:table-header [users/user-table-header
-                            {:sort-keyword sort-keyword
-                             :sort-reversed? sort-reversed?}]
-             :table-row (users/user-row current-user state)}
-            (paginated-users)]]]
-         [TablePager
-          {:total-pages (count (sorted-users))
-           :current-page current-page
-           :on-click table-pager-on-click}]]))))
-
 (defn search-bar
   [props]
   (let [retrieving?        (r/cursor state [:search-retrieving?])
@@ -229,4 +183,4 @@
                 [:h4 "Users matching - \""
                  [:strong {:style {:white-space "pre"}}
                   @recent-search-term] "\""]
-                [search-users-results-panel @users-search-results state]])]]]])])))
+                [users/search-users-results-panel @users-search-results state]])]]]])])))

@@ -217,20 +217,12 @@
            ;; users page
            [TabContent
             {:toggle (r/cursor tab-content-toggle [:users-view])}
-            [:div {:class "row"}
-             [:div {:class "col-lg-12"}
-              (when (subset? #{{:uri "/users"
-                                :method "GET"
-                                }} @accessible-routes)
-                [:div
-                 [users/users-panel @datastore/users users/state]
-                 (when (subset?
-                        #{{:uri "/send-push-to-all-active-users"
-                           :method "POST"}
-                          {:uri "/send-push-to-users-list"
-                           :method "POST"}}
-                        @accessible-routes)
-                   [users/user-push-notification])])]]]
+            (when (subset? #{{:uri "/users"
+                              :method "GET"
+                              }} @accessible-routes)
+              [:div
+               [users/search-results users/state]
+               [users/search-bar users/state]])]
            ;; coupon code page
            [TabContent
             {:toggle (r/cursor tab-content-toggle [:coupons-view])}

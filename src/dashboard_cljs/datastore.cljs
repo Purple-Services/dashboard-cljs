@@ -207,20 +207,7 @@
                          :data (:couriers (js->clj response :keywordize-keys
                                                    true))})))))
     ;; users
-    (when (subset? #{{:uri "/users"
-                      :method "GET"}} @accessible-routes)
-      (sync-state! users (sub read-data-chan "users" (chan)))
-      ;; initialize users
-      (retrieve-url
-       (str base-url "users")
-       "GET"
-       {}
-       (partial xhrio-wrapper
-                (fn [response]
-                  (put! modify-data-chan
-                        {:topic "users"
-                         :data (js->clj response :keywordize-keys
-                                        true)})))))
+    ;; nothing here
     ;; coupons
     (when (subset? #{{:uri "/coupons"
                       :method "GET"}} @accessible-routes)
