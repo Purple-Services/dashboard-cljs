@@ -506,15 +506,17 @@
                   (assoc @current-user
                          :last_active (:target_time_start
                                        most-recent-order))))
-        ;; populate the current user with additional information
         [:div {:class "panel-body"}
+         ;; populate the current user with additional information
          [:div {:class "row"}
           [:div {:class "col-xs-12 col-lg-12"}
            [:div [:h3 {:style {:margin-top 0}} (:name @current-user)
                   (when-not (= 0 (:subscription_id @current-user))
                     [:span {:style {:color "#5cb85c"
                                     :font-size "0.7em !important"}}
-                     "    Purple Plus Member"])]]
+                     "    Purple Plus Member"])]]]]
+         [:div {:class "row"}
+          [:div {:class "col-xs-12 col-lg-12"}
            ;; users info tab navigation
            [:ul {:class "nav nav-tabs"}
             [Tab {:default? true
@@ -526,52 +528,52 @@
               [Tab {:default? false
                     :toggle-key :orders-view
                     :toggle toggle}
-               "Orders"])]
-           ;; main display panel
-           [:div {:class "tab-content"}
-            [TabContent {:toggle (r/cursor toggle [:info-view])}
-             [user-form current-user state]]
-            ;; below is for showing user logs,
-            ;; implemented, but not used yet
-            ;; [:br]
-            ;; [ViewHideButton {:class "btn btn-sm btn-default"
-            ;;                  :view-content "View Logs"
-            ;;                  :hide-content "Hide Logs"
-            ;;                  :on-click #(swap! view-log? not)
-            ;;                  :view? view-log?}]
-            ;; (when @view-log?
-            ;;   [:div {:class "table-responsive"
-            ;;          :style (if @view-log?
-            ;;                   {}
-            ;;                   {:display "none"})}
-            ;;    [StaticTable
-            ;;     {:table-header [user-history-header
-            ;;                     {;;:sort-keyword sort-keyword-logs
-            ;;                      ;;:sort-reversed? sort-reversed-logs?
-            ;;                      }]
-            ;;      :table-row (user-history-row)}
-            ;;     (sort-by :timestamp (:admin_event_log @current-user))]])
-            [TabContent
-             {:toggle (r/cursor toggle [:orders-view])}
-             [:div {:class "row"}
-              [:div {:class "col-lg-12 col-xs-12"}
-               ;; Table of orders for current user
-               [:div {:class "table-responsive"
-                      :style (when-not (> (count paginated-orders)
-                                          0)
-                               {:display "none"})}
-                [StaticTable
-                 {:table-header [user-orders-header
-                                 {:sort-keyword sort-keyword
-                                  :sort-reversed? sort-reversed?}]
-                  :table-row (user-orders-row)}
-                 paginated-orders]]
-               [:div {:style (when-not (> (count paginated-orders)
-                                          0)
-                               {:display "none"})}
-                [TablePager
-                 {:total-pages (count sorted-orders)
-                  :current-page current-page}]]]]]]]]]))))
+               "Orders"])]]]
+         ;; main display panel
+         [:div {:class "tab-content"}
+          [TabContent {:toggle (r/cursor toggle [:info-view])}
+           [user-form current-user state]]
+          ;; below is for showing user logs,
+          ;; implemented, but not used yet
+          ;; [:br]
+          ;; [ViewHideButton {:class "btn btn-sm btn-default"
+          ;;                  :view-content "View Logs"
+          ;;                  :hide-content "Hide Logs"
+          ;;                  :on-click #(swap! view-log? not)
+          ;;                  :view? view-log?}]
+          ;; (when @view-log?
+          ;;   [:div {:class "table-responsive"
+          ;;          :style (if @view-log?
+          ;;                   {}
+          ;;                   {:display "none"})}
+          ;;    [StaticTable
+          ;;     {:table-header [user-history-header
+          ;;                     {;;:sort-keyword sort-keyword-logs
+          ;;                      ;;:sort-reversed? sort-reversed-logs?
+          ;;                      }]
+          ;;      :table-row (user-history-row)}
+          ;;     (sort-by :timestamp (:admin_event_log @current-user))]])
+          [TabContent
+           {:toggle (r/cursor toggle [:orders-view])}
+           [:div {:class "row"}
+            [:div {:class "col-lg-12 col-xs-12"}
+             ;; Table of orders for current user
+             [:div {:class "table-responsive"
+                    :style (when-not (> (count paginated-orders)
+                                        0)
+                             {:display "none"})}
+              [StaticTable
+               {:table-header [user-orders-header
+                               {:sort-keyword sort-keyword
+                                :sort-reversed? sort-reversed?}]
+                :table-row (user-orders-row)}
+               paginated-orders]]
+             [:div {:style (when-not (> (count paginated-orders)
+                                        0)
+                             {:display "none"})}
+              [TablePager
+               {:total-pages (count sorted-orders)
+                :current-page current-page}]]]]]]]))))
 
 (defn search-users-results-panel
   "Display a table of selectable users with an indivdual user panel
@@ -582,7 +584,7 @@
         sort-keyword (r/atom :timestamp_created)
         sort-reversed? (r/atom false)
         current-page (r/atom 1)
-        page-size 15]
+        page-size 5]
     (fn [users]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -603,8 +605,7 @@
         (reset-edit-user! edit-user current-user)
         ;; set the edit-user values to match those of current-user
         [:div {:class "panel panel-default"}
-         [:div {:class "panel-body"}
-          [user-panel current-user state]]
+         [user-panel current-user state]
          [:div {:class "panel"
                 :style {:margin-top "15px"}}
           [:div {:class "table-responsive"}
@@ -675,35 +676,31 @@
           recent-search-term (r/cursor state [:recent-search-term])
           search-results (r/cursor state [:search-results])
           users-search-results (r/cursor search-results [:users])]
-      [:div
-       (when @retrieving?
-         (.scrollTo js/window 0 0)
-         [:h4 "Retrieving results for \""
-          [:strong
-           {:style {:white-space "pre"}}
-           @search-term]
-          "\" "
-          [:i {:class "fa fa-spinner fa-pulse"
-               :style {:color "black"}}]])
-       (when-not @retrieving?
-         [:div
-          ;; users results
-          [:div {:class "panel panel-default"}
-           [:div {:class "panel-body"}
+      [:div {:class "row"}
+       [:div {:class "col-lg-12 col-lg-12"}
+        (when @retrieving?
+          (.scrollTo js/window 0 0)
+          [:h4 "Retrieving results for \""
+           [:strong
+            {:style {:white-space "pre"}}
+            @search-term]
+           "\" "
+           [:i {:class "fa fa-spinner fa-pulse"
+                :style {:color "black"}}]])
+        (when-not @retrieving?
+          (when (and (empty? @users-search-results)
+                     (not (s/blank? @recent-search-term))
+                     (not @retrieving?))
+            [:h4 "Your search - \""
+             [:strong {:style {:white-space "pre"}}
+              @recent-search-term]
+             \"" - did not match any users."])
+          (when-not (empty? @users-search-results)
             [:div
-             (when (and (empty? @users-search-results)
-                        (not (s/blank? @recent-search-term))
-                        (not @retrieving?))
-               [:h4 "Your search - \""
-                [:strong {:style {:white-space "pre"}}
-                 @recent-search-term]
-                \"" - did not match any users."])
-             (when-not (empty? @users-search-results)
-               [:div
-                [:h4 "Users matching - \""
-                 [:strong {:style {:white-space "pre"}}
-                  @recent-search-term] "\""]
-                [search-users-results-panel @users-search-results state]])]]]])])))
+             [:h4 "Users matching - \""
+              [:strong {:style {:white-space "pre"}}
+               @recent-search-term] "\""]
+             [search-users-results-panel @users-search-results state]]))]])))
 
 ;; (defn user-notification-header
 ;;   "props is:

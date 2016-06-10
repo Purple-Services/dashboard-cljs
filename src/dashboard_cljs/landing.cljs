@@ -221,8 +221,8 @@
                               :method "GET"
                               }} @accessible-routes)
               [:div
-               [users/search-results users/state]
-               [users/search-bar users/state]])]
+               [users/search-bar users/state]
+               [users/search-results users/state]])]
            ;; coupon code page
            [TabContent
             {:toggle (r/cursor tab-content-toggle [:coupons-view])}
