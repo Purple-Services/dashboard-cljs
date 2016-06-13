@@ -580,9 +580,10 @@
             [TableFilterButtonGroup {:hide-counts #{}
                                      :on-click (fn [_]
                                                  (reset! current-page 1)
-                                                 (table-pager-on-click))}
-             filters (->> couriers
-                          (filter :active)) selected-filter]]
+                                                 (table-pager-on-click))
+                                     :filters filters
+                                     :data (->> couriers (filter :active))
+                                     :selected-filter selected-filter}]]
            [:div {:class "btn-toolbar"
                   :role "toolbar"}
             [:div {:class "btn-group"

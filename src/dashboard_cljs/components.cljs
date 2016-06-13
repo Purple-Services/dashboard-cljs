@@ -296,8 +296,8 @@
 
 (defn TableFilterButtonGroup
   "Group of filter buttons for a table."
-  [props filters data selected-filter]
-  (fn [{:keys [hide-counts on-click]} filters data selected-filter]
+  [props]
+  (fn [{:keys [hide-counts on-click filters data selected-filter]}]
     [:div {:class "btn-group" :role "group"}
      (for [f (map #(hash-map :text (key %)
                              :filter-fn  (:filter-fn (val %))
@@ -653,3 +653,13 @@
     [:a {:href (str "data:application/octet-stream," (js/encodeURIComponent
                                                       content))
          :download filename} child]))
+
+(defn UserCrossLink
+  "A link to the user page for a particular user"
+  [props child]
+  (fn [{:keys [on-click]} props]
+    [:a {:href "#"
+         :on-click (fn [e]
+                     (.preventDefault e)
+                     (on-click))}
+     child]))

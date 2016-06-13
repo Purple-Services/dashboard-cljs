@@ -19,11 +19,14 @@
             [dashboard-cljs.marketing :as marketing]
             [dashboard-cljs.orders :as orders]
             [dashboard-cljs.analytics :as analytics]
-            [dashboard-cljs.googlemaps :refer [get-cached-gmaps on-click-tab]]))
+            [dashboard-cljs.googlemaps :refer [get-cached-gmaps on-click-tab]]
+            [dashboard-cljs.state :refer [landing-state]]))
 
-(def tab-content-toggle (r/atom {}))
+;;(def tab-content-toggle (r/atom {}))
 
-(def state (r/atom {:nav-bar-collapse true}))
+(def tab-content-toggle (r/cursor landing-state [:tab-content-toggle]))
+
+(def state landing-state)
 
 (defn top-navbar-comp
   "A navbar for the top of the application
@@ -222,7 +225,8 @@
                               }} @accessible-routes)
               [:div
                [users/search-bar users/state]
-               [users/search-results users/state]])]
+               [users/search-results users/state]
+               [users/cross-link-result users/state]])]
            ;; coupon code page
            [TabContent
             {:toggle (r/cursor tab-content-toggle [:coupons-view])}

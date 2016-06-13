@@ -13,10 +13,11 @@
                                                TextAreaInput DismissButton
                                                SubmitDismissGroup Select
                                                TelephoneNumber
-                                               Mailto GoogleMapLink]]
+                                               Mailto GoogleMapLink
+                                               UserCrossLink]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
-                                          edit-on-error]]
+                                          edit-on-error retrieve-entity]]
             [dashboard-cljs.utils :refer [unix-epoch->hrf base-url
                                           cents->$dollars json-string->clj
                                           accessible-routes
@@ -27,9 +28,11 @@
                                           declined-payment?
                                           current-order?
                                           get-event-time
-                                          get-by-id now]]
+                                          get-by-id now update-values]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
-            [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps]]))
+            [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps
+                                               on-click-tab]]
+            [dashboard-cljs.state :refer [landing-state users-state]]))
 
 (def status->next-status {"unassigned"  "assigned"
                           "assigned"    "accepted"
@@ -110,9 +113,29 @@
                       "hours")
                " Hr")]
      ;; username
-     [:td {:style (when-not (= 0 (:subscription_id order))
-                    {:color "#5cb85c"})}
-      (:customer_name order)]
+     [:td
+      [UserCrossLink
+       {:on-click (fn []
+                    (let [tab-content-toggle (r/cursor landing-state
+                                                       [:tab-content-toggle])
+                          current-user (r/cursor users-state [:current-user])
+                          recent-search-term (r/cursor users-state
+                                                       [:recent-search-term])
+                          search-term (r/cursor users-state
+                                                [:search-term])]
+                      (reset! recent-search-term nil)
+                      (reset! search-term nil)
+                      (swap! tab-content-toggle update-values
+                             (fn [el] false))
+                      (swap! tab-content-toggle
+                             assoc :users-view true)
+                      (retrieve-entity "user" (:user_id order)
+                                       (fn [user]
+                                         (reset! current-user (first user))))
+                      (.scrollTo js/window 0 0)
+                      (on-click-tab)))}
+       [:span {:style (when-not (= 0 (:subscription_id order))
+                        {:color "#5cb85c"})}  (:customer_name order)]]]
      ;; phone #
      [:td [TelephoneNumber (:customer_phone_number order)]]
      ;; email
@@ -897,8 +920,7 @@
                                            (reset! sort-keyword
                                                    :target_time_end)
                                            (reset! current-page 1)
-                                           (table-pager-on-click))
-            ]
+                                           (table-pager-on-click))]
         (when (nil? @current-order)
           (table-pager-on-click))
         [:div {:class "panel panel-default"}

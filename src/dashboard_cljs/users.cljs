@@ -12,6 +12,7 @@
                                           parse-to-number? diff-message
                                           accessible-routes get-event-time now
                                           update-values]]
+            [dashboard-cljs.state :refer [users-state]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton KeyVal StarRating
@@ -27,25 +28,7 @@
 
 (def push-selected-users (r/atom (set nil)))
 
-(def default-user {:editing? false
-                   :retrieving? false
-                   :referral_comment ""
-                   :errors nil})
-
-(def state (r/atom {:confirming? false
-                    :confirming-edit? false
-                    :current-user nil
-                    :edit-user default-user
-                    :alert-success ""
-                    :view-log? false
-                    :users-count 0
-                    :members-count 0
-                    :tab-content-toggle {}
-                    :user-orders-current-page 1
-                    :search-retrieving? false
-                    :search-results #{}
-                    :recent-search-term ""
-                    :search-term ""}))
+(def state users-state)
 
 (defn update-user-count
   []
@@ -676,31 +659,47 @@
           recent-search-term (r/cursor state [:recent-search-term])
           search-results (r/cursor state [:search-results])
           users-search-results (r/cursor search-results [:users])]
-      [:div {:class "row"}
-       [:div {:class "col-lg-12 col-lg-12"}
-        (when @retrieving?
-          (.scrollTo js/window 0 0)
-          [:h4 "Retrieving results for \""
-           [:strong
-            {:style {:white-space "pre"}}
-            @search-term]
-           "\" "
-           [:i {:class "fa fa-spinner fa-pulse"
-                :style {:color "black"}}]])
-        (when-not @retrieving?
-          (when (and (empty? @users-search-results)
-                     (not (s/blank? @recent-search-term))
-                     (not @retrieving?))
-            [:h4 "Your search - \""
-             [:strong {:style {:white-space "pre"}}
-              @recent-search-term]
-             \"" - did not match any users."])
-          (when-not (empty? @users-search-results)
+      (when-not (nil? (and @search-term @recent-search-term))
+        [:div {:class "row" :id "search-results"}
+         [:div {:class "col-lg-12 col-lg-12"}
+          (when @retrieving?
+            (.scrollTo js/window 0 0)
+            [:h4 "Retrieving results for \""
+             [:strong
+              {:style {:white-space "pre"}}
+              @search-term]
+             "\" "
+             [:i {:class "fa fa-spinner fa-pulse"
+                  :style {:color "black"}}]])
+          (when-not @retrieving?
             [:div
-             [:h4 "Users matching - \""
-              [:strong {:style {:white-space "pre"}}
-               @recent-search-term] "\""]
-             [search-users-results-panel @users-search-results state]]))]])))
+             (when (and (empty? @users-search-results)
+                        (not (s/blank? @recent-search-term))
+                        (not @retrieving?))
+               [:div [:h4 "Your search - \""
+                      [:strong {:style {:white-space "pre"}}
+                       @recent-search-term]
+                      \"" - did not match any users."]])
+             (when-not (empty? @users-search-results)
+               [:div
+                [:h4 "Users matching - \""
+                 [:strong {:style {:white-space "pre"}}
+                  @recent-search-term] "\""]
+                [search-users-results-panel @users-search-results state]])])]]))))
+
+(defn cross-link-result
+  "Retrieve and display user-id when clicked from an internal cross-link"
+  [state]
+  (fn []
+    (let [search-term (r/cursor state [:search-term])
+          recent-search-term (r/cursor state [:recent-search-term])
+          current-user (r/cursor state [:current-user])]
+      (when (nil? (and @search-term @recent-search-term))
+        (when-not (nil? @current-user)
+          [:div
+           [:br]
+           [user-panel current-user state]])))))
+
 
 ;; (defn user-notification-header
 ;;   "props is:
