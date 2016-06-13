@@ -521,8 +521,10 @@
            [TableFilterButtonGroup {:hide-counts #{"Show All"}
                                     :on-click (fn [_]
                                                 (reset! current-page 1)
-                                                (table-pager-on-click))}
-            filters coupons selected-filter]]
+                                                (table-pager-on-click))
+                                    :filters filters
+                                    :data coupons
+                                    :selected-filter selected-filter}]]
           [:div {:class "btn-toolbar"
                  :role "toolbar"}
            [:div {:class "btn-group"
