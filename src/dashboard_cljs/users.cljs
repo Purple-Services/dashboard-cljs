@@ -11,7 +11,7 @@
                                           integer->comma-sep-string
                                           parse-to-number? diff-message
                                           accessible-routes get-event-time now
-                                          update-values]]
+                                          update-values select-toggle-key!]]
             [dashboard-cljs.state :refer [users-state]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
@@ -129,7 +129,7 @@
             (quot 50)
             markets)]
        ;; orders count
-       [:td (count orders)]
+       [:td (:orders_count user)]
        ;; email
        [:td [Mailto (:email user)]]
        ;; phone
@@ -458,7 +458,8 @@
         current-page (r/cursor state [:user-orders-current-page])
         page-size 5
         edit-user    (r/cursor state [:edit-user])
-        view-log?    (r/cursor state [:view-log?])]
+        view-log?    (r/cursor state [:view-log?])
+        toggle       (r/atom {})]
     (fn [current-user]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -478,7 +479,8 @@
             most-recent-order (->> orders
                                    (sort-by :target_time_start)
                                    first)
-            toggle (r/cursor state [:tab-content-toggle])]
+            ;;toggle (r/cursor state [:tab-content-toggle])
+            ]
         ;; edit-user should correspond to current-user
         (when-not (:editing? @edit-user)
           (reset! edit-user (assoc @edit-user
@@ -489,6 +491,9 @@
                   (assoc @current-user
                          :last_active (:target_time_start
                                        most-recent-order))))
+        (when-not (> (count paginated-orders)
+                     0)
+          (select-toggle-key! toggle :info-view))
         [:div {:class "panel-body"}
          ;; populate the current user with additional information
          [:div {:class "row"}
@@ -635,7 +640,8 @@
                                 (reset! search-term
                                         (-> e
                                             (aget "target")
-                                            (aget "value"))))}]
+                                            (aget "value"))))
+                   :value @search-term}]
           [:div {:class "input-group-btn"}
            [:button {:class "btn btn-default"
                      :type "submit"

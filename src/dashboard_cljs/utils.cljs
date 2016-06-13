@@ -253,3 +253,11 @@
                 "M-D-YYYY") orders))]
     ;; assuming there are orders everyday, for now
     (sort-by first completed-order-count-per-day-non-zero)))
+
+(defn select-toggle-key!
+  [toggle toggle-key]
+  "Given an atom toggle and toggle-key, select only toggle-key"
+  (swap! toggle update-values
+         (fn [el] false))
+  (swap! toggle
+         assoc toggle-key true))

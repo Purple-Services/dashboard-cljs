@@ -28,7 +28,8 @@
                                           declined-payment?
                                           current-order?
                                           get-event-time
-                                          get-by-id now update-values]]
+                                          get-by-id now update-values
+                                          select-toggle-key!]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps
                                                on-click-tab]]
@@ -125,10 +126,7 @@
                                                 [:search-term])]
                       (reset! recent-search-term nil)
                       (reset! search-term nil)
-                      (swap! tab-content-toggle update-values
-                             (fn [el] false))
-                      (swap! tab-content-toggle
-                             assoc :users-view true)
+                      (select-toggle-key! tab-content-toggle :users-view)
                       (retrieve-entity "user" (:user_id order)
                                        (fn [user]
                                          (reset! current-user (first user))))
