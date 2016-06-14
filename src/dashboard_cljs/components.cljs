@@ -442,7 +442,8 @@
 (defn ProcessingIcon
   []
   (fn []
-    [:i {:class "fa fa-lg fa-spinner fa-pulse "}]))
+    [:i {:class "fa fa-lg fa-spinner fa-pulse "
+         :style {:color "black"}}]))
 
 (defn EditFormSubmit
   [props]

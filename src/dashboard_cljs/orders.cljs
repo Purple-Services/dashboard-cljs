@@ -125,7 +125,7 @@
                           search-term (r/cursor users-state
                                                 [:search-term])
                           retrieving? (r/cursor users-state
-                                               [:cross-link-retrieving])]
+                                               [:cross-link-retrieving?])]
                       (reset! retrieving? true)
                       (reset! recent-search-term nil)
                       (reset! search-term nil)

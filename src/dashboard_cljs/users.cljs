@@ -556,13 +556,35 @@
                                {:sort-keyword sort-keyword
                                 :sort-reversed? sort-reversed?}]
                 :table-row (user-orders-row)}
-               paginated-orders]]
+               paginated-orders]
+              (when @(r/cursor state [:user-orders-retrieving?])
+                [:h4 "Retrieving orders.." [ProcessingIcon]])]
              [:div {:style (when-not (> (count paginated-orders)
                                         0)
                              {:display "none"})}
               [TablePager
                {:total-pages (count sorted-orders)
                 :current-page current-page}]]]]]]]))))
+
+(defn get-user-orders
+  "Retrieve orders for user-id and insert them into the datastore"
+  [user-id retrieving?]
+  (reset! retrieving? true)
+  (retrieve-url
+   (str base-url "users/orders/"
+        user-id)
+   "GET"
+   {}
+   (partial
+    xhrio-wrapper
+    (fn [response]
+      (let [orders (js->clj
+                    response
+                    :keywordize-keys true)]
+        (reset! retrieving? false)
+        (put! datastore/modify-data-chan
+              {:topic "orders"
+               :data orders}))))))
 
 (defn search-users-results-panel
   "Display a table of selectable users with an indivdual user panel
@@ -587,8 +609,12 @@
                                   (nth (- @current-page 1)
                                        '())))
             table-pager-on-click (fn []
-                                   (reset! current-user
-                                           (first (paginated-users))))]
+                                   (let [first-user (first (paginated-users))]
+                                     (get-user-orders
+                                      (:id first-user)
+                                      (r/cursor state
+                                                [:user-orders-retrieving?]))
+                                     (reset! current-user first-user)))]
         (when (nil? @current-user)
           (table-pager-on-click))
         (reset-edit-user! edit-user current-user)
@@ -666,33 +692,33 @@
           recent-search-term (r/cursor state [:recent-search-term])
           search-results (r/cursor state [:search-results])
           users-search-results (r/cursor search-results [:users])]
-      (when-not (nil? (and @search-term @recent-search-term))
-        [:div {:class "row" :id "search-results"}
-         [:div {:class "col-lg-12 col-lg-12"}
-          (when @retrieving?
-            (.scrollTo js/window 0 0)
-            [:h4 "Retrieving results for \""
-             [:strong
-              {:style {:white-space "pre"}}
-              @search-term]
-             "\" "
-             [:i {:class "fa fa-spinner fa-pulse"
-                  :style {:color "black"}}]])
-          (when-not @retrieving?
-            [:div
-             (when (and (empty? @users-search-results)
-                        (not (s/blank? @recent-search-term))
-                        (not @retrieving?))
-               [:div [:h4 "Your search - \""
-                      [:strong {:style {:white-space "pre"}}
-                       @recent-search-term]
-                      \"" - did not match any users."]])
-             (when-not (empty? @users-search-results)
-               [:div
-                [:h4 "Users matching - \""
-                 [:strong {:style {:white-space "pre"}}
-                  @recent-search-term] "\""]
-                [search-users-results-panel @users-search-results state]])])]]))))
+      [:div
+       (when @retrieving?
+         (.scrollTo js/window 0 0)
+         [:h4 "Retrieving results for \""
+          [:strong
+           {:style {:white-space "pre"}}
+           @search-term]
+          "\" "
+          [ProcessingIcon]])
+       (when-not (nil? (and @search-term @recent-search-term))
+         [:div {:class "row" :id "search-results"}
+          [:div {:class "col-lg-12 col-lg-12"}
+           (when-not @retrieving?
+             [:div
+              (when (and (empty? @users-search-results)
+                         (not (s/blank? @recent-search-term))
+                         (not @retrieving?))
+                [:div [:h4 "Your search - \""
+                       [:strong {:style {:white-space "pre"}}
+                        @recent-search-term]
+                       \"" - did not match any users."]])
+              (when-not (empty? @users-search-results)
+                [:div
+                 [:h4 "Users matching - \""
+                  [:strong {:style {:white-space "pre"}}
+                   @recent-search-term] "\""]
+                 [search-users-results-panel @users-search-results state]])])]])])))
 
 (defn cross-link-result
   "Retrieve and display user-id when clicked from an internal cross-link"
@@ -701,17 +727,21 @@
     (let [search-term (r/cursor state [:search-term])
           recent-search-term (r/cursor state [:recent-search-term])
           current-user (r/cursor state [:current-user])
-          retrieving? (r/cursor state [:cross-link-retrieving])
+          retrieving? (r/cursor state [:cross-link-retrieving?])
           ]
-      (when (nil? (and @search-term @recent-search-term))
-        (when-not (nil? @current-user)
-          [:div
-           [:br]
-           (if @retrieving?
-             [:h4  "Retrieving information for " (:name @current-user) " "
-              [:i {:class "fa fa-spinner fa-pulse"
-                   :style {:color "black"}}]]
-             [user-panel current-user state])])))))
+      [:div
+       (when @retrieving?
+         [:h4  "Retrieving user information "
+          [:i {:class "fa fa-spinner fa-pulse"
+               :style {:color "black"}}]])
+       (when (nil? (and @search-term @recent-search-term))
+         (when-not (nil? @current-user)
+           (get-user-orders (:id @current-user)
+                            (r/cursor state [:user-orders-retrieving?]))
+           [:div
+            [:br]
+            (when-not @retrieving?
+              [user-panel current-user state])]))])))
 
 
 ;; (defn user-notification-header

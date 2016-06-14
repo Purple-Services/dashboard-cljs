@@ -27,4 +27,5 @@
                           :search-results #{}
                           :recent-search-term ""
                           :search-term ""
-                          :cross-link-retrieving false}))
+                          :cross-link-retrieving? false
+                          :user-orders-retrieving? false}))
