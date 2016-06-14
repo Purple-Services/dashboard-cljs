@@ -67,6 +67,29 @@
   (:reason (get-by-id cancellation-reasons
                       id)))
 
+(defn user-cross-link-on-click
+  "Go to user-id in users panel"
+  [user-id]
+  (let [tab-content-toggle (r/cursor landing-state
+                                     [:tab-content-toggle])
+        current-user (r/cursor users-state [:current-user])
+        recent-search-term (r/cursor users-state
+                                     [:recent-search-term])
+        search-term (r/cursor users-state
+                              [:search-term])
+        retrieving? (r/cursor users-state
+                              [:cross-link-retrieving?])]
+    (reset! retrieving? true)
+    (reset! recent-search-term nil)
+    (reset! search-term nil)
+    (select-toggle-key! tab-content-toggle :users-view)
+    (retrieve-entity "user" user-id
+                     (fn [user]
+                       (reset! retrieving? false)
+                       (reset! current-user (first user))))
+    (.scrollTo js/window 0 0)
+    (on-click-tab)))
+
 (defn order-row
   "A table row for an order in a table. current-order is the one currently being
   viewed"
@@ -116,26 +139,7 @@
      ;; username
      [:td
       [UserCrossLink
-       {:on-click (fn []
-                    (let [tab-content-toggle (r/cursor landing-state
-                                                       [:tab-content-toggle])
-                          current-user (r/cursor users-state [:current-user])
-                          recent-search-term (r/cursor users-state
-                                                       [:recent-search-term])
-                          search-term (r/cursor users-state
-                                                [:search-term])
-                          retrieving? (r/cursor users-state
-                                               [:cross-link-retrieving?])]
-                      (reset! retrieving? true)
-                      (reset! recent-search-term nil)
-                      (reset! search-term nil)
-                      (select-toggle-key! tab-content-toggle :users-view)
-                      (retrieve-entity "user" (:user_id order)
-                                       (fn [user]
-                                         (reset! retrieving? false)
-                                         (reset! current-user (first user))))
-                      (.scrollTo js/window 0 0)
-                      (on-click-tab)))}
+       {:on-click (fn [] (user-cross-link-on-click (:user_id order)))}
        [:span {:style (when-not (= 0 (:subscription_id order))
                         {:color "#5cb85c"})}  (:customer_name order)]]]
      ;; phone #
@@ -718,7 +722,11 @@
                               :border "solid 2px #ddd"
                               :padding-left "5px"}}
                 ;;  name
-                [:h5 (:customer_name @order)
+                [:h5 [UserCrossLink
+                      {:on-click (fn []
+                                   (user-cross-link-on-click
+                                    (:user_id @order)))}
+                      (:customer_name @order)]
                  (when-not (= 0 (:subscription_id @order))
                    [:span {:style {:color "#5cb85c"}}
                     " Purple Plus Member"])]

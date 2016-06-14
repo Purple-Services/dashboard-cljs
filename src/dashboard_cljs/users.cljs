@@ -4,7 +4,7 @@
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.forms :refer [entity-save retrieve-entity
                                           edit-on-success edit-on-error]]
-            [dashboard-cljs.orders :refer [order-row order-table-header]]
+            [dashboard-cljs.orders :refer [user-cross-link-on-click]]
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt
                                           unix-epoch->hrf markets
                                           json-string->clj pager-helper!
@@ -23,7 +23,7 @@
                                                TextAreaInput ViewHideButton
                                                TelephoneNumber Mailto
                                                GoogleMapLink Tab TabContent
-                                               ProcessingIcon]]
+                                               ProcessingIcon UserCrossLink]]
             [clojure.set :refer [subset?]]
             [clojure.string :as s]))
 
@@ -119,9 +119,11 @@
                         (reset! (r/cursor state [:user-orders-current-page]) 1))
             }
        ;; name
-       [:td {:style (when-not (= 0 (:subscription_id user))
-                      {:color "#5cb85c"})}
-        (:name user)]
+       [:td
+        [UserCrossLink
+         {:on-click (fn [] (user-cross-link-on-click (:id user)))}
+         [:span {:style (when-not (= 0 (:subscription_id user))
+                          {:color "#5cb85c"})}  (:name user)]]]
        ;; market
        [:td
         (-> orders
