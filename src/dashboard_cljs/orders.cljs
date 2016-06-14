@@ -123,12 +123,16 @@
                           recent-search-term (r/cursor users-state
                                                        [:recent-search-term])
                           search-term (r/cursor users-state
-                                                [:search-term])]
+                                                [:search-term])
+                          retrieving? (r/cursor users-state
+                                               [:cross-link-retrieving])]
+                      (reset! retrieving? true)
                       (reset! recent-search-term nil)
                       (reset! search-term nil)
                       (select-toggle-key! tab-content-toggle :users-view)
                       (retrieve-entity "user" (:user_id order)
                                        (fn [user]
+                                         (reset! retrieving? false)
                                          (reset! current-user (first user))))
                       (.scrollTo js/window 0 0)
                       (on-click-tab)))}

@@ -22,7 +22,8 @@
                                                SubmitDismissConfirmGroup
                                                TextAreaInput ViewHideButton
                                                TelephoneNumber Mailto
-                                               GoogleMapLink Tab TabContent]]
+                                               GoogleMapLink Tab TabContent
+                                               ProcessingIcon]]
             [clojure.set :refer [subset?]]
             [clojure.string :as s]))
 
@@ -699,12 +700,18 @@
   (fn []
     (let [search-term (r/cursor state [:search-term])
           recent-search-term (r/cursor state [:recent-search-term])
-          current-user (r/cursor state [:current-user])]
+          current-user (r/cursor state [:current-user])
+          retrieving? (r/cursor state [:cross-link-retrieving])
+          ]
       (when (nil? (and @search-term @recent-search-term))
         (when-not (nil? @current-user)
           [:div
            [:br]
-           [user-panel current-user state]])))))
+           (if @retrieving?
+             [:h4  "Retrieving information for " (:name @current-user) " "
+              [:i {:class "fa fa-spinner fa-pulse"
+                   :style {:color "black"}}]]
+             [user-panel current-user state])])))))
 
 
 ;; (defn user-notification-header

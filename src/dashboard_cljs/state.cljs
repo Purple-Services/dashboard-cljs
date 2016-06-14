@@ -26,4 +26,5 @@
                           :search-retrieving? false
                           :search-results #{}
                           :recent-search-term ""
-                          :search-term ""}))
+                          :search-term ""
+                          :cross-link-retrieving false}))
