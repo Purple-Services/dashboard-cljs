@@ -11,9 +11,11 @@
         cljs-response (js->clj response :keywordize-keys true)]
     (if (:success cljs-response)
       (do
-        (cookies/set-cookie! "token" (:token cljs-response))
+        (cookies/set-cookie! "token" (:token cljs-response)
+                             7776000)
         (cookies/set-cookie! "user-id" (get-in cljs-response
-                                               [:user :id]))
+                                               [:user :id])
+                             7776000)
         (aset js/window "location" base-url))
       (aset error-div "textContent"
             (str "Error: " (:message cljs-response))))))
