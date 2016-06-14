@@ -450,6 +450,26 @@
            [AlertSuccess {:message @alert-success
                           :dismiss #(reset! alert-success "")}])]))))
 
+(defn get-user-orders
+  "Retrieve orders for user-id and insert them into the datastore"
+  [user-id retrieving?]
+  (reset! retrieving? true)
+  (retrieve-url
+   (str base-url "users/orders/"
+        user-id)
+   "GET"
+   {}
+   (partial
+    xhrio-wrapper
+    (fn [response]
+      (let [orders (js->clj
+                    response
+                    :keywordize-keys true)]
+        (reset! retrieving? false)
+        (put! datastore/modify-data-chan
+              {:topic "orders"
+               :data orders}))))))
+
 (defn user-panel
   "Display detailed and editable fields for an user. current-user is an
   r/atom"
@@ -460,7 +480,9 @@
         page-size 5
         edit-user    (r/cursor state [:edit-user])
         view-log?    (r/cursor state [:view-log?])
-        toggle       (r/atom {})]
+        toggle       (r/atom {})
+        retrieving? (r/cursor state [:user-orders-retrieving?])
+        ]
     (fn [current-user]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -546,6 +568,11 @@
            {:toggle (r/cursor toggle [:orders-view])}
            [:div {:class "row"}
             [:div {:class "col-lg-12 col-xs-12"}
+             [:div {:style {:margin-top "1em"}}
+              [RefreshButton {:refresh-fn (fn [refreshing?]
+                                            (get-user-orders (:id @current-user)
+                                                             refreshing?))
+                              :refreshing? retrieving?}]]
              ;; Table of orders for current user
              [:div {:class "table-responsive"
                     :style (when-not (> (count paginated-orders)
@@ -557,34 +584,15 @@
                                 :sort-reversed? sort-reversed?}]
                 :table-row (user-orders-row)}
                paginated-orders]
-              (when @(r/cursor state [:user-orders-retrieving?])
-                [:h4 "Retrieving orders.." [ProcessingIcon]])]
+              (when @retrieving?
+                ;;[:h4 "Retrieving orders.." [ProcessingIcon]]
+                )]
              [:div {:style (when-not (> (count paginated-orders)
                                         0)
                              {:display "none"})}
               [TablePager
                {:total-pages (count sorted-orders)
                 :current-page current-page}]]]]]]]))))
-
-(defn get-user-orders
-  "Retrieve orders for user-id and insert them into the datastore"
-  [user-id retrieving?]
-  (reset! retrieving? true)
-  (retrieve-url
-   (str base-url "users/orders/"
-        user-id)
-   "GET"
-   {}
-   (partial
-    xhrio-wrapper
-    (fn [response]
-      (let [orders (js->clj
-                    response
-                    :keywordize-keys true)]
-        (reset! retrieving? false)
-        (put! datastore/modify-data-chan
-              {:topic "orders"
-               :data orders}))))))
 
 (defn search-users-results-panel
   "Display a table of selectable users with an indivdual user panel
