@@ -71,6 +71,10 @@
            "weekly" {:from-date (-> (js/moment)
                                     (.startOf "year")
                                     (.unix))
+                     :to-date (now)}
+           "monthly" {:from-date (-> (js/moment)
+                                    (.startOf "year")
+                                    (.unix))
                      :to-date (now)})))
 
 
@@ -355,7 +359,8 @@
         filename (r/atom "no-data")
         timeframe-id->timeframe-str {"t0" "hourly"
                                      "t1" "daily"
-                                     "t2" "weekly"}
+                                     "t2" "weekly"
+                                     "t3" "monthly"}
         timeframe-id (r/atom "t1")
         refresh-fn (fn [refreshing?]
                      (reset! refreshing? true)
@@ -400,7 +405,8 @@
          [Select {:value timeframe-id
                   :options #{{:id "t0" :display-key "hourly"}
                              {:id "t1"  :display-key "daily"}
-                             {:id "t2" :display-key "weekly"}}
+                             {:id "t2" :display-key "weekly"}
+                             {:id "t3" :display-key "monthly"}}
                   :display-key :display-key}]
          [:div {:class "form-group"
                 :style {:margin-left "1px"}}
