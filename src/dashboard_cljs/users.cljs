@@ -541,7 +541,7 @@
               [Tab {:default? false
                     :toggle-key :orders-view
                     :toggle toggle}
-               "Orders"])]]]
+               (str "Orders (" (count orders) ")")])]]]
          ;; main display panel
          [:div {:class "tab-content"}
           [TabContent {:toggle (r/cursor toggle [:info-view])}
