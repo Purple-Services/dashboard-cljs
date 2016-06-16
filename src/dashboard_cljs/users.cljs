@@ -472,6 +472,13 @@
               {:topic "orders"
                :data orders}))))))
 
+(defn current-user-change!
+  "Whenever the current user changes, do some work"
+  [current-user]
+  (when-not (nil? @current-user)
+    (let [retrieving? (r/cursor state [:user-orders-retrieving?])]
+      (get-user-orders (:id @current-user) retrieving?))))
+
 (defn user-panel
   "Display detailed and editable fields for an user. current-user is an
   r/atom"
@@ -483,8 +490,7 @@
         edit-user    (r/cursor state [:edit-user])
         view-log?    (r/cursor state [:view-log?])
         toggle       (r/atom {})
-        retrieving? (r/cursor state [:user-orders-retrieving?])
-        ]
+        retrieving? (r/cursor state [:user-orders-retrieving?])]
     (fn [current-user]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -504,18 +510,12 @@
             most-recent-order (->> orders
                                    (sort-by :target_time_start)
                                    first)
-            ;;toggle (r/cursor state [:tab-content-toggle])
-            ]
+            current-user-update @(r/track current-user-change! current-user)]
         ;; edit-user should correspond to current-user
         (when-not (:editing? @edit-user)
           (reset! edit-user (assoc @edit-user
                                    :last_active (:target_time_start
                                                  most-recent-order))))
-        (when-not (nil? @current-user)
-          (reset! current-user
-                  (assoc @current-user
-                         :last_active (:target_time_start
-                                       most-recent-order))))
         (when-not (> (count paginated-orders)
                      0)
           (select-toggle-key! toggle :info-view))
@@ -585,10 +585,7 @@
                                {:sort-keyword sort-keyword
                                 :sort-reversed? sort-reversed?}]
                 :table-row (user-orders-row)}
-               paginated-orders]
-              (when @retrieving?
-                ;;[:h4 "Retrieving orders.." [ProcessingIcon]]
-                )]
+               paginated-orders]]
              [:div {:style (when-not (> (count paginated-orders)
                                         0)
                              {:display "none"})}
@@ -620,10 +617,6 @@
                                        '())))
             table-pager-on-click (fn []
                                    (let [first-user (first (paginated-users))]
-                                     (get-user-orders
-                                      (:id first-user)
-                                      (r/cursor state
-                                                [:user-orders-retrieving?]))
                                      (reset! current-user first-user)))]
         (when (nil? @current-user)
           (table-pager-on-click))
@@ -746,8 +739,6 @@
                :style {:color "black"}}]])
        (when (nil? (and @search-term @recent-search-term))
          (when-not (nil? @current-user)
-           (get-user-orders (:id @current-user)
-                            (r/cursor state [:user-orders-retrieving?]))
            [:div
             [:br]
             (when-not @retrieving?
