@@ -658,9 +658,10 @@
 (defn UserCrossLink
   "A link to the user page for a particular user"
   [props child]
-  (fn [{:keys [on-click]} props]
-    [:a {:href "#"
-         :on-click (fn [e]
-                     (.preventDefault e)
-                     (on-click))}
-     child]))
+  (fn [props child]
+    (let [{:keys [on-click]} props]
+      [:a {:href "#"
+           :on-click (fn [e]
+                       (.preventDefault e)
+                       (on-click))}
+       child])))
