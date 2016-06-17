@@ -36,7 +36,8 @@
 (def default-courier {:editing? false
                       :retrieving? false
                       :zones ""
-                      :errors nil})
+                      :errors nil
+                      :active nil})
 
 (def state (r/atom {:edit-courier default-courier
                     :current-courier nil
@@ -272,11 +273,13 @@
         alert-success (r/cursor state [:alert-success])
         errors (r/cursor edit-courier [:errors])
         zones (r/cursor edit-courier [:zones])
+        active? (r/cursor edit-courier [:active])
         zones->str (fn [zones] (-> zones
                                    sort
                                    clj->js
                                    .join))
-        diff-key-str {:zones "Assigned Zones"}
+        diff-key-str {:zones "Assigned Zones"
+                      :active "Active?"}
         diff-msg-gen (fn [edit current] (diff-message
                                          edit
                                          (displayed-courier current)
@@ -317,13 +320,24 @@
        [KeyVal "Date Started" (unix-epoch->fmt
                                (:timestamp_created @current-courier)
                                "M/D/YYYY")]
-       ;; last active (last ping)
-       [KeyVal "Last Active" (unix-epoch->fmt
-                              (:last_ping @current-courier)
-                              "M/D/YYYY h:mm A")]
-       ;; courier zones
+       ;; last seen (last ping)
+       [KeyVal "Last Seen" (unix-epoch->fmt
+                            (:last_ping @current-courier)
+                            "M/D/YYYY h:mm A")]
        (if @editing?
          [:div
+          ;; active?
+          [FormGroup {:label (str "Active ")
+                      :label-for "courier is active?"}
+           [:input {:type "checkbox"
+                    :checked @active?
+                    :style {:margin-left "4px"}
+                    :on-change #(reset!
+                                 active?
+                                 (-> %
+                                     (aget "target")
+                                     (aget "checked")))}]]
+          ;; courier zones
           [FormGroup {:label "Assigned Zones"
                       :label-for "courier zones"
                       :errors (:zones @errors)}
@@ -334,7 +348,11 @@
                                     (-> %
                                         (aget "target")
                                         (aget "value")))}]]]
-         [KeyVal "Assigned Zones" (zones->str (:zones @current-courier))])
+         [:div
+          [KeyVal "Active" (if (:active @current-courier)
+                             "Yes"
+                             "No")]
+          [KeyVal "Assigned Zones" (zones->str (:zones @current-courier))]])
        (when (subset? #{{:uri "/courier"
                          :method "PUT"}}
                       @accessible-routes)
@@ -525,8 +543,10 @@
         sort-reversed? (r/atom false)
         current-page (r/atom 1)
         page-size 15
-        filters {"Show All" {:filter-fn (constantly true)}
-                 "Connected" {:filter-fn :connected}}
+        filters {"Active" {:filter-fn :active}
+                 "Connected" {:filter-fn #(and (:connected %)
+                                               (:on_duty %))}
+                 "Deactivated" {:filter-fn #(not (:active %))}}
         selected-filter (r/atom "Connected")]
     (fn [couriers]
       (let [sort-fn (if @sort-reversed?
@@ -538,7 +558,6 @@
                                    sort-fn
                                    (filter
                                     (:filter-fn (get filters @selected-filter)))
-                                   (filter :active)
                                    (partition-all page-size)))
             paginated-couriers (fn []
                                  (-> (sorted-couriers)
@@ -582,7 +601,7 @@
                                                  (reset! current-page 1)
                                                  (table-pager-on-click))
                                      :filters filters
-                                     :data (->> couriers (filter :active))
+                                     :data couriers
                                      :selected-filter selected-filter}]]
            [:div {:class "btn-toolbar"
                   :role "toolbar"}
