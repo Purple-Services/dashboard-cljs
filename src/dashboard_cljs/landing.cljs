@@ -224,6 +224,7 @@
                               :method "GET"
                               }} @accessible-routes)
               [:div
+               [users/users-count-panel users/state]
                [users/search-bar users/state]
                [users/search-results users/state]
                [users/cross-link-result users/state]])]

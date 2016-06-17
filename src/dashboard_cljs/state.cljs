@@ -28,4 +28,5 @@
                           :recent-search-term ""
                           :search-term ""
                           :cross-link-retrieving? false
-                          :user-orders-retrieving? false}))
+                          :user-orders-retrieving? false
+                          :update-members-count-saving? false}))

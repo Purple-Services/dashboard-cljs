@@ -45,7 +45,7 @@
                                                  (:total (first res)))))))))
 
 (defn update-members-count
-  []
+  [saving?]
   (retrieve-url
    (str base-url "members-count")
    "GET"
@@ -55,14 +55,15 @@
     (fn [response]
       (let [res (js->clj response :keywordize-keys true)]
         (reset! (r/cursor state [:members-count]) (integer->comma-sep-string
-                                                   (:total (first res)))))))))
+                                                   (:total (first res))))
+        (reset! saving? false))))))
 
 (defonce
   users-count-result
   (update-user-count))
 
 (defonce members-count-result
-  (update-members-count))
+  (update-members-count (r/cursor state [:update-members-count-saving?])))
 
 
 (defn displayed-user
@@ -89,6 +90,25 @@
   [edit-user current-user]
   (reset! edit-user
           (displayed-user @current-user)))
+
+(defn users-count-panel
+  [state]
+  (let [saving? (r/cursor state [:update-members-count-saving?])
+        refresh-fn (fn [saving?]
+                     (reset! saving? true)
+                     (update-user-count)
+                     (update-members-count saving?))]
+    (fn []
+      [:div {:class "row"}
+       [:div {:class "col-lg-12 col-xs -12"}
+        [:div
+         [:h3
+          (str "Users (" @(r/cursor state [:users-count]) ") ")
+          [:span {:style {:color "#5cb85c"}}
+           (str  "Members (" @(r/cursor state [:members-count]) ") ")
+           [RefreshButton {:refresh-fn (fn []
+                                         (refresh-fn saving?))
+                           :refreshing? saving?}]]]]]])))
 
 (defn user-row
   "A table row for an user in a table. current-user is the one currently 
