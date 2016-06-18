@@ -544,9 +544,9 @@
         current-page (r/atom 1)
         page-size 15
         filters {"Active" {:filter-fn :active}
+                 "Deactivated" {:filter-fn #(not (:active %))}
                  "Connected" {:filter-fn #(and (:connected %)
-                                               (:on_duty %))}
-                 "Deactivated" {:filter-fn #(not (:active %))}}
+                                               (:on_duty %))}}
         selected-filter (r/atom "Connected")]
     (fn [couriers]
       (let [sort-fn (if @sort-reversed?
