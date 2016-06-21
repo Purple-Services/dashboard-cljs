@@ -337,12 +337,14 @@
   "Update order with status on server. error-message is an r/atom to set
   any associated error messages. retrieving? is an r/atom with a boolean
   to indicate whether or not the client is currently retrieving data
-  from the server. confirming? is a r/atom boolean"
-  [order status error-message retrieving? confirming?]
+  from the server. confirming? is a r/atom boolean. new-status is the status
+  the order will be advanced to"
+  [order new-status error-message retrieving? confirming?]
   (retrieve-url
    (str base-url "update-status")
    "POST"
-   (js/JSON.stringify (clj->js {:order_id (:id @order)}))
+   (js/JSON.stringify (clj->js {:order_id (:id @order)
+                                :new-status  new-status}))
    (partial xhrio-wrapper
             (fn [r]
               (let [response (js->clj r :keywordize-keys true)]
@@ -426,7 +428,9 @@
              :confirm-on-click (fn [e]
                                  (reset! retrieving? true)
                                  (when (= @confirm-action "advance")
-                                   (update-status order status error-message
+                                   (update-status order
+                                                  (status->next-status status)
+                                                  error-message
                                                   retrieving?
                                                   confirming?))
                                  (when (= @confirm-action "cancel")
@@ -869,6 +873,13 @@
                                     @datastore/last-acknowledged-order)
           " New Orders")]))
 
+(defn track-current-order!
+  [orders current-order]
+  "Within orders atom, track when it changes and see if current user is the same
+as in orders. If not, reset the current-order"
+  (let [new-current-order (get-by-id @orders (:id @current-order))]
+    (when (not= new-current-order @current-order)
+      (reset! current-order new-current-order))))
 
 (defn orders-panel
   "Display a table of selectable orders with an indivdual order panel
@@ -930,7 +941,9 @@
                                            (reset! sort-keyword
                                                    :target_time_end)
                                            (reset! current-page 1)
-                                           (table-pager-on-click))]
+                                           (table-pager-on-click))
+            track-orders @(r/track track-current-order! datastore/orders
+                                   current-order)]
         (when (nil? @current-order)
           (table-pager-on-click))
         [:div {:class "panel panel-default"}
