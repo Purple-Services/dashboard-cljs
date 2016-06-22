@@ -507,7 +507,9 @@
       (let [get-etas (fn [order]
                        (refresh-order! order (fn [new-order]
                                                (reset! retrieving? false)
-                                               (reset! order new-order))))]
+                                               (put! datastore/modify-data-chan
+                                                     {:topic "orders"
+                                                      :data #{new-order}}))))]
         [:button {:type "button"
                   :class "btn btn-default btn-xs"
                   :on-click #(when (not @retrieving?)
@@ -879,7 +881,21 @@
 as in orders. If not, reset the current-order"
   (let [new-current-order (get-by-id @orders (:id @current-order))]
     (when (not= new-current-order @current-order)
-      (reset! current-order new-current-order))))
+      (let [old-etas (:etas @current-order)
+            new-etas (:etas new-current-order)
+            new-current-order (cond
+                                ;; there aren't etas
+                                (and (nil? old-etas)
+                                     (nil? new-etas))
+                                new-current-order
+                                ;; there is new-etas
+                                (not (nil? new-etas))
+                                new-current-order
+                                ;; there isn't a new-etas, but there is old-etas
+                                (not (nil? old-etas))
+                                (assoc new-current-order
+                                       :etas old-etas))]
+        (reset! current-order new-current-order)))))
 
 (defn orders-panel
   "Display a table of selectable orders with an indivdual order panel

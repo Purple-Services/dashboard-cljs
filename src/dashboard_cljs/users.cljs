@@ -499,6 +499,106 @@
     (let [retrieving? (r/cursor state [:user-orders-retrieving?])]
       (get-user-orders (:id @current-user) retrieving?))))
 
+(defn user-push-notification
+  "A component for sending push notifications to users"
+  [user]
+  (let [approved?      (r/atom false)
+        confirming?    (r/cursor state [:confirming?])
+        retrieving?    (r/atom false)
+        message        (r/atom (str))
+        alert-success  (r/atom (str))
+        alert-error    (r/atom (str))
+        confirm-on-click (fn [user e]
+                           (let [{:keys [id name]} user]
+                             (reset! retrieving? true)
+                             (retrieve-url
+                              (str base-url "send-push-to-user")
+                              "POST"
+                              (js/JSON.stringify
+                               (clj->js {:message @message
+                                         :user-id id}))
+                              (partial
+                               xhrio-wrapper
+                               (fn [response]
+                                 (reset! retrieving? false)
+                                 (let [success? (:success
+                                                 (js->clj response
+                                                          :keywordize-keys
+                                                          true))]
+                                   (when success?
+                                     ;; confirm message was sent
+                                     (reset! alert-success
+                                             (str "Pushed the message '"
+                                                  @message "' to "
+                                                  name
+                                                  "!")))
+                                   (when (not success?)
+                                     (reset!
+                                      alert-error
+                                      (str "Something went wrong."
+                                           " Push notifications may or may"
+                                           " not have been sent. Wait until"
+                                           " sure before trying again."))))
+                                 (reset! confirming? false)
+                                 (reset! message ""))))))
+        confirmation-message  (fn [username]
+                                (fn []
+                                  [:div
+                                   "Are you sure you want to push the message '"
+                                   [:span [:strong @message]]
+                                   "' to "
+                                   username "?"
+                                   ]))]
+    (fn [user]
+      (let []
+        [:div {:class "panel panel-default"}
+         [:div {:class "panel-body"}
+          [:div [:h4
+                 (str "Send Push Notification to " (:name user))]]
+          (if @confirming?
+            ;; confirmation
+            [ConfirmationAlert
+             {:cancel-on-click (fn [e]
+                                 (reset! confirming? false)
+                                 (reset! message ""))
+              :confirm-on-click (partial confirm-on-click user)
+              :confirmation-message (confirmation-message (:name user))
+              :retrieving? retrieving?}]
+            ;; Message form
+            [:form
+             [:div {:class "form-group"}
+              [:input {:type "text"
+                       :defaultValue ""
+                       :class "form-control"
+                       :placeholder "Message"
+                       :on-change (fn [e]
+                                    (reset! message (-> e
+                                                        (aget "target")
+                                                        (aget "value")))
+                                    (reset! alert-error "")
+                                    (reset! alert-success ""))}]]
+             [:button {:type "submit"
+                       :class "btn btn-default"
+                       :on-click (fn [e]
+                                   (.preventDefault e)
+                                   (when (not (empty? @message))
+                                     (reset! confirming? true)))
+                       :disabled (s/blank? @message)}
+              "Send Notification"]])
+          ;; alert message
+          (when (not (empty? @alert-success))
+            [:div {:class "alert alert-success alert-dismissible"}
+             [:button {:type "button"
+                       :class "close"
+                       :aria-label "Close"}
+              [:i {:class "fa fa-times"
+                   :on-click #(reset! alert-success "")}]]
+             [:strong @alert-success]])
+          ;; alert error
+          (when (not (empty? @alert-error))
+            [:div {:class "alert alert-danger"}
+             @alert-error])]]))))
+
 (defn user-panel
   "Display detailed and editable fields for an user. current-user is an
   r/atom"
@@ -510,7 +610,9 @@
         edit-user    (r/cursor state [:edit-user])
         view-log?    (r/cursor state [:view-log?])
         toggle       (r/atom {})
-        retrieving? (r/cursor state [:user-orders-retrieving?])]
+        retrieving? (r/cursor state [:user-orders-retrieving?])
+        orders-view-toggle? (r/cursor toggle [:orders-view])
+        push-view-toggle?   (r/cursor toggle [:push-view])]
     (fn [current-user]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -536,14 +638,22 @@
           (reset! edit-user (assoc @edit-user
                                    :last_active (:target_time_start
                                                  most-recent-order))))
-        (when-not (> (count paginated-orders)
-                     0)
+        ;; Make sure that orders view is not selected when a user has no orders
+        (when (and (<= (count paginated-orders)
+                       0)
+                   @orders-view-toggle?)
+          (select-toggle-key! toggle :info-view))
+        ;; Make sure that push-view is not selected when a user has push
+        ;; notifications turned off
+        (when (and (s/blank? (:arn_endpoint @current-user))
+                   @push-view-toggle?)
           (select-toggle-key! toggle :info-view))
         [:div {:class "panel-body"}
          ;; populate the current user with additional information
          [:div {:class "row"}
           [:div {:class "col-xs-12 col-lg-12"}
-           [:div [:h3 {:style {:margin-top 0}} (:name @current-user)
+           [:div [:h3
+                  (:name @current-user)
                   (when-not (= 0 (:subscription_id @current-user))
                     [:span {:style {:color "#5cb85c"
                                     :font-size "0.7em !important"}}
@@ -561,11 +671,23 @@
               [Tab {:default? false
                     :toggle-key :orders-view
                     :toggle toggle}
-               (str "Orders (" (count orders) ")")])]]]
+               (str "Orders (" (count orders) ")")])
+            ;; (when-not (s/blank? (:arn_endpoint @current-user))
+            ;;   [Tab {:default? false
+            ;;         :toggle-key :push-view
+            ;;         :toggle toggle}
+            ;;    "Push Notification"])
+            ]]]
          ;; main display panel
          [:div {:class "tab-content"}
           [TabContent {:toggle (r/cursor toggle [:info-view])}
-           [user-form current-user state]]
+           [:div {:class "row"}
+            [:div {:class "col-lg-12 col-xs-12"}
+             [user-form current-user state]]]]
+          ;; [TabContent {:toggle (r/cursor toggle [:push-view])}
+          ;;  [:div {:class "row"}
+          ;;   [:div {:class "col-lg-6 col-xs-12"}
+          ;;    [user-push-notification @current-user]]]]
           ;; below is for showing user logs,
           ;; implemented, but not used yet
           ;; [:br]
@@ -622,6 +744,7 @@
         sort-keyword (r/atom :timestamp_created)
         sort-reversed? (r/atom false)
         current-page (r/atom 1)
+        recent-search-term (r/cursor state [:recent-search-term])
         page-size 5]
     (fn [users]
       (let [sort-fn (if @sort-reversed?
@@ -644,6 +767,9 @@
         ;; set the edit-user values to match those of current-user
         [:div {:class "panel panel-default"}
          [user-panel current-user state]
+         [:h4 "Users matching - \""
+          [:strong {:style {:white-space "pre"}}
+           @recent-search-term] "\""]
          [:div {:class "panel"
                 :style {:margin-top "15px"}}
           [:div {:class "table-responsive"}
@@ -738,9 +864,6 @@
                        \"" - did not match any users."]])
               (when-not (empty? @users-search-results)
                 [:div
-                 [:h4 "Users matching - \""
-                  [:strong {:style {:white-space "pre"}}
-                   @recent-search-term] "\""]
                  [search-users-results-panel @users-search-results state]])])]])])))
 
 (defn cross-link-result
@@ -760,217 +883,5 @@
        (when (nil? (and @search-term @recent-search-term))
          (when-not (nil? @current-user)
            [:div
-            [:br]
             (when-not @retrieving?
               [user-panel current-user state])]))])))
-
-
-;; (defn user-notification-header
-;;   "props is:
-;;   {
-;;   :sort-keyword   ; reagent atom keyword used to sort table
-;;   :sort-reversed? ; reagent atom boolean for determing if the sort is reversed
-;;   }"
-;;   [props]
-;;   (fn [props]
-;;     [:thead
-;;      [:tr
-;;       [TableHeadSortable
-;;        (conj props {:keyword :name})
-;;        "Name"]
-;;       [TableHeadSortable
-;;        (conj props {:keyword :phone_number})
-;;        "Phone"]
-;;       [TableHeadSortable
-;;        (conj props {:keyword :email})
-;;        "Email"]
-;;       [:th {:style {:font-size "16px"
-;;                     :font-weight "normal"}}
-;;        "Push?"]]]))
-
-;; (defn user-notification-row
-;;   "Table row to display a user"
-;;   []
-;;   (fn [user]
-;;     [:tr
-;;      ;; name
-;;      [:td (:name user)]
-;;      ;;phone
-;;      [:td [TelephoneNumber (:phone_number user)]]
-;;      ;; email
-;;      [:td [Mailto (:email user)]]
-;;      ;; push?
-;;      [:td (if (s/blank? (:arn_endpoint user))
-;;             [:div "No"]
-;;             [:div "Yes "
-;;              [:input {:type "checkbox"
-;;                       :on-change #(let [this-checked? (-> %
-;;                                                           (aget "target")
-;;                                                           (aget "checked"))]
-;;                                     (if this-checked?
-;;                                       ;; add current user id
-;;                                       (swap! push-selected-users
-;;                                              (fn [selected-atom]
-;;                                                (conj selected-atom
-;;                                                      (:id user))))
-;;                                       ;; remove current user id
-;;                                       (swap! push-selected-users
-;;                                              (fn [selected-atom]
-;;                                                (disj selected-atom
-;;                                                      (:id user))))))
-;;                       :checked (contains? @push-selected-users (:id user))}]])]
-;;      ]))
-
-;; (defn user-push-notification
-;;   "A component for sending push notifications to users"
-;;   []
-;;   (let [all-selected?  (r/atom true)
-;;         approved?      (r/atom false)
-;;         confirming?    (r/cursor state [:confirming?])
-;;         retrieving?    (r/atom false)
-;;         message        (r/atom (str))
-;;         alert-success  (r/atom (str))
-;;         alert-error    (r/atom (str))
-;;         sort-keyword   (r/atom :timestamp_created)
-;;         sort-reversed? (r/atom false)
-;;         current-page   (r/atom 1)
-;;         page-size      5]
-;;     (fn []
-;;       (let [sort-fn (if @sort-reversed?
-;;                       (partial sort-by @sort-keyword)
-;;                       (comp reverse (partial sort-by @sort-keyword)))
-;;             displayed-users @datastore/users
-;;             sorted-users (->> displayed-users
-;;                               sort-fn
-;;                               (partition-all page-size))
-;;             paginated-users (-> sorted-users
-;;                                 (nth (- @current-page 1)
-;;                                      '()))]
-;;         [:div {:class "panel panel-default"}
-;;          [:div {:class "panel-body"}
-;;           [:div [:h4 {:class "pull-left"} "Send Push Notification"]
-;;            [:div {:class "btn-toolbar"
-;;                   :role "toolbar"}
-;;             [:div {:class "btn-group"
-;;                    :role "group"}
-;;              [:button {:type "button"
-;;                        :class (str "btn btn-default "
-;;                                    (when @all-selected?
-;;                                      "active"))
-;;                        :on-click (fn [e]
-;;                                    (reset! all-selected? true)
-;;                                    (reset! confirming? false))}
-;;               "All Converted Users"]
-;;              [:button {:type "button"
-;;                        :class (str "btn btn-default "
-;;                                    (when (not @all-selected?)
-;;                                      "active"))
-;;                        :on-click (fn [e]
-;;                                    (reset! all-selected? false)
-;;                                    (reset! confirming? false))}
-;;               "Selected Users"]]]]
-;;           (if @confirming?
-;;             ;; confirmation
-;;             [ConfirmationAlert
-;;              {:cancel-on-click (fn [e]
-;;                                  (reset! confirming? false)
-;;                                  (reset! message ""))
-;;               :confirm-on-click
-;;               (fn [e]
-;;                 (reset! retrieving? true)
-;;                 (retrieve-url
-;;                  (if @all-selected?
-;;                    (str base-url "send-push-to-all-active-users")
-;;                    (str base-url "send-push-to-users-list"))
-;;                  "POST"
-;;                  (js/JSON.stringify
-;;                   (if @all-selected?
-;;                     (clj->js {:message @message})
-;;                     (clj->js {:message @message
-;;                               :user-ids @push-selected-users})))
-;;                  (partial
-;;                   xhrio-wrapper
-;;                   (fn [response]
-;;                     (reset! retrieving? false)
-;;                     (let [success? (:success
-;;                                     (js->clj response
-;;                                              :keywordize-keys
-;;                                              true))]
-;;                       (when success?
-;;                         ;; confirm message was sent
-;;                         (reset! alert-success "Sent!"))
-;;                       (when (not success?)
-;;                         (reset! alert-error
-;;                                 (str "Something went wrong."
-;;                                      " Push notifications may or may"
-;;                                      " not have been sent. Wait until"
-;;                                      " sure before trying again."))))
-;;                     (reset! confirming? false)
-;;                     (reset! message "")))))
-;;               :confirmation-message
-;;               (fn [] [:div (str "Are you sure you want to send the following "
-;;                                 "message to "
-;;                                 (if @all-selected?
-;;                                   "all converted"
-;;                                   "all selected")
-;;                                 " users?")
-;;                       [:h4 [:strong @message]]])
-;;               :retrieving? retrieving?}]
-;;             ;; Message form
-;;             [:form
-;;              [:div {:class "form-group"}
-;;               [:label {:for "notification-message"} "Message"]
-;;               [:input {:type "text"
-;;                        :defaultValue ""
-;;                        :class "form-control"
-;;                        :placeholder "Message"
-;;                        :on-change (fn [e]
-;;                                     (reset! message (-> e
-;;                                                         (aget "target")
-;;                                                         (aget "value")))
-;;                                     (reset! alert-error "")
-;;                                     (reset! alert-success ""))}]]
-;;              [:button {:type "submit"
-;;                        :class "btn btn-default"
-;;                        :on-click (fn [e]
-;;                                    (.preventDefault e)
-;;                                    (when (not (empty? @message))
-;;                                      (reset! confirming? true)))
-;;                        :disabled (and (not @all-selected?)
-;;                                       (empty? @push-selected-users))
-;;                        }
-;;               "Send Notification"]
-;;              ;; clear all selected users
-;;              (when (not @all-selected?)
-;;                [:button {:type "submit"
-;;                          :class "btn btn-default"
-;;                          :on-click (fn [e]
-;;                                      (.preventDefault e)
-;;                                      (reset! push-selected-users (set nil)))}
-;;                 "Clear Selected Users"])])
-;;           ;; alert message
-;;           (when (not (empty? @alert-success))
-;;             [:div {:class "alert alert-success alert-dismissible"}
-;;              [:button {:type "button"
-;;                        :class "close"
-;;                        :aria-label "Close"}
-;;               [:i {:class "fa fa-times"
-;;                    :on-click #(reset! alert-success "")}]]
-;;              [:strong @alert-success]])
-;;           ;; alert error
-;;           (when (not (empty? @alert-error))
-;;             [:div {:class "alert alert-danger"}
-;;              @alert-error])
-;;           ;; selected users table
-;;           (when (not @all-selected?)
-;;             [:div
-;;              [:div {:class "table-responsive"}
-;;               [StaticTable
-;;                {:table-header [user-notification-header
-;;                                {:sort-keyword sort-keyword
-;;                                 :sort-reversed? sort-reversed?}]
-;;                 :table-row (user-notification-row)}
-;;                paginated-users]]
-;;              [TablePager
-;;               {:total-pages (count sorted-users)
-;;                :current-page current-page}]])]]))))
