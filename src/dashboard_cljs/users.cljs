@@ -672,22 +672,24 @@
                     :toggle-key :orders-view
                     :toggle toggle}
                (str "Orders (" (count orders) ")")])
-            ;; (when-not (s/blank? (:arn_endpoint @current-user))
-            ;;   [Tab {:default? false
-            ;;         :toggle-key :push-view
-            ;;         :toggle toggle}
-            ;;    "Push Notification"])
-            ]]]
+            (when (and (not (s/blank? (:arn_endpoint @current-user)))
+                       (subset? #{{:uri "/send-push-to-user"
+                                   :method "POST"}}
+                                @accessible-routes))
+              [Tab {:default? false
+                    :toggle-key :push-view
+                    :toggle toggle}
+               "Push Notification"])]]]
          ;; main display panel
          [:div {:class "tab-content"}
           [TabContent {:toggle (r/cursor toggle [:info-view])}
            [:div {:class "row"}
             [:div {:class "col-lg-12 col-xs-12"}
              [user-form current-user state]]]]
-          ;; [TabContent {:toggle (r/cursor toggle [:push-view])}
-          ;;  [:div {:class "row"}
-          ;;   [:div {:class "col-lg-6 col-xs-12"}
-          ;;    [user-push-notification @current-user]]]]
+          [TabContent {:toggle (r/cursor toggle [:push-view])}
+           [:div {:class "row"}
+            [:div {:class "col-lg-6 col-xs-12"}
+             [user-push-notification @current-user]]]]
           ;; below is for showing user logs,
           ;; implemented, but not used yet
           ;; [:br]
