@@ -131,13 +131,10 @@
                         (reset! (r/cursor state [:alert-success]) "")
                         (when (<= (count (user-orders user))
                                   0)
-                          (swap! (r/cursor state [:tab-content-toggle])
-                                 update-values (fn [el] false))
-                          (reset!
-                           (r/cursor state [:tab-content-toggle :info-view])
-                           true))
-                        (reset! (r/cursor state [:user-orders-current-page]) 1))
-            }
+                          (select-toggle-key!
+                           (r/cursor state [:tab-content-toggle])
+                           :info-view))
+                        (reset! (r/cursor state [:user-orders-current-page]) 1))}
        ;; name
        [:td
         [UserCrossLink
@@ -502,12 +499,19 @@
 (defn user-push-notification
   "A component for sending push notifications to users"
   [user]
-  (let [approved?      (r/atom false)
+  (let [default-state {:approved? false
+                       :confirming? false
+                       :retrieving? false
+                       :message (str)
+                       :alert-success (str)
+                       :alert-error (str)}
+        state (r/atom default-state)
+        approved?      (r/cursor state [:approve?])
         confirming?    (r/cursor state [:confirming?])
-        retrieving?    (r/atom false)
-        message        (r/atom (str))
-        alert-success  (r/atom (str))
-        alert-error    (r/atom (str))
+        retrieving?    (r/cursor state [:retrieving?])
+        message        (r/cursor state [:message])
+        alert-success  (r/cursor state [:alert-success])
+        alert-error    (r/cursor state [:alert-error])
         confirm-on-click (fn [user e]
                            (let [{:keys [id name]} user]
                              (reset! retrieving? true)
@@ -549,55 +553,60 @@
                                    "' to "
                                    username "?"
                                    ]))]
-    (fn [user]
-      (let []
-        [:div {:class "panel panel-default"}
-         [:div {:class "panel-body"}
-          [:div [:h4
-                 (str "Send Push Notification to " (:name user))]]
-          (if @confirming?
-            ;; confirmation
-            [ConfirmationAlert
-             {:cancel-on-click (fn [e]
-                                 (reset! confirming? false)
-                                 (reset! message ""))
-              :confirm-on-click (partial confirm-on-click user)
-              :confirmation-message (confirmation-message (:name user))
-              :retrieving? retrieving?}]
-            ;; Message form
-            [:form
-             [:div {:class "form-group"}
-              [:input {:type "text"
-                       :defaultValue ""
-                       :class "form-control"
-                       :placeholder "Message"
-                       :on-change (fn [e]
-                                    (reset! message (-> e
-                                                        (aget "target")
-                                                        (aget "value")))
-                                    (reset! alert-error "")
-                                    (reset! alert-success ""))}]]
-             [:button {:type "submit"
-                       :class "btn btn-default"
-                       :on-click (fn [e]
-                                   (.preventDefault e)
-                                   (when (not (empty? @message))
-                                     (reset! confirming? true)))
-                       :disabled (s/blank? @message)}
-              "Send Notification"]])
-          ;; alert message
-          (when (not (empty? @alert-success))
-            [:div {:class "alert alert-success alert-dismissible"}
-             [:button {:type "button"
-                       :class "close"
-                       :aria-label "Close"}
-              [:i {:class "fa fa-times"
-                   :on-click #(reset! alert-success "")}]]
-             [:strong @alert-success]])
-          ;; alert error
-          (when (not (empty? @alert-error))
-            [:div {:class "alert alert-danger"}
-             @alert-error])]]))))
+    (r/create-class
+     {:component-will-receive-props
+      (fn [this]
+        (reset! state default-state))
+      :reagent-render
+      (fn [user]
+        (let []
+          [:div {:class "panel panel-default"}
+           [:div {:class "panel-body"}
+            [:div [:h4
+                   (str "Send Push Notification to " (:name user))]]
+            (if @confirming?
+              ;; confirmation
+              [ConfirmationAlert
+               {:cancel-on-click (fn [e]
+                                   (reset! confirming? false)
+                                   (reset! message ""))
+                :confirm-on-click (partial confirm-on-click user)
+                :confirmation-message (confirmation-message (:name user))
+                :retrieving? retrieving?}]
+              ;; Message form
+              [:form
+               [:div {:class "form-group"}
+                [:input {:type "text"
+                         :defaultValue ""
+                         :class "form-control"
+                         :placeholder "Message"
+                         :on-change (fn [e]
+                                      (reset! message (-> e
+                                                          (aget "target")
+                                                          (aget "value")))
+                                      (reset! alert-error "")
+                                      (reset! alert-success ""))}]]
+               [:button {:type "submit"
+                         :class "btn btn-default"
+                         :on-click (fn [e]
+                                     (.preventDefault e)
+                                     (when (not (empty? @message))
+                                       (reset! confirming? true)))
+                         :disabled (s/blank? @message)}
+                "Send Notification"]])
+            ;; alert message
+            (when (not (empty? @alert-success))
+              [:div {:class "alert alert-success alert-dismissible"}
+               [:button {:type "button"
+                         :class "close"
+                         :aria-label "Close"}
+                [:i {:class "fa fa-times"
+                     :on-click #(reset! alert-success "")}]]
+               [:strong @alert-success]])
+            ;; alert error
+            (when (not (empty? @alert-error))
+              [:div {:class "alert alert-danger"}
+               @alert-error])]]))})))
 
 (defn user-panel
   "Display detailed and editable fields for an user. current-user is an

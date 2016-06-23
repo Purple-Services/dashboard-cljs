@@ -28,10 +28,12 @@
             [dashboard-cljs.utils :refer [unix-epoch->fmt unix-epoch->hrf
                                           base-url markets
                                           accessible-routes pager-helper!
-                                          diff-message now get-event-time]]
+                                          diff-message now get-event-time
+                                          select-toggle-key!]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [get-cached-gmaps gmap
-                                               on-click-tab]]))
+                                               on-click-tab]]
+            [dashboard-cljs.users :as users]))
 
 (def default-courier {:editing? false
                       :retrieving? false
@@ -99,9 +101,9 @@
                          (reset! (r/cursor state [:alert-success]) "")
                          (when (<= (count (courier-orders courier))
                                    0)
-                           (reset!
-                            (r/cursor state [:tab-content-toggle :info-view])
-                            true))
+                           (select-toggle-key!
+                            (r/cursor state [:tab-content-toggle])
+                            :info-view))
                          (reset! (r/cursor state [:courier-orders-current-page])
                                  1))}
        ;; name
@@ -429,9 +431,11 @@
   (let [google-marker (atom nil)
         sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
-        ;;show-orders? (r/atom false)
         current-page (r/cursor state [:courier-orders-current-page])
-        page-size 5]
+        page-size 5
+        toggle (r/cursor state [:tab-content-toggle])
+        orders-view-toggle? (r/cursor toggle [:orders-view])
+        push-view-toggle? (r/cursor toggle [:push-view])]
     (fn [current-courier]
       (let [editing-zones? (r/atom false)
             zones-error-message (r/atom "")
@@ -458,8 +462,7 @@
                            (and (subset? #{{:uri "/orders-since-date"
                                             :method "POST"}}
                                          @accessible-routes)
-                                (> (count paginated-orders) 0)))
-            toggle (r/cursor state [:tab-content-toggle])]
+                                (> (count paginated-orders) 0)))]
         ;; create and insert courier marker
         (when (:lat @current-courier)
           (when @google-marker
@@ -471,6 +474,16 @@
                                            :map (second (get-cached-gmaps
                                                          :couriers))
                                            }))))
+        ;; Make sure that orders view is not selected when a courier has no orders
+        (when (and (<= (count paginated-orders)
+                       0)
+                   @orders-view-toggle?)
+          (select-toggle-key! toggle :info-view))
+        ;; Make sure that push-view is not selected when a courier has push
+        ;; notifications turned off
+        (when (and (s/blank? (:arn_endpoint @current-courier))
+                   @push-view-toggle?)
+          (select-toggle-key! toggle :info-view))
         ;; populate the current courier with additional information
         [:div {:class "panel-body"}
          [:div {:class "row"}
@@ -489,6 +502,14 @@
                     :toggle-key :orders-view
                     :toggle toggle}
                "Orders"])
+            (when (and (not (s/blank? (:arn_endpoint @current-courier)))
+                       (subset? #{{:uri "/send-push-to-user"
+                                   :method "POST"}}
+                                @accessible-routes))
+              [Tab {:default? false
+                    :toggle-key :push-view
+                    :toggle toggle}
+               "Push Notification"])
             ;; [Tab {:default? true
             ;;       :toggle-key :history-view
             ;;       :toggle toggle}
@@ -514,6 +535,10 @@
                                  :margin "10px"}
                          :center {:lat (:lat @current-courier)
                                   :lng (:lng @current-courier)}}]]]]]]]
+            [TabContent {:toggle (r/cursor toggle [:push-view])}
+             [:div {:class "row"}
+              [:div {:class "col-lg-6 col-xs-12"}
+               [users/user-push-notification @current-courier]]]]
             [TabContent
              {:toggle (r/cursor toggle [:orders-view])}
              [:div {:class "row"}
