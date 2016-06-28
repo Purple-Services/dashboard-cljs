@@ -398,6 +398,8 @@
                (:exp_month default-card-info)
                "/"
                (:exp_year default-card-info)))])
+         ;; referral code
+         [KeyVal "Referral Code" (:referral_code @user)]
          ;; Referral Gallons
          (if @editing?
            [:div
