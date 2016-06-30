@@ -1,6 +1,6 @@
 (ns dashboard-cljs.users
   (:require [reagent.core :as r]
-            [cljs.core.async :refer [put!]]
+            [cljs.core.async :refer [put! sub chan]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.forms :refer [entity-save retrieve-entity
                                           edit-on-success edit-on-error]]
@@ -30,6 +30,12 @@
 (def push-selected-users (r/atom (set nil)))
 
 (def state users-state)
+
+(def user-search-results (r/cursor state [:search-results :users]))
+
+(datastore/sync-state! user-search-results
+                       (sub
+                        datastore/read-data-chan "user-search-results" (chan)))
 
 (defn update-user-count
   []
@@ -460,7 +466,9 @@
                   (edit-on-success "user" edit-user current-user
                                    alert-success
                                    :aux-fn
-                                   #(reset! confirming? false))
+                                   #(reset! confirming? false)
+                                   :channel-topic "user-search-results"
+                                   )
                   (edit-on-error edit-user
                                  :aux-fn
                                  #(reset! confirming? false))))
@@ -610,6 +618,15 @@
               [:div {:class "alert alert-danger"}
                @alert-error])]]))})))
 
+(defn UserNote
+  "A component for displaying a user note"
+  [note]
+  (fn [{:keys [comment admin_id admin_email timestamp]} note]
+    [:div
+     [:h4 comment]
+     [:h5 (str "- " admin_email) ", "
+      (unix-epoch->fmt timestamp "M/D/YYYY h:mm a")]]))
+
 (defn user-panel
   "Display detailed and editable fields for an user. current-user is an
   r/atom"
@@ -643,7 +660,10 @@
             most-recent-order (->> orders
                                    (sort-by :target_time_start)
                                    first)
-            current-user-update @(r/track current-user-change! current-user)]
+            current-user-update @(r/track current-user-change! current-user)
+            admin-event-log (:admin_event_log @current-user)
+            user-notes (filter #(= (:action %) "user_notes") admin-event-log)
+            ]
         ;; edit-user should correspond to current-user
         (when-not (:editing? @edit-user)
           (reset! edit-user (assoc @edit-user
@@ -695,8 +715,11 @@
          [:div {:class "tab-content"}
           [TabContent {:toggle (r/cursor toggle [:info-view])}
            [:div {:class "row"}
-            [:div {:class "col-lg-12 col-xs-12"}
-             [user-form current-user state]]]]
+            [:div {:class "col-lg-3 col-xs-12"}
+             [user-form current-user state]]
+            (when-not (empty? user-notes)
+              [:div {:class "col-lg-9 col-xs-12"}
+               [UserNote (first user-notes)]])]]
           [TabContent {:toggle (r/cursor toggle [:push-view])}
            [:div {:class "row"}
             [:div {:class "col-lg-6 col-xs-12"}

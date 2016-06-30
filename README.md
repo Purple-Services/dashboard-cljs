@@ -31,11 +31,30 @@ Use cljsbuild to build both dev and prod environments together.
 $ lein cljsbuild auto
 ```
 
-Open both `index.html` with the following chrome command:
+Development environment must be run with a node server using the server.js file.
+The server attempts to find an empty port starting from 8080. You must install
+the portfinder, connect and server-static node nodules.
 
-	/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --disable-web-security --user-data-dir=/tmp/chrome2/ \ index.html
+```bash
+$ sude npm install -g connect serve-static portfinder
+```
 
-Alternatively, create a script named 'chrome-open-file':
+Run the server
+
+```bash
+$ node server.js
+Node Server is listening on port 8000
+```
+
+Open http://localhost:8000 in your browser
+
+
+If you would like to open up a separate Chrome dev window for development, use the follwing command:
+
+```bash
+$  /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --disable-web-security --user-data-dir=/tmp/chrome2/ \ http://localhost:8000
+```
+Alternatively, create a script named 'chrome-file-open':
 
 ```bash
 #!/bin/bash
@@ -45,7 +64,9 @@ Alternatively, create a script named 'chrome-open-file':
 
 chmod +x this script and put it on your $PATH. You can then open the files with:
 
-	chrome-open-file index.html
+```bash
+$ chrome-file-open http://localhost:8000
+```
 
 The production build is setup to be exported to dashboard-service. Run the server locally
 and test the prod build there.

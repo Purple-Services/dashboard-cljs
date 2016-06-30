@@ -52,14 +52,15 @@
   (edit-on-success \"coupon\" edit-coupon current-coupon alert-success)
   "
   [entity-type edit-entity current-entity alert-success &
-   {:keys [aux-fn] :or {aux-fn (fn [] true)} }]
+   {:keys [aux-fn channel-topic] :or {aux-fn (fn [] true)
+                                      channel-topic (str entity-type "s")}}]
   (fn [response]
     (retrieve-entity
      entity-type
      (:id response)
      (fn [res]
        (put! datastore/modify-data-chan
-             {:topic (str entity-type "s")
+             {:topic channel-topic ;;(str entity-type "s")
               :data res})
        (reset! edit-entity (assoc (first res)
                                   :errors nil
