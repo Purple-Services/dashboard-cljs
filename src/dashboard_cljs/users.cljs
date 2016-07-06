@@ -632,7 +632,7 @@
         aux-fn (fn [_]
                  (reset! editing-note? (not @editing-note?))
                  (reset! retrieving? false))
-        admin-id (cookies/get-cookie "user-id")
+        cookie-admin-id (cookies/get-cookie "user-id")
         
         ]
     (r/create-class
@@ -657,7 +657,7 @@
                                                  (-> %
                                                      (aget "target")
                                                      (aget "value")))}]]])
-           (when (= admin_id admin-id)
+           (when (= admin_id cookie-admin-id)
              [:h5
               (if-not @editing-note?
                 [:a {:on-click (fn [e]
