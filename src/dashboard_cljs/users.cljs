@@ -1,6 +1,7 @@
 (ns dashboard-cljs.users
   (:require [reagent.core :as r]
             [cljs.core.async :refer [put! sub chan]]
+            [dashboard-cljs.cookies :as cookies]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.forms :refer [entity-save retrieve-entity
                                           edit-on-success edit-on-error]]
@@ -620,12 +621,86 @@
 
 (defn UserNote
   "A component for displaying a user note"
-  [note]
-  (fn [{:keys [comment admin_id admin_email timestamp]} note]
-    [:div
-     [:h4 comment]
-     [:h5 (str "- " admin_email) ", "
-      (unix-epoch->fmt timestamp "M/D/YYYY h:mm a")]]))
+  [{:keys [note current-user]}]
+  (let [edit-note (r/atom {:retrieving? false
+                           :errors nil
+                           :comment nil})
+        retrieving? (r/atom false)
+        editing-note? (r/atom false)
+        alert-success (r/atom "")
+        edit-comment (r/cursor edit-note [:comment])
+        aux-fn (fn [_]
+                 (reset! editing-note? (not @editing-note?))
+                 (reset! retrieving? false))
+        admin-id (cookies/get-cookie "user-id")
+        
+        ]
+    (r/create-class
+     {:component-did-mount
+      (fn [this]
+        (reset! edit-comment (:comment note)))
+      :reagent-render
+      (fn [{:keys [note current-user]}]
+        (let [{:keys [admin_email admin_id timestamp comment]} note]
+          [:div
+           (when-not @editing-note?
+             [:div
+              [:h4 comment]
+              [:h5 (str "- " admin_email) ", "
+               (unix-epoch->fmt timestamp "M/D/YYYY h:mm a")]])
+           (when @editing-note?
+             [:div [FormGroup {:label "Notes"}
+                    [TextAreaInput {:value @edit-comment
+                                    :rows 2
+                                    :on-change #(reset!
+                                                 edit-comment
+                                                 (-> %
+                                                     (aget "target")
+                                                     (aget "value")))}]]])
+           (when (= admin_id admin-id)
+             [:h5
+              (if-not @editing-note?
+                [:a {:on-click (fn [e]
+                                 (.preventDefault e)
+                                 (reset! editing-note? true))}
+                 "Edit"]
+                [:a {:on-click
+                     (fn [e]
+                       (.preventDefault e)
+                       (reset! editing-note? false)
+                       ;; check to see if the note changed
+                       (when (not= edit-comment (:comment note))
+                         ;; the note changed, now replace the current
+                         ;; user's note comment with the new one
+                         (let [removed-note-admin-event-log
+                               (filter #(not= (:timestamp %)
+                                              timestamp)
+                                       (:admin_event_log @current-user))
+                               new-admin-event-log
+                               (conj removed-note-admin-event-log
+                                     (assoc note
+                                            :comment @edit-comment))]
+                           ;;(.log js/console (clj->js new-admin-event-log))
+                           (.log js/console (clj->js removed-note-admin-event-log))
+                           ;; upload this to the server
+                           ;; (swap! current-user #(assoc %
+                           ;;                             :admin_event_log
+                           ;;                             new-admin-event-log))
+                           (entity-save
+                            (clj->js {:id (:id @current-user)
+                                      :user_note (assoc note :comment @edit-comment)})
+                            "user"
+                            "PUT"
+                            retrieving?
+                            (edit-on-success "user" (r/atom {}) (r/atom {}) (r/atom {})
+                                             :channel-topic "user-search-results")
+                            #(.log js/console "some unknown error occured"))
+                           ))
+                       
+                       )}
+                 "Save"])
+              " | "
+              [:a "Delete"]])]))})))
 
 (defn user-panel
   "Display detailed and editable fields for an user. current-user is an
@@ -662,7 +737,9 @@
                                    first)
             current-user-update @(r/track current-user-change! current-user)
             admin-event-log (:admin_event_log @current-user)
-            user-notes (filter #(= (:action %) "user_notes") admin-event-log)
+            user-notes (->> admin-event-log
+                            (filter #(= (:action %) "user_notes"))
+                            (sort-by :timestamp))
             ]
         ;; edit-user should correspond to current-user
         (when-not (:editing? @edit-user)
@@ -719,7 +796,11 @@
              [user-form current-user state]]
             (when-not (empty? user-notes)
               [:div {:class "col-lg-9 col-xs-12"}
-               [UserNote (first user-notes)]])]]
+               (doall (map (fn [note]
+                             ^{:key (:timestamp note)}
+                             [UserNote {:note note
+                                        :current-user current-user}])
+                           user-notes))])]]
           [TabContent {:toggle (r/cursor toggle [:push-view])}
            [:div {:class "row"}
             [:div {:class "col-lg-6 col-xs-12"}
