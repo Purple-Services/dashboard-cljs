@@ -736,10 +736,10 @@
                                    (sort-by :target_time_start)
                                    first)
             current-user-update @(r/track current-user-change! current-user)
-            admin-event-log (:admin_event_log @current-user)
-            user-notes (->> admin-event-log
-                            (filter #(= (:action %) "user_notes"))
-                            (sort-by :timestamp))
+            ;; admin-event-log (:admin_event_log @current-user)
+            ;; user-notes (->> admin-event-log
+            ;;                 (filter #(= (:action %) "user_notes"))
+            ;;                 (sort-by :timestamp))
             ]
         ;; edit-user should correspond to current-user
         (when-not (:editing? @edit-user)
@@ -794,13 +794,14 @@
            [:div {:class "row"}
             [:div {:class "col-lg-3 col-xs-12"}
              [user-form current-user state]]
-            (when-not (empty? user-notes)
-              [:div {:class "col-lg-9 col-xs-12"}
-               (doall (map (fn [note]
-                             ^{:key (:timestamp note)}
-                             [UserNote {:note note
-                                        :current-user current-user}])
-                           user-notes))])]]
+            ;; (when-not (empty? user-notes)
+            ;;   [:div {:class "col-lg-9 col-xs-12"}
+            ;;    (doall (map (fn [note]
+            ;;                  ^{:key (:timestamp note)}
+            ;;                  [UserNote {:note note
+            ;;                             :current-user current-user}])
+            ;;                user-notes))])
+            ]]
           [TabContent {:toggle (r/cursor toggle [:push-view])}
            [:div {:class "row"}
             [:div {:class "col-lg-6 col-xs-12"}
