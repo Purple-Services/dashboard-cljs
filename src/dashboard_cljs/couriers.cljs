@@ -571,7 +571,8 @@
         filters {"Active" {:filter-fn :active}
                  "Deactivated" {:filter-fn #(not (:active %))}
                  "Connected" {:filter-fn #(and (:connected %)
-                                               (:on_duty %))}}
+                                               (:on_duty %)
+                                               (:active %))}}
         selected-filter (r/atom "Connected")]
     (fn [couriers]
       (let [sort-fn (if @sort-reversed?
