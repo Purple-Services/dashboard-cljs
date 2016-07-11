@@ -24,7 +24,8 @@
                                                TextAreaInput ViewHideButton
                                                TelephoneNumber Mailto
                                                GoogleMapLink Tab TabContent
-                                               ProcessingIcon UserCrossLink]]
+                                               ProcessingIcon UserCrossLink
+                                               ErrorComp]]
             [clojure.set :refer [subset?]]
             [clojure.string :as s]))
 
@@ -407,6 +408,10 @@
                (:exp_year default-card-info)))])
          ;; referral code
          [KeyVal "Referral Code" (:referral_code @user)]
+         ;; is this user a courier?
+         [KeyVal "Courier" (if (:is_courier @user)
+                             "Yes"
+                             "No")]
          ;; Referral Gallons
          (if @editing?
            [:div
@@ -632,9 +637,7 @@
         aux-fn (fn [_]
                  (reset! editing-note? (not @editing-note?))
                  (reset! retrieving? false))
-        cookie-admin-id (cookies/get-cookie "user-id")
-        
-        ]
+        cookie-admin-id (cookies/get-cookie "user-id")]
     (r/create-class
      {:component-did-mount
       (fn [this]
@@ -702,6 +705,107 @@
               " | "
               [:a "Delete"]])]))})))
 
+(defn courier-conversion
+  "Convert a user to a courier"
+  [user]
+  (let [default-state {:confirming? false
+                       :editing? false
+                       :retrieving? false
+                       :alert-error ""}
+        state (r/atom default-state)
+        confirming? (r/cursor state [:confirming?])
+        editing?     (r/cursor state [:editing?])
+        retrieving? (r/cursor state [:retrieving?])
+        alert-success (r/cursor users-state [:alert-success])
+        alert-error   (r/cursor state [:alert-error])
+        confirm-on-click  (fn [user e]
+                            (let [{:keys [id name]} user]
+                              (reset! retrieving? true)
+                              (retrieve-url
+                               (str base-url "users/convert-to-courier")
+                               "PUT"
+                               (js/JSON.stringify
+                                (clj->js {:user {:id id}}))
+                               (partial
+                                xhrio-wrapper
+                                (fn [response]
+                                  (reset! retrieving? false)
+                                  (let [response (js->clj response
+                                                          :keywordize-keys
+                                                          true)
+                                        success? (:success response)]
+                                    (when success?
+                                      ;; confirm message was sent
+                                      (reset! alert-success
+                                              (str "Converted '"
+                                                   name "' to a courier!"))
+                                      (retrieve-entity
+                                       "user"
+                                       id
+                                       (fn [user]
+                                         (put! datastore/modify-data-chan
+                                               {:topic "user-search-results"
+                                                :data user})
+                                         (reset! (r/cursor users-state
+                                                           [:current-user])
+                                                 (first user)))))
+                                    (when (not success?)
+                                      (reset!
+                                       alert-error
+                                       (str "Error: " (:message response)))))
+                                  (reset! confirming? false))))))
+        confirmation-message  (fn [username]
+                                (fn []
+                                  [:div
+                                   "Are you sure you want to convert '"
+                                   [:span [:strong username]]
+                                   "' to a courier?"
+                                   [:br]
+                                   [:span [:strong " Warning: This can not be "
+                                           "undone from the dashboard!"]]
+                                   [:br]
+                                   " Once converted, "
+                                   "this account will not be able to place "
+                                   "orders and will only be able to accept "
+                                   "orders for delivery."
+                                   [:br]
+                                   " This action "
+                                   "can only be reversed manually by an admin!"]
+                                  ))]
+    (r/create-class
+     {:component-will-receive-props
+      (fn [this]
+        (reset! state default-state))
+      :reagent-render
+      (fn [user]
+        [:div
+         (cond (not @confirming?)
+               [:button {:type "button"
+                         :class "btn btn-default"
+                         :on-click (fn [e]
+                                     (.preventDefault e)
+                                     (reset! confirming? true)
+                                     (reset! alert-success "")
+                                     (reset! alert-error "")
+                                     )}
+                "Convert to Courier"]
+               @confirming?
+               [ConfirmationAlert
+                {:cancel-on-click (fn [e]
+                                    (reset! confirming? false))
+                 :confirm-on-click (partial confirm-on-click user)
+                 :confirmation-message (confirmation-message (:name user))
+                 :retrieving? retrieving?}])
+         ;; alert message
+         (when (not (empty? @alert-success))
+           [AlertSuccess
+            {:message @alert-success
+             :dismiss #(reset! alert-success "")}])
+         ;; alert error
+         (when (not (empty? @alert-error))
+           [ErrorComp {:error-message @alert-error
+                       :dismiss-fn #(reset! alert-error "")}])])})))
+
 (defn user-panel
   "Display detailed and editable fields for an user. current-user is an
   r/atom"
@@ -715,7 +819,8 @@
         toggle       (r/atom {})
         retrieving? (r/cursor state [:user-orders-retrieving?])
         orders-view-toggle? (r/cursor toggle [:orders-view])
-        push-view-toggle?   (r/cursor toggle [:push-view])]
+        push-view-toggle?   (r/cursor toggle [:push-view])
+        convert-courier-view? (r/cursor toggle [:convert-courier-view])]
     (fn [current-user]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -756,6 +861,17 @@
         (when (and (s/blank? (:arn_endpoint @current-user))
                    @push-view-toggle?)
           (select-toggle-key! toggle :info-view))
+        ;; Make sure that courier conversion is not selected when a user
+        ;; is already a courier
+        (when (and (:is_courier @current-user)
+                   convert-courier-view?)
+          (select-toggle-key! toggle :info-view))
+        ;; If the user is not qualified to be a courier
+        ;; reset the toggle key
+        (when (and (or (> (:orders_count @current-user) 0)
+                       (:is_courier @current-user))
+                   convert-courier-view?)
+          (select-toggle-key! toggle :info-view))
         [:div {:class "panel-body"}
          ;; populate the current user with additional information
          [:div {:class "row"}
@@ -787,7 +903,16 @@
               [Tab {:default? false
                     :toggle-key :push-view
                     :toggle toggle}
-               "Push Notification"])]]]
+               "Push Notification"])
+            (when (and (not (:is_courier @current-user ))
+                       (< (:orders_count @current-user) 1)
+                       (subset? #{{:uri "/users/convert-to-courier"
+                                   :method "PUT"}}
+                                @accessible-routes))
+              [Tab {:default? false
+                    :toggle-key :convert-courier-view
+                    :toggle toggle}
+               "Courier Conversion"])]]]
          ;; main display panel
          [:div {:class "tab-content"}
           [TabContent {:toggle (r/cursor toggle [:info-view])}
@@ -851,7 +976,13 @@
                              {:display "none"})}
               [TablePager
                {:total-pages (count sorted-orders)
-                :current-page current-page}]]]]]]]))))
+                :current-page current-page}]]]]]
+          [TabContent
+           {:toggle (r/cursor toggle [:convert-courier-view])}
+           [:div {:class "row"}
+            [:div {:class "col-lg-12 col-xs-12"}
+             [:div {:style {:margin-top "1em"}}
+              [courier-conversion @current-user]]]]]]]))))
 
 (defn search-users-results-panel
   "Display a table of selectable users with an indivdual user panel
