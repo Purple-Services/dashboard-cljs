@@ -210,8 +210,11 @@
       ;; initialize couriers
       (sync-couriers!)
       ;; key couriers in sync
-      (continuous-update
-       sync-couriers! 10000))
+      ;; note: turned this off until form is not reset
+      ;; on each update of courier!
+      ;; (continuous-update
+      ;;  sync-couriers! 10000)
+      )
     ;; users
     ;; nothing here
     ;; coupons
