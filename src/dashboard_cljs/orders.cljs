@@ -29,7 +29,8 @@
                                           current-order?
                                           get-event-time
                                           get-by-id now update-values
-                                          select-toggle-key!]]
+                                          select-toggle-key!
+                                          subscription-id->name]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps
                                                on-click-tab]]
@@ -735,7 +736,9 @@
                       (:customer_name @order)]
                  (when-not (= 0 (:subscription_id @order))
                    [:span {:style {:color "#5cb85c"}}
-                    " Purple Plus Member"])]
+                    (str " "
+                         (subscription-id->name (:subscription_id @order))
+                         " Plan")])]
                 [:h5 [:span [GoogleMapLink
                              (:address_street @order)
                              (:lat @order)
