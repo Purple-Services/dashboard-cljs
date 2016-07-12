@@ -36,7 +36,7 @@ The server attempts to find an empty port starting from 8080. You must install
 the portfinder, connect and server-static node nodules.
 
 ```bash
-$ sude npm install -g connect serve-static portfinder
+$ sudo npm install -g connect serve-static portfinder
 ```
 
 Run the server
