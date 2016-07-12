@@ -118,6 +118,18 @@
 ;; couriers
 (def couriers (r/atom #{}))
 
+(defn sync-couriers!
+  []
+  (retrieve-url
+   (str base-url "couriers")
+   "POST"
+   {}
+   (partial xhrio-wrapper
+            (fn [response]
+              (put! modify-data-chan
+                    {:topic "couriers"
+                     :data (:couriers (js->clj response :keywordize-keys
+                                               true))})))))
 ;; users
 (def users (r/atom #{}))
 
@@ -196,16 +208,10 @@
                       :method "POST"}} @accessible-routes)
       (sync-state! couriers (sub read-data-chan "couriers" (chan)))
       ;; initialize couriers
-      (retrieve-url
-       (str base-url "couriers")
-       "POST"
-       {}
-       (partial xhrio-wrapper
-                (fn [response]
-                  (put! modify-data-chan
-                        {:topic "couriers"
-                         :data (:couriers (js->clj response :keywordize-keys
-                                                   true))})))))
+      (sync-couriers!)
+      ;; key couriers in sync
+      (continuous-update
+       sync-couriers! 10000))
     ;; users
     ;; nothing here
     ;; coupons

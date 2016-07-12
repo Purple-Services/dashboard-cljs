@@ -354,7 +354,9 @@
           [KeyVal "Active" (if (:active @current-courier)
                              "Yes"
                              "No")]
-          [KeyVal "Assigned Zones" (zones->str (:zones @current-courier))]])
+          [KeyVal "Assigned Zones" (if (not (empty? (:zones @current-courier)))
+                                     (zones->str (:zones @current-courier))
+                                     "None Assigned")]])
        (when (subset? #{{:uri "/courier"
                          :method "PUT"}}
                       @accessible-routes)

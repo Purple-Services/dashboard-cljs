@@ -737,8 +737,11 @@
                                     (when success?
                                       ;; confirm message was sent
                                       (reset! alert-success
-                                              (str "Converted '"
-                                                   name "' to a courier!"))
+                                              (str
+                                               "Successfully converted '"
+                                               name "' to a courier! You can "
+                                               "now go to the Couriers tab and "
+                                               "assign zones to this courier."))
                                       (retrieve-entity
                                        "user"
                                        id
@@ -748,7 +751,8 @@
                                                 :data user})
                                          (reset! (r/cursor users-state
                                                            [:current-user])
-                                                 (first user)))))
+                                                 (first user))
+                                         (datastore/sync-couriers!))))
                                     (when (not success?)
                                       (reset!
                                        alert-error
@@ -786,8 +790,7 @@
                                      (.preventDefault e)
                                      (reset! confirming? true)
                                      (reset! alert-success "")
-                                     (reset! alert-error "")
-                                     )}
+                                     (reset! alert-error ""))}
                 "Convert to Courier"]
                @confirming?
                [ConfirmationAlert
