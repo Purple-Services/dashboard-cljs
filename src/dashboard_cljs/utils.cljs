@@ -261,3 +261,9 @@
          (fn [el] false))
   (swap! toggle
          assoc toggle-key true))
+
+(defn subscription-id->name
+  [subscription-id]
+  ({1 "Standard"
+    2 "Express"
+    3 "Unlimited"} subscription-id))

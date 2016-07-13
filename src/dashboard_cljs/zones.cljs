@@ -50,6 +50,10 @@
                            (-> zone
                                :service_fees
                                :180))
+         :service-fee-300 (cents->dollars
+                           (-> zone
+                               :service_fees
+                               :300))
          :service-time-bracket-begin
          (-> zone
              :service_time_bracket
@@ -68,7 +72,7 @@
 
 (defn zone->server-req
   [zone]
-  (let [{:keys [price-87 price-91 service-fee-60 service-fee-180
+  (let [{:keys [price-87 price-91 service-fee-60 service-fee-180 service-fee-300
                 service-time-bracket-begin service-time-bracket-end]}
         zone]
     (assoc zone
@@ -92,6 +96,11 @@
              (dollars->cents
               service-fee-180)
              service-fee-180)
+           :service-fee-300
+           (if (parse-to-number? service-fee-300)
+             (dollars->cents
+              service-fee-300)
+             service-fee-300)
            :service-time-bracket-begin
            (if (parse-to-number? service-time-bracket-begin)
              (js/Number service-time-bracket-begin)
@@ -130,6 +139,7 @@
         price-91 (r/cursor edit-zone [:price-91])
         service-fee-60 (r/cursor edit-zone [:service-fee-60])
         service-fee-180 (r/cursor edit-zone [:service-fee-180])
+        service-fee-300 (r/cursor edit-zone [:service-fee-300])
         service-time-bracket-begin (r/cursor edit-zone
                                              [:service-time-bracket-begin])
         service-time-bracket-end   (r/cursor edit-zone
@@ -146,6 +156,7 @@
                       :price-91 "91 Octane"
                       :service-fee-60 "1 Hour Fee"
                       :service-fee-180 "3 Hour Fee"
+                      :service-fee-300 "5 Hour Fee"
                       :service-time-bracket-begin "Service Starts"
                       :service-time-bracket-end "Service Ends"}
         diff-msg-gen (fn [edit current] (diff-message edit
@@ -221,6 +232,17 @@
                                               (-> %
                                                   (aget "target")
                                                   (aget "value")))}]]
+             ;; 5 hour fee
+             [FormGroup {:label-for "5 Hour Fee"
+                         :label "5 Hour Fee"
+                         :errors  (:service-fee-300 @errors)
+                         :input-group-addon [:div {:class "input-group-addon"}
+                                             "$"]}
+              [TextInput {:value @service-fee-300
+                          :on-change #(reset! service-fee-300
+                                              (-> %
+                                                  (aget "target")
+                                                  (aget "value")))}]]
              ;; service starts
              [FormGroup {:label-for "Service Starts"
                          :label "service starts"
@@ -260,6 +282,11 @@
             [KeyVal "3 Hour Fee" (-> @zone
                                      :service_fees
                                      :180
+                                     (cents->$dollars))]
+            ;; 5 hour fee
+            [KeyVal "5 Hour Fee" (-> @zone
+                                     :service_fees
+                                     :300
                                      (cents->$dollars))]
             ;; service starts
             [KeyVal "Service Starts" (-> @zone
@@ -341,6 +368,9 @@
        "3 Hour fee"]
       [:th {:style {:font-size "16px"
                     :font-weight "normal"}}
+       "5 Hour fee"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}}
        "Service Starts"]
       [:th {:style {:font-size "16px"
                     :font-weight "normal"}}
@@ -388,6 +418,10 @@
      [:td (cents->$dollars (-> zone
                                :service_fees
                                :180))]
+     ;; 5 Hour Fee
+     [:td (cents->$dollars (-> zone
+                               :service_fees
+                               :300))]     
      ;; Service Starts
      [:td (-> zone
               :service_time_bracket

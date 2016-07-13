@@ -12,7 +12,8 @@
                                           integer->comma-sep-string
                                           parse-to-number? diff-message
                                           accessible-routes get-event-time now
-                                          update-values select-toggle-key!]]
+                                          update-values select-toggle-key!
+                                          subscription-id->name]]
             [dashboard-cljs.state :refer [users-state]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
@@ -884,7 +885,10 @@
                   (when-not (= 0 (:subscription_id @current-user))
                     [:span {:style {:color "#5cb85c"
                                     :font-size "0.7em !important"}}
-                     "    Purple Plus Member"])]]]]
+                     (str " "
+                          (subscription-id->name
+                           (:subscription_id @current-user))
+                          " Plan")])]]]]
          [:div {:class "row"}
           [:div {:class "col-xs-12 col-lg-12"}
            ;; users info tab navigation
