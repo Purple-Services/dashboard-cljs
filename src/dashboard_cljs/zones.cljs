@@ -368,6 +368,9 @@
        "3 Hour fee"]
       [:th {:style {:font-size "16px"
                     :font-weight "normal"}}
+       "5 Hour fee"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}}
        "Service Starts"]
       [:th {:style {:font-size "16px"
                     :font-weight "normal"}}
