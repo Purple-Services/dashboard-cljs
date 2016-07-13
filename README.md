@@ -84,7 +84,9 @@ where the attribute 'value' is the base-url. The clojurescript code pulls the va
 
 The dashboard-service server should be running when developing. Start it in the dashboard-service dir:
 
-	lein ring server
+```bash
+$ lein ring server
+```
 
 The base-url defined in the div above assumes the server is running on the default port of 3001
 
@@ -92,7 +94,9 @@ The base-url defined in the div above assumes the server is running on the defau
 
 The dashboard-cljs repository contains a script that will do an advanced compilation of the clojurescript code and copy it to the appropriate location in dashboard-service
 
-	 ./scripts/export_to_dashboard-service
+```bash
+$ ./scripts/export_to_dashboard-service
+```
 
 This script assumes that you are developing in a root dir which contains both the dashboard-service and dashboard-cljs repositories. For example, the dir structure that I use for development on my local machine is:
 
@@ -100,9 +104,49 @@ This script assumes that you are developing in a root dir which contains both th
 	|
 	|- dashboard-service
 	|
-	 - dashboard-cljs
+	- dashboard-cljs
 
+## Adapating native React libraries for use with Reagent
 
+Example:  https://github.com/fmoo/react-typeahead
+
+1. Add library to cljsbuild. The react-typeahead.js was found in the dist dir of
+the github project.
+
+```clojure
+:foreign-libs [;; https://github.com/googlemaps/js-map-label
+               {:file "resources/js/maplabel.js"
+                :provides ["maplabel"]}
+               ;; https://github.com/fmoo/react-typeahead
+               {:file "resources/js/react-typeahead.js"
+                :provides ["react-typeahead"]}]
+```
+
+2. add [react-typeahead] to require statement of namespace it will be used in
+
+3. Create a fn to access it
+```clojure
+(defn typeahead []
+  js/ReactTypeahead.Typeahead.)
+```
+
+Note: It is not always immediately clear what the class name is by simply
+looking at the javascript. Might have to explore with in the javascript console
+as in the above case.
+
+4. adapt the class
+
+```clojure
+(def type-ahead (r/adapt-react-class (typeahead)))
+```
+
+5. use the class
+```clojure
+[type-ahead {:options ["Los Angeles" "Orange County"
+                       "Seattle" "San Diego"]
+             :maxVisible 2}]
+```
 ## License
+
 
 Copyright © 2016 Purple Services Inc
