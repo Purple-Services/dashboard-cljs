@@ -868,13 +868,13 @@
         ;; Make sure that courier conversion is not selected when a user
         ;; is already a courier
         (when (and (:is_courier @current-user)
-                   convert-courier-view?)
+                   @convert-courier-view?)
           (select-toggle-key! toggle :info-view))
         ;; If the user is not qualified to be a courier
         ;; reset the toggle key
         (when (and (or (> (:orders_count @current-user) 0)
                        (:is_courier @current-user))
-                   convert-courier-view?)
+                   @convert-courier-view?)
           (select-toggle-key! toggle :info-view))
         [:div {:class "panel-body"}
          ;; populate the current user with additional information
