@@ -294,6 +294,8 @@
                    [analytics/DownloadCSV {:url "orders-per-courier"}]
                    [:h2 "Scheduled Orders Per Courier"]
                    [analytics/DownloadCSV {:url "scheduled-orders-per-courier"}]
+                   [:h2 "Flex Orders Per Courier"]
+                   [analytics/DownloadCSV {:url "flex-orders-per-courier"}]
                    [:h2 "Total Gallons Sold"]
                    [analytics/DownloadCSV {:url "total-gallons"}]
                    [:h2 "Gallons Sold Per Courier"]
