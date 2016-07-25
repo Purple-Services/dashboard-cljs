@@ -73,9 +73,9 @@
                                     (.unix))
                      :to-date (now)}
            "monthly" {:from-date (-> (js/moment)
-                                    (.startOf "year")
-                                    (.unix))
-                     :to-date (now)})))
+                                     (.startOf "year")
+                                     (.unix))
+                      :to-date (now)})))
 
 
 (def state (r/atom {:stats-status {:status ""
@@ -424,3 +424,54 @@
             [:div
              [:div {:class "input-group"}
               [DatePicker to-date]]]]]]])})))
+
+(defn analytics-panel
+  "Panel for the analytics table"
+  []
+  (fn []
+    [:div
+     [stats-panel]
+     [total-orders-per-day-chart]
+     [:div {:class "hidden-xs hidden-sm"}
+      [:h2 "Total Completed Orders"]
+      [DownloadCSV {:url "total-orders"}]
+      [:h2 "Total Cancelled Orders"]
+      [DownloadCSV {:url "total-cancelled-orders"}]
+      [:h2 "Cancelled Unassigned Orders"]
+      [DownloadCSV {:url "cancelled-unassigned-orders"}]
+      [:h2 "Completed Orders Per Courier"]
+      [DownloadCSV {:url "orders-per-courier"}]
+      [:h2 "Cancelled Orders Per Courier"]
+      [DownloadCSV {:url "cancelled-orders-per-courier"}]
+      [:h2 "Scheduled Orders Per Courier"]
+      [DownloadCSV {:url "scheduled-orders-per-courier"}]
+      [:h2 "Flex Orders Per Courier"]
+      [DownloadCSV {:url "flex-orders-per-courier"}]
+      [:h2 "Total Gallons Sold"]
+      [DownloadCSV {:url "total-gallons"}]
+      [:h2 "Total 87 Octance Gallons Sold"]
+      [DownloadCSV {:url "total-87-gallons"}]
+      [:h2 "Total 91 Octance Gallons Sold"]
+      [DownloadCSV {:url "total-91-gallons"}]
+      [:h2 "Gallons Sold Per Courier"]
+      [DownloadCSV {:url "gallons-per-courier"}]
+      [:h2 "Gallons 87 Octane Sold Per Courier"]
+      [DownloadCSV {:url "gallons-87-per-courier"}]
+      [:h2 "Gallons 91 Octane Sold Per Courier"]
+      [DownloadCSV {:url "gallons-91-per-courier"}]
+      [:h2 "Total Revenue"]
+      [DownloadCSV {:url "total-revenue"}]
+      [:h2 "Revenue Per Courier"]
+      [DownloadCSV {:url "revenue-per-courier"}]
+      [:h2 "Service Fees"]
+      [DownloadCSV {:url "service-fees"}]
+      [:h2 "Service Fee Per Courier"]
+      [DownloadCSV {:url "service-fees-per-courier"}]
+      [:h2 "Referral Gallons Cost"]
+      [DownloadCSV {:url "referral-gallons-cost"}]
+      [:h2 "Coupon Cost"]
+      [DownloadCSV {:url "coupon-cost"}]
+      [:h2 "Total Fuel Price"]
+      [DownloadCSV {:url "fuel-price"}]
+      [:h2 "Fuel Price Per Courier"]
+      [DownloadCSV {:url "fuel-price-per-courier"}]]]))
