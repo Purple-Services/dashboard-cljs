@@ -344,7 +344,6 @@
                       "-through-"
                       to-date
                       ".csv"))
-                (.log js/console "filename should be: " @filename)
                 (when refresh-fn (refresh-fn)))))))
 
 (defn DownloadCSV
