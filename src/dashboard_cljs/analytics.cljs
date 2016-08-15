@@ -356,7 +356,7 @@
   }"
   [props]
   (let [{:keys [url timeframe]
-         :or [timeframe true]} props
+         :or {timeframe true}} props
          data (r/atom (csv-data-default "daily"))
          data-atom (r/atom [{}])
          from-date (r/cursor data [:from-date])
