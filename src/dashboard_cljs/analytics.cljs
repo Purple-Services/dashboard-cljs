@@ -344,38 +344,43 @@
                       "-through-"
                       to-date
                       ".csv"))
+                (.log js/console "filename should be: " @filename)
                 (when refresh-fn (refresh-fn)))))))
 
 (defn DownloadCSV
   "Download links for obtaining the orders per courier
   props is:
-  {:url ; str }"
+  {:url        ; str
+   :timeframe? ; boolean - whether or not to include a timeframe,
+                           default it true
+  }"
   [props]
-  (let [{:keys [url]} props
-        data (r/atom (csv-data-default "daily"))
-        data-atom (r/atom [{}])
-        from-date (r/cursor data [:from-date])
-        to-date   (r/cursor data [:to-date])
-        filename (r/atom "no-data")
-        timeframe-id->timeframe-str {"t0" "hourly"
-                                     "t1" "daily"
-                                     "t2" "weekly"
-                                     "t3" "monthly"}
-        timeframe-id (r/atom "t1")
-        refresh-fn (fn [refreshing?]
-                     (reset! refreshing? true)
-                     (reset! filename "no-data")
-                     (retrieve-csv {:url url
-                                    :data-atom data-atom
-                                    :timeframe (timeframe-id->timeframe-str
-                                                @timeframe-id)
-                                    :filename filename
-                                    :from-date (unix-epoch->YYYY-MM-DD
-                                                @from-date)
-                                    :to-date (unix-epoch->YYYY-MM-DD @to-date)
-                                    :refresh-fn #(reset! refreshing?
-                                                         false)}))
-        refreshing? (r/atom false)]
+  (let [{:keys [url timeframe]
+         :or [timeframe true]} props
+         data (r/atom (csv-data-default "daily"))
+         data-atom (r/atom [{}])
+         from-date (r/cursor data [:from-date])
+         to-date   (r/cursor data [:to-date])
+         filename (r/atom "no-data")
+         timeframe-id->timeframe-str {"t0" "hourly"
+                                      "t1" "daily"
+                                      "t2" "weekly"
+                                      "t3" "monthly"}
+         timeframe-id (r/atom "t1")
+         refresh-fn (fn [refreshing?]
+                      (reset! refreshing? true)
+                      (reset! filename "no-data")
+                      (retrieve-csv {:url url
+                                     :data-atom data-atom
+                                     :timeframe (timeframe-id->timeframe-str
+                                                 @timeframe-id)
+                                     :filename filename
+                                     :from-date (unix-epoch->YYYY-MM-DD
+                                                 @from-date)
+                                     :to-date (unix-epoch->YYYY-MM-DD @to-date)
+                                     :refresh-fn #(reset! refreshing?
+                                                          false)}))
+         refreshing? (r/atom false)]
     (r/create-class
      {:component-did-mount
       (fn [this]
@@ -402,12 +407,13 @@
                refresh-fn
                :refreshing? refreshing?
                }]])]
-         [Select {:value timeframe-id
-                  :options #{{:id "t0" :display-key "hourly"}
-                             {:id "t1"  :display-key "daily"}
-                             {:id "t2" :display-key "weekly"}
-                             {:id "t3" :display-key "monthly"}}
-                  :display-key :display-key}]
+         (when timeframe
+           [Select {:value timeframe-id
+                    :options #{{:id "t0" :display-key "hourly"}
+                               {:id "t1"  :display-key "daily"}
+                               {:id "t2" :display-key "weekly"}
+                               {:id "t3" :display-key "monthly"}}
+                    :display-key :display-key}])
          [:div {:class "form-group"
                 :style {:margin-left "1px"}}
           [:label {:for "expires?"
@@ -474,4 +480,7 @@
       [:h2 "Total Fuel Price"]
       [DownloadCSV {:url "fuel-price"}]
       [:h2 "Fuel Price Per Courier"]
-      [DownloadCSV {:url "fuel-price-per-courier"}]]]))
+      [DownloadCSV {:url "fuel-price-per-courier"}]
+      [:h2 "Fleet Invoices"]
+      [DownloadCSV {:url "fleets-invoice"
+                    :timeframe false}]]]))
