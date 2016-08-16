@@ -482,4 +482,8 @@
       [DownloadCSV {:url "fuel-price-per-courier"}]
       [:h2 "Fleet Invoices"]
       [DownloadCSV {:url "fleets-invoice"
-                    :timeframe false}]]]))
+                    :timeframe false}]
+      [:h2 "Managed Accounts Invoices"]
+      [DownloadCSV {:url "managed-accounts-invoice"
+                    :timeframe false}]
+      ]]))
