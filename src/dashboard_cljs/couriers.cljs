@@ -133,7 +133,9 @@
        [:td (:app_version courier)]
        ;; status
        [:td
-        (let [connected? (:connected courier)]
+        (let [connected? (and (:connected courier)
+                              (:on_duty courier)
+                              (:active courier))]
           [:div
            [:i {:class
                 (str "fa fa-circle "
@@ -142,8 +144,8 @@
                        "courier-inactive"
                        ))}]
            (if connected?
-             " Connected"
-             " Disconnected")])]])))
+             " Online"
+             " Offline")])]])))
 
 (defn courier-table-header
   "props is:
@@ -595,10 +597,10 @@
         page-size 15
         filters {"Active" {:filter-fn :active}
                  "Deactivated" {:filter-fn #(not (:active %))}
-                 "Connected" {:filter-fn #(and (:connected %)
-                                               (:on_duty %)
-                                               (:active %))}}
-        selected-filter (r/atom "Connected")]
+                 "Online" {:filter-fn #(and (:connected %)
+                                            (:on_duty %)
+                                            (:active %))}}
+        selected-filter (r/atom "Online")]
     (fn [couriers]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
