@@ -296,14 +296,14 @@
   "Display the total orders per day"
   []
   (let [data  (r/cursor state [:total-orders-per-day :data])
-        _ (retrieve-json {:url "total-orders"
+        _ (retrieve-json {:url "total-orders-customer"
                           :data-atom data
                           :timeframe "daily"
                           :from-date "2015-04-01"
                           :to-date (unix-epoch->YYYY-MM-DD (now))})
         refresh-fn (fn [refreshing?]
                      (reset! refreshing? true)
-                     (retrieve-json {:url "total-orders"
+                     (retrieve-json {:url "total-orders-customer"
                                      :data-atom data
                                      :timeframe "daily"
                                      :from-date "2015-04-01"
@@ -438,8 +438,10 @@
      [stats-panel]
      [total-orders-per-day-chart]
      [:div {:class "hidden-xs hidden-sm"}
-      [:h2 "Total Completed Orders"]
-      [DownloadCSV {:url "total-orders"}]
+      [:h2 "Total Customer Completed Orders"]
+      [DownloadCSV {:url "total-orders-customer"}]
+      [:h2 "Total Fleet Orders"]
+      [DownloadCSV {:url "total-orders-fleet"}]
       [:h2 "Total Cancelled Orders"]
       [DownloadCSV {:url "total-cancelled-orders"}]
       [:h2 "Cancelled Unassigned Orders"]
@@ -452,8 +454,8 @@
       [DownloadCSV {:url "scheduled-orders-per-courier"}]
       [:h2 "Flex Orders Per Courier"]
       [DownloadCSV {:url "flex-orders-per-courier"}]
-      [:h2 "Total Gallons Sold"]
-      [DownloadCSV {:url "total-gallons"}]
+      [:h2 "Total Gallons Sold to Customers"]
+      [DownloadCSV {:url "total-gallons-customer"}]
       [:h2 "Total 87 Octance Gallons Sold"]
       [DownloadCSV {:url "total-87-gallons"}]
       [:h2 "Total 91 Octance Gallons Sold"]
