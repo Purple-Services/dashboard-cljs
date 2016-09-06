@@ -287,6 +287,16 @@
                                               " processing. Someone else"
                                               " initiated a " filename
                                               " generation")))
+                                      (when (= "non-existent"
+                                               (:status response))
+                                        (reset! status "non-existent")
+                                        ;; tell the user the file is
+                                        ;; processing
+                                        (reset!
+                                         alert-danger
+                                         (str filename " is currently"
+                                              " non-existent. Someone else"
+                                              " deleted " filename)))
                                       ;; the file is not processing
                                       ;; proceed as normal
                                       (when (= "ready"
