@@ -157,12 +157,14 @@
                 :toggle (:tab-content-toggle props)
                 :on-click-tab on-click-tab}
            [:div "Marketing"]])
-        (when (subset? #{{:uri "/generate-stats-csv"
+        (when (subset? #{{:uri "/total-orders-customer"
                           :method "GET"}
-                         {:uri "/download-stats-csv"
+                         {:uri "/status-file/:filename"
                           :method "GET"}
-                         {:uri "/status-stats-csv"
-                          :method "GET"}}
+                         {:uri "/download-file/:filename"
+                          :method "GET"}
+                         {:uri "/generate-file/:filename"
+                          :method "POST"}}
                        @accessible-routes)
           [Tab {:default? false
                 :toggle-key :analytics-view
@@ -277,12 +279,14 @@
             [:div
              [:div {:class "row"}
               [:div {:class "col-lg-12"}
-               (when (subset? #{{:uri "/generate-stats-csv"
+               (when (subset? #{{:uri "/total-orders-customer"
                                  :method "GET"}
-                                {:uri "/download-stats-csv"
+                                {:uri "/status-file/:filename"
                                  :method "GET"}
-                                {:uri "/status-stats-csv"
-                                 :method "GET"}}
+                                {:uri "/download-file/:filename"
+                                 :method "GET"}
+                                {:uri "/generate-file/:filename"
+                                 :method "POST"}}
                               @accessible-routes)
                  [analytics/analytics-panel]
                  )]]]]
