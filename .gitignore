@@ -17,3 +17,5 @@ node_modules/
 profiles.clj
 .cljs_rhino_repl/
 .DS_Store
+figwheel_server.log
+/resources/public/js/
