@@ -57,6 +57,7 @@
   (fn [props text]
     [:th
      {:class "fake-link"
+      :style {:white-space "nowrap"}
       :on-click #(do
                    (reset! (:sort-keyword props) (:keyword props))
                    (swap! (:sort-reversed? props) not))}

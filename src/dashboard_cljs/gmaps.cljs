@@ -787,7 +787,7 @@
   only be called once initially."
   [state]
   (retrieve-url
-   (str base-url "zones")
+   (str base-url "zips")
    "GET"
    {}
    (partial xhrio-wrapper
