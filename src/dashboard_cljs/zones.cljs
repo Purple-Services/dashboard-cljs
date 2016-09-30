@@ -8,7 +8,7 @@
                                           json-string->clj cents->$dollars
                                           cents->dollars dollars->cents
                                           parse-to-number? accessible-routes
-                                          diff-message]]
+                                          diff-message get-input-value]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton TablePager
                                                FormGroup TextInput KeyVal
@@ -21,13 +21,58 @@
 
 (def default-zone
   {:errors nil
+   :confirming? false
+   :editing? false
    :retrieving? false
-   :editing? false})
+   :name "" ; required
+   :rank 1000 ; required
+   :active? true ; required
+   :zips ""
+   ;; below is in :config
+   :hours [[[]] ; Su
+           [[]] ; M
+           [[]] ; T
+           [[]] ; W
+           [[]] ; Th
+           [[]] ; F
+           [[]] ; Sa
+           ]
+   :gas-price {}
+   :gas-price-diff-percent {}
+   :gas-price-diff-fixed {}
+   :gallon-choices {:0 7.5
+                    :1 10
+                    :2 15}
+   :default-gallong-choice :2
+   :time-choices {:0 60
+                  :1 180
+                  :2 300}
+   :default-time-choice 180
+   :constrain-num-one-hour? false
+   :delivery-fee {60 599
+                  180 399
+                  300 299}
+   :delivery-fee-diff-percent {}
+   :delivery-fee-diff-fixed {}
+   :tire-pressure-price 700
+   :manually-closed? false
+   :closed-message ""})
+
+(defn zone->form-zone
+  [zone]
+  (r/atom {:name (:name zone)
+           :rank (:rank zone)
+           :active? (:active zone)}))
 
 (def state (r/atom {:current-zone nil
                     :confirming-edit? false
                     :alert-success ""
+                    :confirming? false
                     :editing? false
+                    :retrieving? false
+                    :create-confirming? false
+                    :create-editing? false
+                    :create-retrieving? false
                     :edit-zone default-zone
                     :selected "active"}))
 
@@ -55,6 +100,38 @@
                                (str "$" (cents->dollars gas-price-91))
                                gas-price-91))])
       [KeyVal "Zips" (:zips zone)]]]))
+
+(defn ZoneFormComp
+  "Create or edit a zone"
+  [zone]
+  (fn [zone]
+    (let [name (r/cursor zone [:name])
+          rank (r/cursor zone [:rank])
+          active? (r/cursor zone [:active?])]
+      [:div {:class "row"}
+       [:div {:class "col-lg-12"}
+        ;; name
+        [FormGroup {:label "Name"}
+         [TextInput {:value @name
+                     :on-change #(reset! name
+                                         (get-input-value %))}]]
+        ;; rank
+        [FormGroup {:label "Rank"}
+         [TextInput {:value @rank
+                     :on-change #(let [value (get-input-value %)]
+                                   (reset! rank (if (parse-to-number? value)
+                                                  (js/parseInt value)
+                                                  value)))}]]
+        ;; active?
+        [FormGroup {:label "Active"}
+         [:input {:type "checkbox"
+                  :checked @active?
+                  :style {:margin-left "4px"}
+                  :on-change (fn [e] (reset!
+                                      active?
+                                      (-> e
+                                          (.-target)
+                                          (.-checked))))}]]]])))
 
 (defn displayed-zone
   [zone]
@@ -89,6 +166,7 @@
              :service_time_bracket
              second
              str)))
+
 
 #_ (defn reset-edit-zone!
      [edit-zone current-zone]
@@ -429,7 +507,14 @@
         selected (r/cursor state [:selected])
         current-page (r/atom 1)
         page-size 15
-        editing? (r/cursor state [:editing?])]
+        ;; for editing
+        confirming? (r/cursor state [:confirming?])
+        editing? (r/cursor state [:editing?])
+        retrieving? (r/cursor state [:retrieving?])
+        ;; for creating
+        create-editing? (r/cursor state [:create-editing?])
+        create-confirming? (r/cursor state [:create-confirming?])
+        create-retrieving? (r/cursor state [:create-retrieving?])]
     (fn [zones]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -480,6 +565,26 @@
                ])]]
           (when-not @editing?
             [DisplayedZoneComp @current-zone])
+          [:form {:class "form-horizontal"}
+           (when @editing?
+             [ZoneFormComp (zone->form-zone @current-zone)])
+           [SubmitDismissConfirmGroup
+            {:confirming? confirming?
+             :editing? editing?
+             :retrieving? retrieving?
+             :submit-fn (fn [e]
+                          (.preventDefault e)
+                          (if @editing?
+                            (do
+                              ;; editing
+                              (reset! editing? false))
+                            (do
+                              ;; not editing
+                              (reset! editing? true))))
+             :dismiss-fn (fn [e]
+                           (.preventDefault e)
+                           (reset! editing? false))}]]
+          [:br]
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
             [:div [:h3 {:class "pull-left"
@@ -504,5 +609,28 @@
             [TablePager
              {:total-pages (count (sorted-zones))
               :current-page current-page
-              :on-click table-pager-on-click}]]]]]))))
+              :on-click table-pager-on-click}]]]
+          [:br]
+          [:div {:class "row"}
+           [:div {:class "col-lg-12"}
+            [:form {:class "form-horizontal"}
+             (when @create-editing?
+               [ZoneFormComp (zone->form-zone default-zone)])
+             [SubmitDismissConfirmGroup
+              {:confirming? create-confirming?
+               :editing? create-editing?
+               :retrieving? create-retrieving?
+               :submit-fn (fn [e]
+                            (.preventDefault e)
+                            (if @create-editing?
+                              (do
+                                ;; editing
+                                (reset! create-editing? false))
+                              (do
+                                ;; not editing
+                                (reset! create-editing? true))))
+               :dismiss-fn (fn [e]
+                             (.preventDefault e)
+                             (reset! create-editing? false))
+               :edit-btn-content "Create a New Zone"}]]]]]]))))
 
