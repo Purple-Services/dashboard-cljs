@@ -27,9 +27,34 @@
 (def state (r/atom {:current-zone nil
                     :confirming-edit? false
                     :alert-success ""
-                    ;; :editing? false
+                    :editing? false
                     :edit-zone default-zone
                     :selected "active"}))
+
+(defn DisplayedZoneComp
+  "Display a zone's information"
+  [zone]
+  (fn [zone]
+    [:div {:class "row"}
+     [:div {:class "col-lg-12"}
+      [KeyVal "Name" (:name zone)]
+      [KeyVal "Rank" (:rank zone)]
+      [KeyVal "Active" (if (:active zone)
+                         "Yes"
+                         "No")]
+      (let [gas-price-87 (get-in zone [:config :gas-price :87])
+            gas-price-91 (get-in zone [:config :gas-price :91])]
+        [KeyVal "Gas Price" (str
+                             "87 "
+                             (if (int? gas-price-87)
+                               (str "$" (cents->dollars gas-price-87))
+                               gas-price-87)
+                             " | "
+                             "91 "
+                             (if (int? gas-price-91)
+                               (str "$" (cents->dollars gas-price-91))
+                               gas-price-91))])
+      [KeyVal "Zips" (:zips zone)]]]))
 
 (defn displayed-zone
   [zone]
@@ -387,10 +412,12 @@
       (-> zone
           :zip_count)]
      ;; Zips
-     [:td {:style {:max-width "50em"
-                   :overflow "scroll"}}
-      (-> zone
-          :zips)]]))
+     [:td {:style {:overflow "scroll"}}
+      (let [zips-string (:zips zone)
+            subs-string (subs zips-string 0 68)]
+        (if (> (count zips-string) 68)
+          (str subs-string ", ...")
+          zips-string))]]))
 
 (defn zones-panel
   "Display a table of zones"
@@ -401,7 +428,8 @@
         sort-reversed? (r/atom true)
         selected (r/cursor state [:selected])
         current-page (r/atom 1)
-        page-size 15]
+        page-size 15
+        editing? (r/cursor state [:editing?])]
     (fn [zones]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -437,42 +465,44 @@
           (table-pager-on-click))
         ;;(reset-edit-zone! edit-zone current-zone)
         [:div {:class "panel panel-default"}
-         (when (subset? #{{:uri "/zone"
-                           :method "PUT"}}
-                        @accessible-routes)
-           [:div {:class "panel-body"}
-            [:h2 [:i {:class "fa fa-circle"
-                      :style {:color
-                              (:color @current-zone)}}]
-             (str " " (:name @current-zone))]
-            ;;[zone-form current-zone]
-            ])
          [:div {:class "panel-body"}
-          [:div [:h3 {:class "pull-left"
-                      :style {:margin-top "4px"
-                              :margin-bottom 0}}
-                 "Zones"]]
-          [:div {:class "btn-toolbar"
-                 :role "toolbar"}
-           [:div {:class "btn-group"
-                  :role "group"}
-            [RefreshButton {:refresh-fn
-                            refresh-fn}]]]]
-         [:div {:class "table-responsive"}
-          [StaticTable
-           {:table-header [zone-table-header
-                           {:sort-keyword sort-keyword
-                            :sort-reversed? sort-reversed?}]
-            :table-row (zone-row current-zone)}
-           (paginated-zones)]]
-         [TablePager
-          {:total-pages (count (sorted-zones))
-           :current-page current-page
-           :on-click table-pager-on-click}]]))))
+          [:div {:class "row"}
+           [:div {:class "col-lg-12"}
+            (when (subset? #{{:uri "/zone"
+                              :method "PUT"}}
+                           @accessible-routes)
+              [:div {:class "panel-body"}
+               [:h2 [:i {:class "fa fa-circle"
+                         :style {:color
+                                 (:color @current-zone)}}]
+                (str " " (:name @current-zone))]
+               ;;[zone-form current-zone]
+               ])]]
+          (when-not @editing?
+            [DisplayedZoneComp @current-zone])
+          [:div {:class "row"}
+           [:div {:class "col-lg-12"}
+            [:div [:h3 {:class "pull-left"
+                        :style {:margin-top "4px"
+                                :margin-bottom 0}}
+                   "Zones"]]
+            [:div {:class "btn-toolbar"
+                   :role "toolbar"}
+             [:div {:class "btn-group"
+                    :role "group"}
+              [RefreshButton {:refresh-fn
+                              refresh-fn}]]]]]
+          [:div {:class "row"}
+           [:div {:class "col-lg-12"}
+            [:div {:class "table-responsive"}
+             [StaticTable
+              {:table-header [zone-table-header
+                              {:sort-keyword sort-keyword
+                               :sort-reversed? sort-reversed?}]
+               :table-row (zone-row current-zone)}
+              (paginated-zones)]]
+            [TablePager
+             {:total-pages (count (sorted-zones))
+              :current-page current-page
+              :on-click table-pager-on-click}]]]]]))))
 
-#_ (defn zones-panel []
-     (fn []
-       [:div {:class "row"}
-        [:div {:class "col-lg-12"}
-         [:div
-          [:h3 "Zones Placeholder"]]]]))
