@@ -26,7 +26,7 @@
    :retrieving? false
    :name "" ; required
    :rank 1000 ; required
-   :active? true ; required
+   :active true ; required
    :zips ""
    ;; below is in :config
    :hours [[[]] ; Su
@@ -60,9 +60,10 @@
 
 (defn zone->form-zone
   [zone]
-  (r/atom {:name (:name zone)
-           :rank (:rank zone)
-           :active? (:active zone)}))
+  {:name (:name zone)
+   :rank (:rank zone)
+   :active (:active zone)
+   :id (:id zone)})
 
 (def state (r/atom {:current-zone nil
                     :confirming-edit? false
@@ -74,6 +75,7 @@
                     :create-editing? false
                     :create-retrieving? false
                     :edit-zone default-zone
+                    :create-edit-zone default-zone
                     :selected "active"}))
 
 (defn DisplayedZoneComp
@@ -103,340 +105,231 @@
 
 (defn ZoneFormComp
   "Create or edit a zone"
-  [zone]
-  (fn [zone]
+  [props]
+  (fn [{:keys [zone errors]} props]
     (let [name (r/cursor zone [:name])
           rank (r/cursor zone [:rank])
-          active? (r/cursor zone [:active?])]
+          active (r/cursor zone [:active])]
       [:div {:class "row"}
        [:div {:class "col-lg-12"}
         ;; name
-        [FormGroup {:label "Name"}
+        [FormGroup {:label "Name"
+                    :errors (:name @errors)}
          [TextInput {:value @name
                      :on-change #(reset! name
                                          (get-input-value %))}]]
         ;; rank
-        [FormGroup {:label "Rank"}
+        [FormGroup {:label "Rank"
+                    :errors (:rank @errors)}
          [TextInput {:value @rank
                      :on-change #(let [value (get-input-value %)]
                                    (reset! rank (if (parse-to-number? value)
                                                   (js/parseInt value)
                                                   value)))}]]
-        ;; active?
-        [FormGroup {:label "Active"}
+        ;; active
+        [FormGroup {:label "Active"
+                    :errors (:active @errors)}
          [:input {:type "checkbox"
-                  :checked @active?
+                  :checked @active
                   :style {:margin-left "4px"}
                   :on-change (fn [e] (reset!
-                                      active?
+                                      active
                                       (-> e
                                           (.-target)
                                           (.-checked))))}]]]])))
 
-(defn displayed-zone
+(defn EditZoneFormComp
   [zone]
-  (assoc zone
-         :price-87 (cents->dollars
-                    (-> zone
-                        :fuel_prices
-                        :87))
-         :price-91 (cents->dollars
-                    (-> zone
-                        :fuel_prices
-                        :91))
-         :service-fee-60 (cents->dollars
-                          (-> zone
-                              :service_fees
-                              :60))
-         :service-fee-180 (cents->dollars
-                           (-> zone
-                               :service_fees
-                               :180))
-         :service-fee-300 (cents->dollars
-                           (-> zone
-                               :service_fees
-                               :300))
-         :service-time-bracket-begin
-         (-> zone
-             :service_time_bracket
-             first
-             str)
-         :service-time-bracket-end
-         (-> zone
-             :service_time_bracket
-             second
-             str)))
+  (let [;; internal state
+        confirming? (r/cursor state [:confirming?])
+        editing? (r/cursor state [:editing?])
+        retrieving? (r/cursor state [:retrieving?])
+        errors (r/atom {})
+        alert-success (r/atom "")]
+    (fn [zone]
+      (let [current-zone zone ; before changes are made to zone
+            edit-zone (r/cursor state [:edit-zone])
+            ;; atoms for the editable zone
+            name (r/cursor edit-zone [:name])
+            rank (r/cursor edit-zone [:rank])
+            active (r/cursor edit-zone [:active])
+            ;; helper fns
+            diff-key-str {:name "Name"
+                          :rank "Rank"
+                          :active "Active"}
+            diff-msg-gen (fn [edit current]
+                           (diff-message
+                            edit
+                            current
+                            diff-key-str))
+            confirm-msg (fn []
+                          [:div (str "The following changes will be made to "
+                                     (:name @current-zone))
+                           (map (fn [el]
+                                  ^{:key el}
+                                  [:h4 el])
+                                (diff-msg-gen @edit-zone @current-zone))])
+            submit-on-click (fn [e]
+                              (.preventDefault e)
+                              (if @editing?
+                                (if (every? nil? (diff-msg-gen @edit-zone
+                                                               @current-zone))
+                                  ;; there isn't a diff message, no changes
+                                  (reset! editing? false)
+                                  ;; there is a diff message, confirm change
+                                  (reset! confirming? true))
+                                (do
+                                  ;; reset edit zone
+                                  (reset! edit-zone (zone->form-zone @zone))
+                                  ;; get rid of alert-success
+                                  (reset! alert-success "")
+                                  (reset! editing? true))))
+            confirm-on-click (fn [_]
+                               (entity-save
+                                @edit-zone
+                                "zone"
+                                "PUT"
+                                retrieving?
+                                (edit-on-success "zone"
+                                                 edit-zone
+                                                 current-zone
+                                                 alert-success
+                                                 :aux-fn
+                                                 (fn []
+                                                   (reset! confirming? false)
+                                                   (reset! retrieving? false)
+                                                   (reset! editing? false)))
+                                (edit-on-error edit-zone
+                                               :aux-fn
+                                               (fn []
+                                                 (reset! confirming? false)
+                                                 (reset! retrieving? false)
+                                                 (reset! alert-success ""))
+                                               :response-fn
+                                               (fn [response]
+                                                 (reset! errors response)))))
+            dismiss-fn (fn [e]
+                         ;; reset any errors
+                         (reset! errors nil)
+                         ;; no longer editing
+                         (reset! editing? false)
+                         ;; reset edit-zone
+                         (reset! edit-zone (zone->form-zone zone))
+                         ;; reset confirming
+                         (reset! confirming? false))]
+        [:div
+         (when-not @editing?
+           [DisplayedZoneComp @current-zone])
+         [:form {:class "form-horizontal"}
+          (when @editing?
+            [ZoneFormComp {:zone edit-zone
+                           :errors errors}])
+          [SubmitDismissConfirmGroup
+           {:confirming? confirming?
+            :editing? editing?
+            :retrieving? retrieving?
+            :submit-fn submit-on-click
+            :dismiss-fn dismiss-fn}]
+          (if (and @confirming?
+                   (not-every? nil? (diff-msg-gen @edit-zone @current-zone)))
+            [ConfirmationAlert
+             {:confirmation-message confirm-msg
+              :cancel-on-click dismiss-fn
+              :confirm-on-click confirm-on-click
+              :retrieving? retrieving?}]
+            (reset! confirming? false))
+          (when-not (empty? @alert-success)
+            [AlertSuccess {:message @alert-success
+                           :dismiss #(reset! alert-success)}])]]))))
 
-
-#_ (defn reset-edit-zone!
-     [edit-zone current-zone]
-     (reset! edit-zone
-             (displayed-zone @current-zone)))
-
-#_ (defn zone->server-req
-     [zone]
-     (let [{:keys [price-87 price-91 service-fee-60 service-fee-180 service-fee-300
-                   service-time-bracket-begin service-time-bracket-end]}
-           zone]
-       (assoc zone
-              :price-87
-              (if (parse-to-number? price-87)
-                (dollars->cents
-                 price-87)
-                price-87)
-              :price-91
-              (if (parse-to-number? price-91)
-                (dollars->cents
-                 price-91)
-                price-91)
-              :service-fee-60
-              (if (parse-to-number? service-fee-60)
-                (dollars->cents
-                 service-fee-60)
-                service-fee-60)
-              :service-fee-180
-              (if (parse-to-number? service-fee-180)
-                (dollars->cents
-                 service-fee-180)
-                service-fee-180)
-              :service-fee-300
-              (if (parse-to-number? service-fee-300)
-                (dollars->cents
-                 service-fee-300)
-                service-fee-300)
-              :service-time-bracket-begin
-              (if (parse-to-number? service-time-bracket-begin)
-                (js/Number service-time-bracket-begin)
-                service-time-bracket-begin)
-              :service-time-bracket-end
-              (if (parse-to-number? service-time-bracket-end)
-                (js/Number service-time-bracket-end)
-                service-time-bracket-end))))
-
-#_ (defn zone-form-submit
-     "A submit button for the zone using on-click and label for
-  the submit button"
-     [zone on-click label]
-     (fn []
-       (let [retrieving? (r/cursor zone [:retrieving?])
-             errors      (r/cursor zone [:errors])
-             code        (r/cursor zone [:code])]
-
-         [:div {:class "form-group"}
-          [:div {:class "col-sm-2 control-label"}]
-          [:div {:class "col-sm-10"}
-           [:button {:type "submit"
-                     :class "btn btn-default"
-                     :on-click on-click}
-            (if @retrieving?
-              [:i {:class "fa fa-lg fa-refresh fa-pulse "}]
-              label)]]])))
-
-#_ (defn zone-form
-     "Form for a zone using submit-button"
-     [zone]
-     (let [
-           edit-zone (r/cursor state [:edit-zone])
-           
-           price-87 (r/cursor edit-zone [:price-87])
-           price-91 (r/cursor edit-zone [:price-91])
-           service-fee-60 (r/cursor edit-zone [:service-fee-60])
-           service-fee-180 (r/cursor edit-zone [:service-fee-180])
-           service-fee-300 (r/cursor edit-zone [:service-fee-300])
-           service-time-bracket-begin (r/cursor edit-zone
-                                                [:service-time-bracket-begin])
-           service-time-bracket-end   (r/cursor edit-zone
-                                                [:service-time-bracket-end])
-           editing? (r/cursor edit-zone [:editing?])
-           retrieving? (r/cursor edit-zone [:retrieving?])
-           errors (r/cursor edit-zone [:errors])
-
-           current-zone (r/cursor state [:current-zone])
-           alert-success (r/cursor state [:alert-success])
-           confirming?   (r/cursor state [:confirming-edit?])
-
-           diff-key-str {:price-87 "87 Octane"
-                         :price-91 "91 Octane"
-                         :service-fee-60 "1 Hour Fee"
-                         :service-fee-180 "3 Hour Fee"
-                         :service-fee-300 "5 Hour Fee"
-                         :service-time-bracket-begin "Service Starts"
-                         :service-time-bracket-end "Service Ends"}
-           diff-msg-gen (fn [edit current] (diff-message edit
-                                                         (displayed-zone current)
-                                                         diff-key-str))]
-       (fn [zone]
-         (let [submit-on-click (fn [e]
-                                 (.preventDefault e)
-                                 (if @editing?
-                                   (if (every? nil? (diff-msg-gen @edit-zone
-                                                                  @current-zone))
-                                     ;; there isn't a diff message, no changes
-                                     ;; do nothing
-                                     (reset! editing? (not @editing?))
-                                     ;; there is a diff message, confirm changes
-                                     (reset! confirming? true))
-                                   (do
-                                     ;; get rid of alert-success
-                                     (reset! alert-success "")
-                                     (reset! editing? (not @editing?)))))
-               dismiss-fn (fn [e]
-                            ;; reset any errors
-                            (reset! errors nil)
-                            ;; no longer editing
-                            (reset! editing? false)
-                            ;; reset current zone
-                            (reset-edit-zone! edit-zone current-zone)
-                            ;; reset confirming
-                            (reset! confirming? false))]
-           [:form {:class "form-horizontal"}
-            (if @editing?
-              [:div {:class "row"}
-               [:div {:class "col-xs-2"}
-                ;; 87 Price
-                [FormGroup {:label-for "87 price"
-                            :label "87 Octane"
-                            :errors (:price-87 @errors)
-                            :input-group-addon [:div {:class "input-group-addon"}
-                                                "$"]}
-                 [TextInput {:value @price-87
-                             :on-change #(reset! price-87 (-> %
-                                                              (aget "target")
-                                                              (aget "value")))}]]
-                ;; 91 price
-                [FormGroup {:label-for "91 price"
-                            :label "91 Octane"
-                            :errors (:price-91 @errors)
-                            :input-group-addon [:div {:class "input-group-addon"}
-                                                "$"]}
-                 [TextInput {:value @price-91
-                             :on-change #(reset! price-91 (-> %
-                                                              (aget "target")
-                                                              (aget "value")))}]]
-                ;; 1 hour fee
-                [FormGroup {:label-for "1 Hour Fee"
-                            :label "1 Hour Fee"
-                            :errors  (:service-fee-60 @errors)
-                            :input-group-addon [:div {:class "input-group-addon"}
-                                                "$"]}
-                 [TextInput {:value @service-fee-60
-                             :on-change #(reset! service-fee-60
-                                                 (-> %
-                                                     (aget "target")
-                                                     (aget "value")))}]]
-                ;; 3 hour fee
-                [FormGroup {:label-for "3 Hour Fee"
-                            :label "3 Hour Fee"
-                            :errors  (:service-fee-180 @errors)
-                            :input-group-addon [:div {:class "input-group-addon"}
-                                                "$"]}
-                 [TextInput {:value @service-fee-180
-                             :on-change #(reset! service-fee-180
-                                                 (-> %
-                                                     (aget "target")
-                                                     (aget "value")))}]]
-                ;; 5 hour fee
-                [FormGroup {:label-for "5 Hour Fee"
-                            :label "5 Hour Fee"
-                            :errors  (:service-fee-300 @errors)
-                            :input-group-addon [:div {:class "input-group-addon"}
-                                                "$"]}
-                 [TextInput {:value @service-fee-300
-                             :on-change #(reset! service-fee-300
-                                                 (-> %
-                                                     (aget "target")
-                                                     (aget "value")))}]]
-                ;; service starts
-                [FormGroup {:label-for "Service Starts"
-                            :label "service starts"
-                            :errors (:service-time-bracket-begin @errors)}
-                 [TextInput {:value @service-time-bracket-begin
-                             :on-change #(reset! service-time-bracket-begin
-                                                 (-> %
-                                                     (aget "target")
-                                                     (aget "value")))}]]
-                ;; service ends
-                [FormGroup {:label-for "Service Ends"
-                            :label "service ends"
-                            :errors (:service-time-bracket-end @errors)}
-                 [TextInput {:value @service-time-bracket-end
-                             :on-change #(reset! service-time-bracket-end
-                                                 (-> %
-                                                     (aget "target")
-                                                     (aget "value")))}]]]]
-              ;; not editing
-              [:div
-               ;;87 price
-               [KeyVal "87 Octane" (-> @zone
-                                       :fuel_prices
-                                       :87
-                                       (cents->$dollars))]
-               ;; 91 price
-               [KeyVal "91 Octane" (-> @zone
-                                       :fuel_prices
-                                       :91
-                                       (cents->$dollars))]
-               ;; 1 hour fee
-               [KeyVal "1 Hour Fee" (-> @zone
-                                        :service_fees
-                                        :60
-                                        (cents->$dollars))]
-               ;; 3 hour fee
-               [KeyVal "3 Hour Fee" (-> @zone
-                                        :service_fees
-                                        :180
-                                        (cents->$dollars))]
-               ;; 5 hour fee
-               [KeyVal "5 Hour Fee" (-> @zone
-                                        :service_fees
-                                        :300
-                                        (cents->$dollars))]
-               ;; service starts
-               [KeyVal "Service Starts" (-> @zone
-                                            :service_time_bracket
-                                            first)]
-               ;; service ends
-               [KeyVal "Service Ends" (-> @zone
-                                          :service_time_bracket
-                                          second)]])
-            ;; submit button
-            [SubmitDismissConfirmGroup {:confirming? confirming?
-                                        :editing? editing?
-                                        :retrieving? retrieving?
-                                        :submit-fn submit-on-click
-                                        :dismiss-fn dismiss-fn}]
-            (if (and @confirming?
-                     (not-every? nil? (diff-msg-gen
-                                       @edit-zone @current-zone)))
-              [ConfirmationAlert
-               {:confirmation-message
-                (fn []
-                  [:div (str "The following changes will be made to "
-                             (:name @current-zone))
-                   (map (fn [el]
-                          ^{:key el}
-                          [:h4 el])
-                        (diff-msg-gen
-                         @edit-zone @current-zone))])
-                :cancel-on-click dismiss-fn
-                :confirm-on-click (fn [_]
-                                    (entity-save
-                                     (zone->server-req @edit-zone)
-                                     "zone"
-                                     "PUT"
-                                     retrieving?
-                                     (edit-on-success "zone" edit-zone current-zone
-                                                      alert-success
-                                                      :aux-fn
-                                                      #(reset! confirming? false))
-                                     (edit-on-error edit-zone
-                                                    :aux-fn
-                                                    #(reset! confirming? false))))
-                :retrieving? retrieving?}]
-              (reset! confirming? false))
-            (when-not (empty? @alert-success)
-              [AlertSuccess {:message @alert-success
-                             :dismiss #(reset! alert-success "")}])]))))
+(defn CreateZoneFormComp
+  []
+  (let [;; internal state
+        confirming? (r/cursor state [:create-confirming?])
+        editing? (r/cursor state [:create-editing?])
+        retrieving? (r/cursor state [:create-retrieving?])
+        errors (r/atom {})
+        alert-success (r/atom "")]
+    (fn []
+      (let [edit-zone (r/cursor state [:create-edit-zone])
+            ;; atoms for the editable zone
+            name (r/cursor edit-zone [:name])
+            rank (r/cursor edit-zone [:rank])
+            active (r/cursor edit-zone [:active])
+            ;; helper fns
+            confirm-msg (fn [zone]
+                          (let [{:keys [name rank active]} zone]
+                            (.log js/console active)
+                            [:div
+                             (str "Are you sure you want to create new zone "
+                                  "with the following value?")
+                             [:h4 "Name: " name]
+                             [:h4 "Rank: " rank]
+                             [:h4 "Active: " (if  active
+                                               "Yes"
+                                               "No")]]))
+            submit-on-click (fn [e]
+                              (.preventDefault e)
+                              (if @editing?
+                                (do
+                                  (reset! confirming? true))
+                                (do
+                                  (reset! alert-success "")
+                                  (reset! editing? true))))
+            confirm-on-click (fn [_]
+                               (entity-save
+                                @edit-zone
+                                "zone"
+                                "POST"
+                                retrieving?
+                                (edit-on-success "zone"
+                                                 edit-zone
+                                                 (r/atom {})
+                                                 alert-success
+                                                 :aux-fn
+                                                 (fn []
+                                                   (reset! confirming? false)
+                                                   (reset! retrieving? false)
+                                                   (reset! editing? false)))
+                                (edit-on-error edit-zone
+                                               :aux-fn
+                                               (fn []
+                                                 (reset! confirming? false)
+                                                 (reset! retrieving? false)
+                                                 (reset! alert-success ""))
+                                               :response-fn
+                                               (fn [response]
+                                                 (reset! errors response)))))
+            dismiss-fn (fn [e]
+                         ;; reset any errors
+                         (reset! errors nil)
+                         ;; no longer editing
+                         (reset! editing? false)
+                         ;; reset edit-zone
+                         (reset! edit-zone default-zone)
+                         ;; reset confirming
+                         (reset! confirming? false))]
+        [:div
+         [:form {:class "form-horizontal"}
+          (when @editing?
+            [ZoneFormComp {:zone edit-zone
+                           :errors errors}])
+          [SubmitDismissConfirmGroup
+           {:confirming? confirming?
+            :editing? editing?
+            :retrieving? retrieving?
+            :submit-fn submit-on-click
+            :dismiss-fn dismiss-fn
+            :edit-btn-content "Create a New Zone"}]
+          (when @confirming?
+            [ConfirmationAlert
+             {:confirmation-message (fn [] (confirm-msg @edit-zone))
+              :cancel-on-click dismiss-fn
+              :confirm-on-click confirm-on-click
+              :retrieving? retrieving?}])
+          (when-not (empty? @alert-success)
+            [AlertSuccess {:message @alert-success
+                           :dismiss #(reset! alert-success)}])]]))))
 
 (defn zone-table-header
   "props is:
@@ -473,6 +366,7 @@
                    "active")
           :on-click (fn [_]
                       (reset! current-zone zone)
+                      (reset! (r/cursor state [:editing?]) false)
                       (reset! (r/cursor state [:alert-success]) ""))}
      ;; Rank
      [:td (-> zone
@@ -501,20 +395,12 @@
   "Display a table of zones"
   [zones]
   (let [current-zone (r/cursor state [:current-zone])
-        ;;edit-zone (r/cursor state [:edit-zone])
+        edit-zone (r/cursor state [:edit-zone])
         sort-keyword (r/atom :rank)
         sort-reversed? (r/atom true)
         selected (r/cursor state [:selected])
         current-page (r/atom 1)
-        page-size 15
-        ;; for editing
-        confirming? (r/cursor state [:confirming?])
-        editing? (r/cursor state [:editing?])
-        retrieving? (r/cursor state [:retrieving?])
-        ;; for creating
-        create-editing? (r/cursor state [:create-editing?])
-        create-confirming? (r/cursor state [:create-confirming?])
-        create-retrieving? (r/cursor state [:create-retrieving?])]
+        page-size 15]
     (fn [zones]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -548,7 +434,6 @@
                                            (first (paginated-zones))))]
         (when (nil? @current-zone)
           (table-pager-on-click))
-        ;;(reset-edit-zone! edit-zone current-zone)
         [:div {:class "panel panel-default"}
          [:div {:class "panel-body"}
           [:div {:class "row"}
@@ -561,29 +446,7 @@
                          :style {:color
                                  (:color @current-zone)}}]
                 (str " " (:name @current-zone))]
-               ;;[zone-form current-zone]
-               ])]]
-          (when-not @editing?
-            [DisplayedZoneComp @current-zone])
-          [:form {:class "form-horizontal"}
-           (when @editing?
-             [ZoneFormComp (zone->form-zone @current-zone)])
-           [SubmitDismissConfirmGroup
-            {:confirming? confirming?
-             :editing? editing?
-             :retrieving? retrieving?
-             :submit-fn (fn [e]
-                          (.preventDefault e)
-                          (if @editing?
-                            (do
-                              ;; editing
-                              (reset! editing? false))
-                            (do
-                              ;; not editing
-                              (reset! editing? true))))
-             :dismiss-fn (fn [e]
-                           (.preventDefault e)
-                           (reset! editing? false))}]]
+               [EditZoneFormComp current-zone]])]]
           [:br]
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
@@ -613,24 +476,5 @@
           [:br]
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
-            [:form {:class "form-horizontal"}
-             (when @create-editing?
-               [ZoneFormComp (zone->form-zone default-zone)])
-             [SubmitDismissConfirmGroup
-              {:confirming? create-confirming?
-               :editing? create-editing?
-               :retrieving? create-retrieving?
-               :submit-fn (fn [e]
-                            (.preventDefault e)
-                            (if @create-editing?
-                              (do
-                                ;; editing
-                                (reset! create-editing? false))
-                              (do
-                                ;; not editing
-                                (reset! create-editing? true))))
-               :dismiss-fn (fn [e]
-                             (.preventDefault e)
-                             (reset! create-editing? false))
-               :edit-btn-content "Create a New Zone"}]]]]]]))))
+            [CreateZoneFormComp]]]]]))))
 
