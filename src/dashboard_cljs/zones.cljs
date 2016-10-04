@@ -14,7 +14,8 @@
                                                FormGroup TextInput KeyVal
                                                EditFormSubmit DismissButton
                                                ConfirmationAlert AlertSuccess
-                                               SubmitDismissConfirmGroup]]
+                                               SubmitDismissConfirmGroup
+                                               TextAreaInput]]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error]]
             [clojure.string :as s]))
@@ -63,6 +64,7 @@
   {:name (:name zone)
    :rank (:rank zone)
    :active (:active zone)
+   :zips (:zips zone)
    :id (:id zone)})
 
 (def state (r/atom {:current-zone nil
@@ -101,7 +103,7 @@
                              (if (int? gas-price-91)
                                (str "$" (cents->dollars gas-price-91))
                                gas-price-91))])
-      [KeyVal "Zips" (:zips zone)]]]))
+      [KeyVal "Zip Codes" (:zips zone)]]]))
 
 (defn ZoneFormComp
   "Create or edit a zone"
@@ -109,7 +111,8 @@
   (fn [{:keys [zone errors]} props]
     (let [name (r/cursor zone [:name])
           rank (r/cursor zone [:rank])
-          active (r/cursor zone [:active])]
+          active (r/cursor zone [:active])
+          zips (r/cursor zone [:zips])]
       [:div {:class "row"}
        [:div {:class "col-lg-12"}
         ;; name
@@ -136,7 +139,16 @@
                                       active
                                       (-> e
                                           (.-target)
-                                          (.-checked))))}]]]])))
+                                          (.-checked))))}]]
+        ;; zips
+        [FormGroup {:label "Zip Codes"
+                    :errors (:zips @errors)}
+         [TextAreaInput {:value @zips
+                         :rows 2
+                         :on-change (fn [e]
+                                      (reset!
+                                       zips
+                                       (get-input-value e)))}]]]])))
 
 (defn EditZoneFormComp
   [zone]
@@ -156,7 +168,8 @@
             ;; helper fns
             diff-key-str {:name "Name"
                           :rank "Rank"
-                          :active "Active"}
+                          :active "Active"
+                          :zips "Zip Codes"}
             diff-msg-gen (fn [edit current]
                            (diff-message
                             edit
@@ -258,7 +271,7 @@
             active (r/cursor edit-zone [:active])
             ;; helper fns
             confirm-msg (fn [zone]
-                          (let [{:keys [name rank active]} zone]
+                          (let [{:keys [name rank active zips]} zone]
                             (.log js/console active)
                             [:div
                              (str "Are you sure you want to create new zone "
@@ -267,7 +280,8 @@
                              [:h4 "Rank: " rank]
                              [:h4 "Active: " (if  active
                                                "Yes"
-                                               "No")]]))
+                                               "No")]
+                             [:h4 "Zip Codes: " zips]]))
             submit-on-click (fn [e]
                               (.preventDefault e)
                               (if @editing?
@@ -288,6 +302,7 @@
                                                  alert-success
                                                  :aux-fn
                                                  (fn []
+                                                   (.log js/console "I confirmed!")
                                                    (reset! confirming? false)
                                                    (reset! retrieving? false)
                                                    (reset! editing? false)))
@@ -380,9 +395,8 @@
      [:td (-> zone
               :name)]
      ;; # of zips
-     [:td ;;(count (-> zone))
-      (-> zone
-          :zip_count)]
+     [:td (-> zone
+              :zip_count)]
      ;; Zips
      [:td {:style {:overflow "scroll"}}
       (let [zips-string (:zips zone)
@@ -477,4 +491,3 @@
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
             [CreateZoneFormComp]]]]]))))
-
