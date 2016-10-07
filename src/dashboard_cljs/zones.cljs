@@ -423,6 +423,8 @@
             sorted-zones (fn []
                            (->> displayed-zones
                                 sort-fn
+                                ;; we're not displaying the Earth Zone
+                                (filter #(not= (:id %) 1))
                                 (partition-all page-size)))
             paginated-zones (fn []
                               (-> (sorted-zones)
