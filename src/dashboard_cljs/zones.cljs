@@ -15,22 +15,13 @@
                                                EditFormSubmit DismissButton
                                                ConfirmationAlert AlertSuccess
                                                SubmitDismissConfirmGroup
-                                               TextAreaInput]]
+                                               TextAreaInput Select]]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error]]
             [clojure.string :as s]))
 
-(def default-zone
-  {:errors nil
-   :confirming? false
-   :editing? false
-   :retrieving? false
-   :name "" ; required
-   :rank 1000 ; required
-   :active true ; required
-   :zips ""
-   ;; below is in :config
-   :hours [[[]] ; Su
+(def default-zone-config
+  {:hours [[[]] ; Su
            [[]] ; M
            [[]] ; T
            [[]] ; W
@@ -59,13 +50,46 @@
    :manually-closed? false
    :closed-message ""})
 
+(def default-zone
+  {:errors nil
+   :confirming? false
+   :editing? false
+   :retrieving? false
+   :name "" ; required
+   :rank 1000 ; required
+   :active true ; required
+   :zips ""})
+
+;; this function converts a zone to a edit-form zone
 (defn zone->form-zone
   [zone]
   {:name (:name zone)
    :rank (:rank zone)
    :active (:active zone)
    :zips (:zips zone)
-   :id (:id zone)})
+   :id (:id zone)
+   :config (:config zone)})
+
+(defn minute-count->standard-hours
+  "Given a count of minutes elapsed in day, 
+  convert it to standard hours"
+  [minute-count]
+  (let [hours (quot minute-count 60)]
+    (cond (= hours 0) 12
+          (> hours 12) (- hours 12)
+          (<= hours 12) hours)))
+
+(defn minute-count->minutes
+  "Given a count of minutes elapsed in day,
+  convert it to minutes of day"
+  [minute-count]
+  (mod minute-count 60))
+
+(defn minute-count->period
+  "Given a count of minutes elapsed in day,
+  determine if it is in the AM or PM"
+  [minute-count]
+  (if (< (quot minute-count 60) 12) "AM" "PM"))
 
 (def state (r/atom {:current-zone nil
                     :confirming-edit? false
@@ -103,7 +127,75 @@
                              (if (int? gas-price-91)
                                (str "$" (cents->dollars gas-price-91))
                                gas-price-91))])
-      [KeyVal "Zip Codes" (:zips zone)]]]))
+      [KeyVal "Zip Codes" (:zips zone)]
+      (when (get-in zone [:config :hours])
+        [KeyVal "Hours" ;;(get-in zone [:config :hours])
+         "hours Placeholder"
+         ])]]))
+
+(defn TimePickerComp
+  []
+  (let [from-hour (r/atom "12")
+        from-minutes (r/atom "00")
+        from-period (r/atom {:id 0 :period "AM"})
+        to-hour (r/atom "12")
+        to-minutes (r/atom "05")
+        to-period (r/atom {:id 0 :period "AM"})]
+    (fn []
+      (let []
+        [:div {:style {:display "inline-block"}}
+         [:div {:style {:max-width "3em"
+                        :display "inline-block"}}
+          [TextInput {:value @from-hour
+                      :placeholder "12"
+                      :on-change #(reset! from-hour
+                                          (get-input-value %))}]]
+         ":"
+         [:div {:style {:max-width "3em"
+                        :display "inline-block"}}
+          [TextInput {:value @from-minutes
+                      :placeholder "00"
+                      :on-change #(reset! from-minutes
+                                          (get-input-value %))}]]
+         [:div {:style {:display "inline-block"}}
+          [Select {:value from-period
+                   :options #{{:id 0 :period "AM"}
+                              {:id 1 :period "PM"}}
+                   :display-key :period
+                   :sort-keyword :id}]]
+         " - "
+         [:div {:style {:max-width "3em"
+                        :display "inline-block"}}
+          [TextInput {:value @to-hour
+                      :placeholder "12"
+                      :on-change #(reset! to-hour
+                                          (get-input-value %))}]]
+         ":"
+         [:div {:style {:max-width "3em"
+                        :display "inline-block"}}
+          [TextInput {:value @to-minutes
+                      :placeholder "00"
+                      :on-change #(reset! to-minutes
+                                          (get-input-value %))}]]
+         [:div {:style {:display "inline-block"}}
+          [Select {:value to-period
+                   :options #{{:id 0 :period "AM"}
+                              {:id 1 :period "PM"}}
+                   :display-key :period
+                   :sort-keyword :id}]]]))))
+
+(defn DayTimeRangeComp
+  [hours]
+  (fn [hours]
+    (let [days-of-week ["S" "M" "T" "W" "Th" "F" "Sa"]]
+      [:div
+       ;;[DayPickerComp]
+       (map-indexed (fn [idx itm]
+                      ^{:key idx}
+                      [:div (nth days-of-week idx)
+                       [TimePickerComp]])
+                    hours)])))
+
 
 (defn ZoneFormComp
   "Create or edit a zone"
@@ -112,7 +204,9 @@
     (let [name (r/cursor zone [:name])
           rank (r/cursor zone [:rank])
           active (r/cursor zone [:active])
-          zips (r/cursor zone [:zips])]
+          zips (r/cursor zone [:zips])
+          config (r/cursor zone [:config])
+          hours (r/cursor config [:hours])]
       [:div {:class "row"}
        [:div {:class "col-lg-12"}
         ;; name
@@ -148,7 +242,12 @@
                          :on-change (fn [e]
                                       (reset!
                                        zips
-                                       (get-input-value e)))}]]]])))
+                                       (get-input-value e)))}]]
+        ;; Hours
+        (when @hours
+          [FormGroup {:label "Hours of Operation"
+                      :errors (get-in  @errors [:config :hours])}
+           [DayTimeRangeComp @hours]])]])))
 
 (defn EditZoneFormComp
   [zone]
@@ -160,6 +259,7 @@
         alert-success (r/atom "")]
     (fn [zone]
       (let [current-zone zone ; before changes are made to zone
+            config (r/cursor current-zone [:config])
             edit-zone (r/cursor state [:edit-zone])
             ;; atoms for the editable zone
             name (r/cursor edit-zone [:name])
@@ -272,7 +372,6 @@
             ;; helper fns
             confirm-msg (fn [zone]
                           (let [{:keys [name rank active zips]} zone]
-                            (.log js/console active)
                             [:div
                              (str "Are you sure you want to create new zone "
                                   "with the following value?")
@@ -302,7 +401,6 @@
                                                  alert-success
                                                  :aux-fn
                                                  (fn []
-                                                   (.log js/console "I confirmed!")
                                                    (reset! confirming? false)
                                                    (reset! retrieving? false)
                                                    (reset! editing? false)))
