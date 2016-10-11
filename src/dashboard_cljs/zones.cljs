@@ -20,6 +20,29 @@
                                           edit-on-error]]
             [clojure.string :as s]))
 
+(def default-zone
+  {:errors nil
+   :confirming? false
+   :editing? false
+   :retrieving? false
+   :name "" ; required
+   :rank 1000 ; required
+   :active true ; required
+   :zips ""})
+
+(def state (r/atom {:current-zone nil
+                    :confirming-edit? false
+                    :alert-success ""
+                    :confirming? false
+                    :editing? false
+                    :retrieving? false
+                    :create-confirming? false
+                    :create-editing? false
+                    :create-retrieving? false
+                    :edit-zone default-zone
+                    :create-edit-zone default-zone
+                    :selected "active"}))
+
 (def default-zone-config
   {:hours [[[]] ; Su
            [[]] ; M
@@ -50,15 +73,7 @@
    :manually-closed? false
    :closed-message ""})
 
-(def default-zone
-  {:errors nil
-   :confirming? false
-   :editing? false
-   :retrieving? false
-   :name "" ; required
-   :rank 1000 ; required
-   :active true ; required
-   :zips ""})
+
 
 ;; this function converts a zone to a edit-form zone
 (defn zone->form-zone
@@ -91,18 +106,24 @@
   [minute-count]
   (if (< (quot minute-count 60) 12) "AM" "PM"))
 
-(def state (r/atom {:current-zone nil
-                    :confirming-edit? false
-                    :alert-success ""
-                    :confirming? false
-                    :editing? false
-                    :retrieving? false
-                    :create-confirming? false
-                    :create-editing? false
-                    :create-retrieving? false
-                    :edit-zone default-zone
-                    :create-edit-zone default-zone
-                    :selected "active"}))
+(defn standard-time->minute-count
+  [standard-hours minutes period]
+  (cond
+    ;; from 12:00-12:59 AM
+    (and (= standard-hours 12)
+         (= period "AM"))
+    minutes
+    ;; from 12:00-12:59 PM
+    (and (= standard-hours 12)
+         (= period "PM"))
+    (+ (* 12 60) minutes)
+    ;; from 1:00PM-11:59PM
+    (= period "PM")
+    (+ (* standard-hours 60) (* 12 60) minutes)
+    ;; from 1:00-11:59AM
+    (= period "AM")
+    (+ (* standard-hours 60) minutes)))
+
 
 (defn DisplayedZoneComp
   "Display a zone's information"
@@ -134,26 +155,62 @@
          ])]]))
 
 (defn TimePickerComp
-  []
-  (let [from-hour (r/atom "12")
+  [hours]
+  (let [from-hours (r/atom "12")
         from-minutes (r/atom "00")
         from-period (r/atom {:id 0 :period "AM"})
-        to-hour (r/atom "12")
+        to-hours (r/atom "12")
         to-minutes (r/atom "05")
         to-period (r/atom {:id 0 :period "AM"})]
-    (fn []
-      (let []
+    (fn [hours]
+      (let [from-time (first @hours)
+            to-time (second @hours)
+            all-times-parse-to-number?
+            (fn []
+              (and (parse-to-number? @from-hours)
+                   (parse-to-number? @from-minutes)
+                   (parse-to-number? @to-hours)
+                   (parse-to-number? @to-minutes)))
+            standard-times->minute-count-brackets
+            (fn []
+              (if (all-times-parse-to-number?)
+                ;; only do something if everything parses correctly
+                (let [from-minute-count (standard-time->minute-count
+                                         (js/Number @from-hours)
+                                         (js/Number @from-minutes)
+                                         (:period @from-period))
+                      to-minute-count   (standard-time->minute-count
+                                         (js/Number @to-hours)
+                                         (js/Number @to-minutes)
+                                         (:period @to-period))]
+                  (reset! hours [from-minute-count to-minute-count]))))
+            time-period->time-period-map { "AM" {:id 0 :period "AM"}
+                                           "PM" {:id 1 :period "PM"}}]
+        (.log js/console "before")
+        (.log js/console "from-period: " (clj->js @to-period))
+        ;; from
+        (reset! from-hours (minute-count->standard-hours from-time))
+        (reset! from-minutes (minute-count->minutes from-time))
+        (reset! from-period (:id (time-period->time-period-map
+                                  (minute-count->period from-time))))
+        ;; to
+        (reset! to-hours (minute-count->standard-hours to-time))
+        (reset! to-minutes (minute-count->minutes to-time))
+        (reset! to-period (:id (time-period->time-period-map
+                                (minute-count->period to-time))))
+        (.log js/console "after")
+        (.log js/console "from-period: " (clj->js @to-period))
         [:div {:style {:display "inline-block"}}
          [:div {:style {:max-width "3em"
                         :display "inline-block"}}
-          [TextInput {:value @from-hour
+          [TextInput {:value @from-hours
                       :placeholder "12"
-                      :on-change #(reset! from-hour
+                      :on-change #(reset! from-hours
                                           (get-input-value %))}]]
          ":"
          [:div {:style {:max-width "3em"
                         :display "inline-block"}}
-          [TextInput {:value @from-minutes
+          [TextInput {:value  @from-minutes
                       :placeholder "00"
                       :on-change #(reset! from-minutes
                                           (get-input-value %))}]]
@@ -166,9 +223,9 @@
          " - "
          [:div {:style {:max-width "3em"
                         :display "inline-block"}}
-          [TextInput {:value @to-hour
+          [TextInput {:value @to-hours
                       :placeholder "12"
-                      :on-change #(reset! to-hour
+                      :on-change #(reset! to-hours
                                           (get-input-value %))}]]
          ":"
          [:div {:style {:max-width "3em"
@@ -186,15 +243,27 @@
 
 (defn DayTimeRangeComp
   [hours]
-  (fn [hours]
-    (let [days-of-week ["S" "M" "T" "W" "Th" "F" "Sa"]]
-      [:div
-       ;;[DayPickerComp]
-       (map-indexed (fn [idx itm]
-                      ^{:key idx}
-                      [:div (nth days-of-week idx)
-                       [TimePickerComp]])
-                    hours)])))
+  (let [hours-map (r/atom {})]
+    (fn [hours]
+      (let [days-of-week ["S" "M" "T" "W" "Th" "F" "Sa"]]
+        [:div
+         (map-indexed
+          (fn [idx itm]
+            (let [day-of-week (nth days-of-week idx)]
+              ^{:key (gensym "day-")}
+              [:div day-of-week
+               (map (fn [el]
+                      (let [random-key (gensym "t")
+                            hours-key
+                            (r/cursor
+                             hours-map
+                             [(keyword day-of-week)
+                              (keyword random-key)])
+                            _ (reset! hours-key el)]
+                        ^{:key (gensym "hour-")}
+                        [TimePickerComp hours-key]))
+                    itm)]))
+          hours)]))))
 
 
 (defn ZoneFormComp
