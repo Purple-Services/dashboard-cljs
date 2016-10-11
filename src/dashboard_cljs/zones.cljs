@@ -74,9 +74,9 @@
    :closed-message ""})
 
 
-
 ;; this function converts a zone to a edit-form zone
-(defn zone->form-zone
+(defn server-zone->form-zone
+  "Convert a server-zone to form-zone"
   [zone]
   {:name (:name zone)
    :rank (:rank zone)
@@ -155,17 +155,36 @@
          ])]]))
 
 (defn TimePickerComp
-  [hours]
-  (let [from-hours (r/atom "12")
+  [minutes-bracket]
+  (let [hours (r/cursor minutes-bracket [:hours])
+        from-hours (r/atom "12")
         from-minutes (r/atom "00")
         from-period (r/atom {:id 0 :period "AM"})
         to-hours (r/atom "12")
         to-minutes (r/atom "05")
-        to-period (r/atom {:id 0 :period "AM"})]
-    (fn [hours]
-      (let [from-time (first @hours)
-            to-time (second @hours)
-            all-times-parse-to-number?
+        to-period (r/atom {:id 0 :period "AM"})
+        from-time (first @hours)
+        to-time (second @hours)
+        time-period-options #{{:id 0 :period "AM"}
+                              {:id 1 :period "PM"}}
+        minute-count->time-period-option
+        (fn [time-period]
+          (first (filter #(= (minute-count->period time-period)
+                             (:period %)) time-period-options)))
+        id->time-period-option
+        (fn [id]
+          (first (filter #(= (js/Number id)
+                             (:id %)) time-period-options)))]
+    ;; from
+    (reset! from-hours (minute-count->standard-hours from-time))
+    (reset! from-minutes (minute-count->minutes from-time))
+    (reset! from-period (:id (minute-count->time-period-option from-time)))
+    ;; to
+    (reset! to-hours (minute-count->standard-hours to-time))
+    (reset! to-minutes (minute-count->minutes to-time))
+    (reset! to-period (:id (minute-count->time-period-option to-time)))
+    (fn [minutes-bracket]
+      (let [all-times-parse-to-number?
             (fn []
               (and (parse-to-number? @from-hours)
                    (parse-to-number? @from-minutes)
@@ -175,31 +194,19 @@
             (fn []
               (if (all-times-parse-to-number?)
                 ;; only do something if everything parses correctly
-                (let [from-minute-count (standard-time->minute-count
-                                         (js/Number @from-hours)
-                                         (js/Number @from-minutes)
-                                         (:period @from-period))
-                      to-minute-count   (standard-time->minute-count
-                                         (js/Number @to-hours)
-                                         (js/Number @to-minutes)
-                                         (:period @to-period))]
+                (let [from-minute-count
+                      (standard-time->minute-count
+                       (js/Number @from-hours)
+                       (js/Number @from-minutes)
+                       (:period (id->time-period-option @from-period)))
+                      to-minute-count
+                      (standard-time->minute-count
+                       (js/Number @to-hours)
+                       (js/Number @to-minutes)
+                       (:period (id->time-period-option @to-period)))]
                   (reset! hours [from-minute-count to-minute-count]))))
-            time-period->time-period-map { "AM" {:id 0 :period "AM"}
-                                           "PM" {:id 1 :period "PM"}}]
-        (.log js/console "before")
-        (.log js/console "from-period: " (clj->js @to-period))
-        ;; from
-        (reset! from-hours (minute-count->standard-hours from-time))
-        (reset! from-minutes (minute-count->minutes from-time))
-        (reset! from-period (:id (time-period->time-period-map
-                                  (minute-count->period from-time))))
-        ;; to
-        (reset! to-hours (minute-count->standard-hours to-time))
-        (reset! to-minutes (minute-count->minutes to-time))
-        (reset! to-period (:id (time-period->time-period-map
-                                (minute-count->period to-time))))
-        (.log js/console "after")
-        (.log js/console "from-period: " (clj->js @to-period))
+            ;; whenever the hours are updated, change the hours bracket
+            track-hours @(r/track standard-times->minute-count-brackets)]
         [:div {:style {:display "inline-block"}}
          [:div {:style {:max-width "3em"
                         :display "inline-block"}}
@@ -241,29 +248,61 @@
                    :display-key :period
                    :sort-keyword :id}]]]))))
 
-(defn DayTimeRangeComp
+;; (defn DayTimeRangeComp
+;;   [day-hours]
+;;   (fn [day-hours]
+;;     (let [day-name (-> day-hours
+;;                        :name
+;;                        name
+;;                        str)])
+;;     [:div day-name
+;;      (map-index (fn [idx itm]
+;;                   (let [;;random-key (gensym "t")
+;;                         ;; hours-key
+;;                         ;; (r/cursor
+;;                         ;;  hours-map
+;;                         ;;  [(keyword day-of-week)
+;;                         ;;   (keyword random-key)])
+;;                         ;; _ (reset! hours-key el)
+;;                         ]
+;;                     ^{:key (str "t" idx)}
+;;                     [TimePickerComp (r/atom el)]))
+;;                 @(r/cursor day-hours :hours))]))
+
+
+(defn DaysTimeRangeComp
   [hours]
-  (let [hours-map (r/atom {})]
+  (let []
     (fn [hours]
-      (let [days-of-week ["S" "M" "T" "W" "Th" "F" "Sa"]]
-        [:div
-         (map-indexed
-          (fn [idx itm]
-            (let [day-of-week (nth days-of-week idx)]
-              ^{:key (gensym "day-")}
-              [:div day-of-week
-               (map (fn [el]
-                      (let [random-key (gensym "t")
-                            hours-key
-                            (r/cursor
-                             hours-map
-                             [(keyword day-of-week)
-                              (keyword random-key)])
-                            _ (reset! hours-key el)]
-                        ^{:key (gensym "hour-")}
-                        [TimePickerComp hours-key]))
-                    itm)]))
-          hours)]))))
+      (let [days-of-week ["S" "M" "T" "W" "Th" "F" "Sa"]
+            days-atom (r/atom {"S" (apply merge
+                                          (map-indexed
+                                           (fn [idx itm]
+                                             (let [id (str "t" idx)]
+                                               {id
+                                                {:id id
+                                                 :hours itm}}))
+                                           (first hours)))})]
+        [:div "S"
+         (map (fn [el] ^{:key el}
+                [:div [TimePickerComp
+                       (r/cursor days-atom ["S" el])]
+                 [:br]])
+              (keys (@days-atom "S")))]))
+    
+    ;; (fn [hours]
+    ;;   (let [days-of-week ["S" "M" "T" "W" "Th" "F" "Sa"]]
+    ;;     ;; (.log js/console "hours-map: "
+    ;;     ;;       (clj->js @hours-map))
+    ;;     [:div
+    ;;      (map-indexed
+    ;;       (fn [idx itm]
+    ;;         (let [day-of-week (nth days-of-week idx)]
+    ;;           ^{:key (gensym "day-")}
+    ;;           [DayTimeRangeComp {:day day-of-week
+    ;;                              :hours itm}]))
+    ;;       hours)]))
+    ))
 
 
 (defn ZoneFormComp
@@ -316,7 +355,7 @@
         (when @hours
           [FormGroup {:label "Hours of Operation"
                       :errors (get-in  @errors [:config :hours])}
-           [DayTimeRangeComp @hours]])]])))
+           [DaysTimeRangeComp @hours]])]])))
 
 (defn EditZoneFormComp
   [zone]
@@ -362,7 +401,7 @@
                                   (reset! confirming? true))
                                 (do
                                   ;; reset edit zone
-                                  (reset! edit-zone (zone->form-zone @zone))
+                                  (reset! edit-zone (server-zone->form-zone @zone))
                                   ;; get rid of alert-success
                                   (reset! alert-success "")
                                   (reset! editing? true))))
@@ -396,7 +435,7 @@
                          ;; no longer editing
                          (reset! editing? false)
                          ;; reset edit-zone
-                         (reset! edit-zone (zone->form-zone zone))
+                         (reset! edit-zone (server-zone->form-zone zone))
                          ;; reset confirming
                          (reset! confirming? false))]
         [:div
