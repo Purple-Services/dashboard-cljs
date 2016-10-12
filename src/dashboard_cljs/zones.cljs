@@ -207,6 +207,7 @@
                   (reset! hours [from-minute-count to-minute-count]))))
             ;; whenever the hours are updated, change the hours bracket
             track-hours @(r/track standard-times->minute-count-brackets)]
+        (.log js/console "hours: " (clj->js @hours))
         [:div {:style {:display "inline-block"}}
          [:div {:style {:max-width "3em"
                         :display "inline-block"}}
@@ -269,40 +270,58 @@
 ;;                     [TimePickerComp (r/atom el)]))
 ;;                 @(r/cursor day-hours :hours))]))
 
+(def days-of-week ["S" "M" "T" "W" "Th" "F" "Sa"])
+
+(defn server-hours->form-hours
+  "Convert a day's vec of vec hours into a map"
+  [server-hours]
+  (apply merge (map-indexed
+                (fn [idx itm]
+                  (let [id (str "t" idx)]
+                    {id
+                     {:id id
+                      :hours itm}}))
+                server-hours)))
+
+(defn server-day-hours->form-day-hours
+  "Convert hours from the server into a map used in forms"
+  [server-day-hours]
+  (apply merge (map-indexed
+                (fn [idx itm]
+                  {(nth days-of-week idx)
+                   (server-hours->form-hours (nth server-day-hours idx))})
+                days-of-week)))
+
+(defn form-hours->server-hours
+  [form-hours]
+  (into [] (map :hours (sort-by :id (vals form-hours)))))
+
+(defn form-day-hours->server-day-hours
+  [form-day-hours]
+  (mapv (fn [day] (form-hours->server-hours (form-day-hours day)))
+        days-of-week))
 
 (defn DaysTimeRangeComp
   [hours]
-  (let []
+  (let [days-atom (r/atom (server-day-hours->form-day-hours hours))]
     (fn [hours]
-      (let [days-of-week ["S" "M" "T" "W" "Th" "F" "Sa"]
-            days-atom (r/atom {"S" (apply merge
-                                          (map-indexed
-                                           (fn [idx itm]
-                                             (let [id (str "t" idx)]
-                                               {id
-                                                {:id id
-                                                 :hours itm}}))
-                                           (first hours)))})]
-        [:div "S"
-         (map (fn [el] ^{:key el}
-                [:div [TimePickerComp
-                       (r/cursor days-atom ["S" el])]
-                 [:br]])
-              (keys (@days-atom "S")))]))
-    
-    ;; (fn [hours]
-    ;;   (let [days-of-week ["S" "M" "T" "W" "Th" "F" "Sa"]]
-    ;;     ;; (.log js/console "hours-map: "
-    ;;     ;;       (clj->js @hours-map))
-    ;;     [:div
-    ;;      (map-indexed
-    ;;       (fn [idx itm]
-    ;;         (let [day-of-week (nth days-of-week idx)]
-    ;;           ^{:key (gensym "day-")}
-    ;;           [DayTimeRangeComp {:day day-of-week
-    ;;                              :hours itm}]))
-    ;;       hours)]))
-    ))
+      (let []
+        (.log js/console "days-atom:" (clj->js @days-atom))
+        (.log js/console "converted days-atom"
+              (clj->js (form-day-hours->server-day-hours @days-atom)))
+        [:div
+         (doall
+          (map
+           (fn [day]
+             ^{:key day}
+             [:div day
+              (map (fn [el]
+                     ^{:key el}
+                     [:div [TimePickerComp
+                            (r/cursor days-atom [day el])]
+                      [:br]])
+                   (keys (@days-atom day)))])
+           days-of-week))]))))
 
 
 (defn ZoneFormComp
