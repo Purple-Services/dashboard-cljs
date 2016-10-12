@@ -76,6 +76,15 @@
    :manually-closed? false
    :closed-message ""})
 
+(def default-server-zone-hours
+  [[[450 1350]] ; Su
+   [[450 1350]] ; M
+   [[450 1350]] ; T
+   [[450 1350]] ; W
+   [[450 1350]] ; Th
+   [[450 1350]] ; F
+   [[450 1350]] ; Sa
+   ])
 
 ;; this function converts a zone to a edit-form zone
 (defn server-zone->form-zone
@@ -354,8 +363,8 @@
 
 (defn ZoneFormComp
   "Create or edit a zone"
-  [props]
-  (fn [{:keys [zone errors]} props]
+  [{:keys [zone errors]}]
+  (fn [{:keys [zone errors]}]
     (let [name (r/cursor zone [:name])
           rank (r/cursor zone [:rank])
           active (r/cursor zone [:active])
@@ -399,10 +408,26 @@
                                        zips
                                        (get-input-value e)))}]]
         ;; Hours
-        (when @hours
-          [FormGroup {:label "Hours of Operation"
-                      :errors (get-in  @errors [:config :hours])}
-           [DaysTimeRangeComp @hours]])]])))
+        [FormGroup {:label "Hours of Operation"
+                    :errors (get-in  @errors [:config :hours])}
+         ;; below should be refactored into a reusable component
+         (if (empty? @hours)
+           ;; hours not defined
+           [:div [:button {:type "button"
+                           :class "btn btn-sm btn-default"
+                           :on-click (fn [e]
+                                       (.preventDefault e)
+                                       (reset! hours
+                                               default-server-zone-hours))}
+                  "Add Hours"]]
+           ;; hours defined
+           [:div [:button {:type "button"
+                           :class "btn btn-sm btn-default"
+                           :on-click (fn [e]
+                                       (.preventDefault e)
+                                       (swap! config dissoc :hours))}
+                  "Delete All Hours"]
+            [DaysTimeRangeComp @hours]])]]])))
 
 (defn EditZoneFormComp
   [zone]
