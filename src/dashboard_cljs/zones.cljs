@@ -43,6 +43,9 @@
                     :create-edit-zone default-zone
                     :selected "active"}))
 
+;; this will eventually need to be a cursor
+(def days-atom (r/atom {}))
+
 (def default-zone-config
   {:hours [[[]] ; Su
            [[]] ; M
@@ -249,27 +252,6 @@
                    :display-key :period
                    :sort-keyword :id}]]]))))
 
-;; (defn DayTimeRangeComp
-;;   [day-hours]
-;;   (fn [day-hours]
-;;     (let [day-name (-> day-hours
-;;                        :name
-;;                        name
-;;                        str)])
-;;     [:div day-name
-;;      (map-index (fn [idx itm]
-;;                   (let [;;random-key (gensym "t")
-;;                         ;; hours-key
-;;                         ;; (r/cursor
-;;                         ;;  hours-map
-;;                         ;;  [(keyword day-of-week)
-;;                         ;;   (keyword random-key)])
-;;                         ;; _ (reset! hours-key el)
-;;                         ]
-;;                     ^{:key (str "t" idx)}
-;;                     [TimePickerComp (r/atom el)]))
-;;                 @(r/cursor day-hours :hours))]))
-
 (def days-of-week ["S" "M" "T" "W" "Th" "F" "Sa"])
 
 (defn server-hours->form-hours
@@ -301,9 +283,53 @@
   (mapv (fn [day] (form-hours->server-hours (form-day-hours day)))
         days-of-week))
 
+(defn insert-time!
+  "Insert a time into days-atom"
+  [day days-atom]
+  (let [day-hours (r/cursor days-atom [day])
+        ids (sort (keys @day-hours))
+        last-id (last ids)
+        next-id (str "t" (->> last-id
+                              (re-find #"\d")
+                              (js/Number)
+                              inc))
+        next-hours-map {:id next-id
+                        :hours [450 1350]}]
+    (swap! day-hours assoc next-id next-hours-map)))
+
+(defn delete-time!
+  "Delete a time from days-atom"
+  [day days-atom hours-map-atom]
+  (let [day-hours (r/cursor days-atom [day])
+        hour-id (:id @hours-map-atom)]
+    (swap! day-hours dissoc hour-id)))
+
+(defn AddTimeComp
+  [day days-atom]
+  (fn [day days-atom]
+    [:div [:a {:href "#"
+               :on-click (fn [e]
+                           (.preventDefault e)
+                           (insert-time! day days-atom))}
+           "(+)"]]))
+
+(defn DeleteTimeComp
+  [day days-atom hours-map-atom]
+  (fn [day days-atom hours-map-atom]
+    (let [hour-id (:id @hours-map-atom)]
+      (if-not (= hour-id "t0")
+        [:a {:href "#"
+             :on-click (fn [e]
+                         (.preventDefault e)
+                         (delete-time! day days-atom hours-map-atom))}
+         "(-)"]))))
+
 (defn DaysTimeRangeComp
   [hours]
-  (let [days-atom (r/atom (server-day-hours->form-day-hours hours))]
+  (let [;; days-atom should eventually be a cursor
+        ;; days-atom (r/atom (server-day-hours->form-day-hours hours))
+        ]
+    (reset! days-atom (server-day-hours->form-day-hours hours))
     (fn [hours]
       (let []
         (.log js/console "days-atom:" (clj->js @days-atom))
@@ -314,12 +340,14 @@
           (map
            (fn [day]
              ^{:key day}
-             [:div day
+             [:div day [AddTimeComp day days-atom]
               (map (fn [el]
-                     ^{:key el}
-                     [:div [TimePickerComp
-                            (r/cursor days-atom [day el])]
-                      [:br]])
+                     (let [hours-map-atom (r/cursor days-atom [day el])]
+                       ^{:key el}
+                       [:div
+                        [TimePickerComp hours-map-atom]
+                        [DeleteTimeComp day days-atom hours-map-atom]
+                        [:br]]))
                    (keys (@days-atom day)))])
            days-of-week))]))))
 
