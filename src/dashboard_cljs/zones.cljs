@@ -178,15 +178,15 @@
 
 (defn server-config-gas-price->form-config-gas-price
   [server-config-gas-price]
-  (let [price-87 (:87 server-config-gas-price)
-        price-91 (:91 server-config-gas-price)]
-    {:87 (cents->dollars price-87)
-     :91 (cents->dollars price-91)}))
+  (let [price-87 (server-config-gas-price :87)
+        price-91 (server-config-gas-price :91)]
+    {"87" (cents->dollars price-87)
+     "91" (cents->dollars price-91)}))
 
 (defn form-config-gas-price->hrf-string
   [form-config-gas-price]
-  (let [price-87 (:87 form-config-gas-price)
-        price-91 (:91 form-config-gas-price)]
+  (let [price-87 (form-config-gas-price "87")
+        price-91 (form-config-gas-price "91")]
     (str "87 Octane: $" price-87 " "
          "91 Octane: $" price-91)))
 
@@ -228,17 +228,17 @@
                  (form-day-hours->server-day-hours hours))
        %))
    (#(if-let [gas-price (get-in % [:config :gas-price])]
-       (let [price-87 (:87 gas-price)
-             price-91 (:91 gas-price)]
+       (let [price-87 (gas-price "87")
+             price-91 (gas-price "91")]
          (assoc-in % [:config :gas-price]
-                   {:87  (if (parse-to-number? price-87)
-                           (dollars->cents
+                   {"87"  (if (parse-to-number? price-87)
+                            (dollars->cents
+                             price-87)
                             price-87)
-                           price-87)
-                    :91 (if (parse-to-number? price-91)
-                          (dollars->cents
-                           price-91)
-                          price-91)}))
+                    "91" (if (parse-to-number? price-91)
+                           (dollars->cents
+                            price-91)
+                           price-91)}))
        %))
    (#(if-let [manually-closed? (get-in % [:config :manually-closed?])]
        (assoc-in % [:config :manually-closed?]
@@ -456,8 +456,8 @@
           config (r/cursor zone [:config])
           hours (r/cursor config [:hours])
           gas-price (r/cursor config [:gas-price])
-          price-87 (r/cursor gas-price [:87])
-          price-91 (r/cursor gas-price [:91])
+          price-87 (r/cursor gas-price ["87"])
+          price-91 (r/cursor gas-price ["91"])
           manually-closed? (r/cursor config [:manually-closed?])
           ]
       [:div {:class "row"}
@@ -603,7 +603,8 @@
                            (diff-message
                             edit
                             current
-                            (select-keys diff-key-str (keys edit))))
+                            (select-keys diff-key-str (concat (keys edit)
+                                                              (keys current)))))
             zone->diff-msg-zone (fn [zone]
                                   (->> zone
                                        (#(if-let [hours
@@ -640,6 +641,12 @@
                                 (.log js/console "current-zone: "
                                       (clj->js (server-zone->form-zone
                                                 current-zone)))
+                                (.log js/console "edit-zone: "
+                                      (clj->js (zone->diff-msg-zone edit-zone)))
+                                (.log js/console "edit-zone: "
+                                      (clj->js (zone->diff-msg-zone
+                                                (server-zone->form-zone
+                                                 current-zone))))
                                 (diff-msg-gen
                                  (zone->diff-msg-zone edit-zone)
                                  (zone->diff-msg-zone
@@ -653,9 +660,6 @@
                                 (diff-msg-gen-zone @edit-zone @current-zone))])
             submit-on-click (fn [e]
                               (.preventDefault e)
-                              (.log js/console "diff-msg-gen-zone"
-                                    (clj->js (diff-msg-gen-zone @edit-zone
-                                                                @current-zone)))
                               (if @editing?
                                 (if (every? nil?
                                             (diff-msg-gen-zone @edit-zone
@@ -703,7 +707,8 @@
                          ;; no longer editing
                          (reset! editing? false)
                          ;; reset edit-zone
-                         (reset! edit-zone current-zone)
+                         (reset! edit-zone
+                                 (server-zone->form-zone @current-zone))
                          ;; reset confirming
                          (reset! confirming? false))]
         [:div
