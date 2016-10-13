@@ -309,17 +309,15 @@
       "Courier" (aget order "courier_name")
       "Customer" (aget order "customer_name")
       "Phone" (aget order "customer_phone_number")
-      "Address"  (crate/raw
-                  (str
-                   (aget order "address_street")
-                   "</br>"
-                   (if (and (not (nil? (seq address-city)))
-                            (not (nil? (seq address-state))))
-                     (str (aget order "address_city")
-                          ","
-                          (aget order "address_state")
-                          " "))
-                   (aget order "address_zip")))
+      "Address"  (crate/html [:span (aget order "address_street")
+                              [:br]
+                              (str (if (and (not (nil? (seq address-city)))
+                                            (not (nil? (seq address-state))))
+                                     (str (aget order "address_city")
+                                          ","
+                                          (aget order "address_state")
+                                          " "))
+                                   (aget order "address_zip"))])
       "Plate #" (aget order "license_plate")
       "Gallons" (aget order "gallons")
       "Octane"  (aget order "gas_type")
@@ -328,7 +326,8 @@
       "Placed"  (-> (aget order "target_time_start")
                     (unix-epoch->hrf))
       "Deadline" (-> (aget order "target_time_end")
-                     (unix-epoch->hrf))))))
+                     (unix-epoch->hrf))
+      ))))
 
 (defn create-courier-info-window-node
   "Create an html node containing information about order"
