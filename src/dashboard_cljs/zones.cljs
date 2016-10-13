@@ -199,6 +199,15 @@
   (mapv (fn [day] (form-hours->server-hours (form-day-hours day)))
         days-of-week))
 
+(defn time-choices-server->hrf
+  [time-choices-server]
+  (->> time-choices-server
+       vals
+       (map minute-count->standard-hours)
+       (map #(str % " Hour"))
+       sort
+       (s/join ", ")))
+
 ;; this function converts a zone to a edit-form zone
 (defn server-zone->form-zone
   "Convert a server-zone to form-zone"
@@ -255,7 +264,8 @@
           gas-price-87 (get-in zone [:config :gas-price :87])
           gas-price-91 (get-in zone [:config :gas-price :91])
           time-choices (get-in zone [:config :time-choices])
-          closed-message (get-in zone [:config :closed-message])]
+          closed-message (get-in zone [:config :closed-message])
+          ]
       [:div {:class "row"}
        [:div {:class "col-lg-12"}
         [KeyVal "Name" (:name zone)]
@@ -268,6 +278,9 @@
                            "No")]
         (when closed-message
           [KeyVal "Closed Message" closed-message])
+        (when time-choices
+          [KeyVal "Delivery Times Available" (time-choices-server->hrf
+                                              time-choices)])
         (when (or  gas-price-87
                    gas-price-91)
           [KeyVal "Gas Price" (str
