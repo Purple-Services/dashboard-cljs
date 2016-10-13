@@ -722,7 +722,7 @@
   (retrieve-route
    "zctas"
    (js/JSON.stringify ;;(clj->js {:zips (.join (aget zone "zip_codes") ",")})
-    (clj->js  {:zips (aget zone "zip_codes")})
+    (clj->js  {:zips (aget zone "zips")})
     )
    (partial xhrio-wrapper
             #(let [server-zctas (aget % "zctas")]
@@ -730,7 +730,8 @@
                  (let [zctas (mapv (partial
                                     process-zcta!
                                     (:google-map @state)
-                                    (aget zone "color"))
+                                    (aget zone "color")
+                                    )
                                    server-zctas)]
                    (aset zone "zctas" (clj->js zctas))
                    (modify-zone-zctas! zone)
@@ -787,14 +788,18 @@
   only be called once initially."
   [state]
   (retrieve-url
-   (str base-url "zips")
+   (str base-url "zones")
    "GET"
    {}
    (partial xhrio-wrapper
-            #(let [zones %]
-               (if (not (nil? zones))
-                 (mapv (partial sync-zone! state) zones))
-               ))))
+            (fn [zones]
+              (if (not (nil? zones))
+                (mapv (partial sync-zone! state)
+                      (filter #(and (= 100 (aget % "rank"))
+                                    ;; TODO make map react to
+                                    ;; changes in 'active' state 
+                                    (aget % "active"))
+                              zones)))))))
 
 (defn sync-zones!
   "Retrieve the zones and sync them with the state"
