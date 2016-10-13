@@ -461,7 +461,7 @@
           price-87 (r/cursor gas-price ["87"])
           price-91 (r/cursor gas-price ["91"])
           manually-closed? (r/cursor config [:manually-closed?])
-          ]
+          closed-message (r/cursor config [:closed-message])]
       [:div {:class "row"}
        [:div {:class "col-lg-12"}
         ;; name
@@ -500,6 +500,34 @@
                                       (-> e
                                           (.-target)
                                           (.-checked))))}]]
+        ;; closed message
+        [FormGroup {:label "Closed Message"
+                    :errors (get-in  @errors [:config :closed-message])}
+         (if-not @closed-message
+           ;; closed message not defined
+           [:div [:button {:type "button"
+                           :class "btn btn-sm btn-default"
+                           :on-click
+                           (fn [e]
+                             (.preventDefault e)
+                             (reset! closed-message
+                                     (str @name " is currently closed")))}
+                  "Add Closed Message"]]
+           ;; closed message defined
+           [:div [:button {:type "button"
+                           :class "btn btn-sm btn-default"
+                           :on-click (fn [e]
+                                       (.preventDefault e)
+                                       (swap! config dissoc :closed-message))}
+                  "Remove Closed Message"]
+            [:br]
+            [:br]
+            ;; Close message
+            [TextInput {:value @closed-message
+                        :on-change #(reset! closed-message
+                                            (-> %
+                                                (aget "target")
+                                                (aget "value")))}]])]
         ;; gas price
         [FormGroup {:label "Gas Prices"
                     :errors (get-in  @errors [:config :gas-price])}
@@ -515,7 +543,7 @@
                               (server-config-gas-price->form-config-gas-price
                                default-server-config-gas-price)))}
                   "Add Gas Prices"]]
-           ;; hours defined
+           ;; gas defined
            [:div [:button {:type "button"
                            :class "btn btn-sm btn-default"
                            :on-click (fn [e]
@@ -525,7 +553,7 @@
             ;; 87 Price
             [FormGroup {:label-for "87 price"
                         :label "87 Octane"
-                        :errors (:price-87 @errors)
+                        :errors (get-in @errors [:gas-price "87"])
                         :input-group-addon [:div {:class "input-group-addon"}
                                             "$"]}
              [TextInput {:value @price-87
@@ -535,7 +563,7 @@
             ;; 91 price
             [FormGroup {:label-for "91 price"
                         :label "91 Octane"
-                        :errors (:price-91 @errors)
+                        :errors (get-in @errors [:gas-price "91"])
                         :input-group-addon [:div {:class "input-group-addon"}
                                             "$"]}
              [TextInput {:value @price-91
@@ -597,6 +625,7 @@
                           :rank "Rank"
                           :active "Active"
                           :manually-closed? "Closed"
+                          :closed-message "Closed Message"
                           :zips "Zip Codes"
                           :gas-price "Gas Price"
                           :hours "Hours"
@@ -636,6 +665,15 @@
                                               "Yes"
                                               "No"))
                                            (assoc % :manually-closed? "No")))
+                                       (#(if-let
+                                             [closed-message
+                                              (get-in % [:config
+                                                         :closed-message])]
+                                           (assoc
+                                            %
+                                            :closed-message
+                                            closed-message)
+                                           %))
                                        ))
             diff-msg-gen-zone (fn [edit-zone current-zone]
                                 (.log js/console "edit-zone: "
@@ -767,6 +805,9 @@
                              [:h4 "Closed: " (if (:manually-closed? config)
                                                "Yes"
                                                "No")]
+                             (when (:closed-message config)
+                               [:h4 "Closed Message: "
+                                (:closed-message config)])
                              (when (:gas-price config)
                                [:h4 "Gas Price: "
                                 (form-config-gas-price->hrf-string
