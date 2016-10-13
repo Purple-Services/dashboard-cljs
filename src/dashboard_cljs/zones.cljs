@@ -213,6 +213,10 @@
        (assoc-in % [:config :gas-price]
                  (server-config-gas-price->form-config-gas-price gas-price))
        %))
+   (#(if-let [manually-closed? (get-in % [:config :manually-closed?])]
+       (assoc-in % [:config :manually-closed?]
+                 manually-closed?)
+       (assoc-in % [:config :manually-closed?] false)))
    ))
 
 (defn form-zone->server-zone
@@ -236,6 +240,10 @@
                            price-91)
                           price-91)}))
        %))
+   (#(if-let [manually-closed? (get-in % [:config :manually-closed?])]
+       (assoc-in % [:config :manually-closed?]
+                 manually-closed?)
+       (assoc-in % [:config :manually-closed?] false)))
    (#(assoc % :config
             (str (:config %))))))
 
@@ -246,12 +254,16 @@
     (let [hours (get-in zone [:config :hours])
           gas-price-87 (get-in zone [:config :gas-price :87])
           gas-price-91 (get-in zone [:config :gas-price :91])
+          time-choices (get-in zone [:config :time-choices])
           ]
       [:div {:class "row"}
        [:div {:class "col-lg-12"}
         [KeyVal "Name" (:name zone)]
         [KeyVal "Rank" (:rank zone)]
         [KeyVal "Active" (if (:active zone)
+                           "Yes"
+                           "No")]
+        [KeyVal "Closed" (if (get-in zone [:config :manually-closed?])
                            "Yes"
                            "No")]
         (when (or  gas-price-87
@@ -445,7 +457,9 @@
           hours (r/cursor config [:hours])
           gas-price (r/cursor config [:gas-price])
           price-87 (r/cursor gas-price [:87])
-          price-91 (r/cursor gas-price [:91])]
+          price-91 (r/cursor gas-price [:91])
+          manually-closed? (r/cursor config [:manually-closed?])
+          ]
       [:div {:class "row"}
        [:div {:class "col-lg-12"}
         ;; name
@@ -470,6 +484,17 @@
                   :style {:margin-left "4px"}
                   :on-change (fn [e] (reset!
                                       active
+                                      (-> e
+                                          (.-target)
+                                          (.-checked))))}]]
+        ;;manually closed
+        [FormGroup {:label "Closed"
+                    :errors (get-in @errors [:config :manually-closed?])}
+         [:input {:type "checkbox"
+                  :checked @manually-closed?
+                  :style {:margin-left "4px"}
+                  :on-change (fn [e] (reset!
+                                      manually-closed?
                                       (-> e
                                           (.-target)
                                           (.-checked))))}]]
@@ -569,14 +594,16 @@
             diff-key-str {:name "Name"
                           :rank "Rank"
                           :active "Active"
+                          :manually-closed? "Closed"
                           :zips "Zip Codes"
                           :gas-price "Gas Price"
-                          :hours "Hours"}
+                          :hours "Hours"
+                          }
             diff-msg-gen (fn [edit current]
                            (diff-message
                             edit
                             current
-                            diff-key-str))
+                            (select-keys diff-key-str (keys edit))))
             zone->diff-msg-zone (fn [zone]
                                   (->> zone
                                        (#(if-let [hours
@@ -595,6 +622,17 @@
                                             (form-config-gas-price->hrf-string
                                              gas-price))
                                            %))
+                                       (#(if-let
+                                             [manually-closed?
+                                              (get-in % [:config
+                                                         :manually-closed?])]
+                                           (assoc
+                                            %
+                                            :manually-closed?
+                                            (if manually-closed?
+                                              "Yes"
+                                              "No"))
+                                           (assoc % :manually-closed? "No")))
                                        ))
             diff-msg-gen-zone (fn [edit-zone current-zone]
                                 (.log js/console "edit-zone: "
@@ -615,6 +653,9 @@
                                 (diff-msg-gen-zone @edit-zone @current-zone))])
             submit-on-click (fn [e]
                               (.preventDefault e)
+                              (.log js/console "diff-msg-gen-zone"
+                                    (clj->js (diff-msg-gen-zone @edit-zone
+                                                                @current-zone)))
                               (if @editing?
                                 (if (every? nil?
                                             (diff-msg-gen-zone @edit-zone
@@ -624,6 +665,7 @@
                                   ;; there is a diff message, confirm change
                                   (reset! confirming? true))
                                 (do
+                                  (.log js/console "there is a diff message")
                                   ;; reset edit zone
                                   (reset! edit-zone
                                           (server-zone->form-zone @zone))
@@ -678,7 +720,8 @@
             :submit-fn submit-on-click
             :dismiss-fn dismiss-fn}]
           (if (and @confirming?
-                   (not-every? nil? (diff-msg-gen @edit-zone @current-zone)))
+                   (not-every? nil? (diff-msg-gen-zone
+                                     @edit-zone @current-zone)))
             [ConfirmationAlert
              {:confirmation-message confirm-msg
               :cancel-on-click dismiss-fn
@@ -712,6 +755,9 @@
                              [:h4 "Name: " name]
                              [:h4 "Rank: " rank]
                              [:h4 "Active: " (if  active
+                                               "Yes"
+                                               "No")]
+                             [:h4 "Closed: " (if (:manually-closed? config)
                                                "Yes"
                                                "No")]
                              (when (:gas-price config)
