@@ -153,10 +153,9 @@
            (:lat order) (:lng order)]]
      ;; market
      [:td [:i {:class "fa fa-circle"
-               :style {:color (:zone-color order)}}] " "
-      (->> (:zone order)
-           (get-by-id @datastore/zones)
-           :name)]]))
+               :style {:color (:market-color order)}}] " "
+      (:market order)
+      ]]))
 
 (defn order-table-header
   "props is:
@@ -196,8 +195,8 @@
        (conj props {:keyword :address_street})
        "Address"]
       [TableHeadSortable
-       (conj props {:keyword :zone})
-       "Zone"]]]))
+       (conj props {:keyword :market})
+       "Market"]]]))
 
 (defn assign-courier
   "Assign order to selected-courier from the list of couriers. error
@@ -685,8 +684,8 @@
             ;; filter out the couriers to only those assigned
             ;; to the zone
             (->> @datastore/couriers
-                 (filter #(contains? (set (:zones %))
-                                     (:zone @order)))
+                 (filter #(some (set (:zones %))
+                                (:zones @order)))
                  (filter :active))
             assigned-courier (if (not (nil? (:courier_name @order)))
                                ;; there is a courier currently assigned
@@ -776,14 +775,13 @@
                           :padding-left "1em"
                           :padding-bottom "1em"}}
             ;; zone
-            [KeyVal "Zone"
+            [KeyVal "Market"
              [:span
               [:i {:class "fa fa-circle"
-                   :style {:color (:zone-color @order)}}]
+                   :style {:color (:market-color @order)}}]
               " "
-              (->> (:zone @order)
-                   (get-by-id @datastore/zones)
-                   :name)]]
+              (:market @order)
+              ]]
             [KeyVal "Address" [:span [GoogleMapLink
                                       (:address_street @order)
                                       (:lat @order)
