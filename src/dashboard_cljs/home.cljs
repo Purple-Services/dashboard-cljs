@@ -177,3 +177,4 @@
           [TablePager
            {:total-pages (count sorted-orders)
             :current-page current-page}]]]))))
+
