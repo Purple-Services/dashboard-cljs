@@ -85,6 +85,10 @@
    [[450 1350]] ; Sa
    ])
 
+(def default-server-config-gas-price
+  {:87 299
+   :91 319})
+
 (defn minute-count->standard-hours
   "Given a count of minutes elapsed in day, 
   convert it to standard hours"
@@ -172,6 +176,20 @@
                                      times)))))
                days-of-week)))
 
+(defn server-config-gas-price->form-config-gas-price
+  [server-config-gas-price]
+  (let [price-87 (server-config-gas-price :87)
+        price-91 (server-config-gas-price :91)]
+    {"87" (cents->dollars price-87)
+     "91" (cents->dollars price-91)}))
+
+(defn form-config-gas-price->hrf-string
+  [form-config-gas-price]
+  (let [price-87 (form-config-gas-price "87")
+        price-91 (form-config-gas-price "91")]
+    (str "87 Octane: $" price-87 " "
+         "91 Octane: $" price-91)))
+
 (defn form-hours->server-hours
   [form-hours]
   (into [] (map :hours (sort-by :id (vals form-hours)))))
@@ -182,7 +200,6 @@
         days-of-week))
 
 ;; this function converts a zone to a edit-form zone
-;; beware: not used the same way as in the rest of the dash
 (defn server-zone->form-zone
   "Convert a server-zone to form-zone"
   [zone]
@@ -191,7 +208,16 @@
    (#(if-let [hours (get-in % [:config :hours])]
        (assoc-in % [:config :hours]
                  (server-day-hours->form-day-hours hours))
-       %))))
+       %))
+   (#(if-let [gas-price (get-in % [:config :gas-price])]
+       (assoc-in % [:config :gas-price]
+                 (server-config-gas-price->form-config-gas-price gas-price))
+       %))
+   (#(if-let [manually-closed? (get-in % [:config :manually-closed?])]
+       (assoc-in % [:config :manually-closed?]
+                 manually-closed?)
+       (assoc-in % [:config :manually-closed?] false)))
+   ))
 
 (defn form-zone->server-zone
   [zone]
@@ -201,6 +227,23 @@
        (assoc-in % [:config :hours]
                  (form-day-hours->server-day-hours hours))
        %))
+   (#(if-let [gas-price (get-in % [:config :gas-price])]
+       (let [price-87 (gas-price "87")
+             price-91 (gas-price "91")]
+         (assoc-in % [:config :gas-price]
+                   {"87"  (if (parse-to-number? price-87)
+                            (dollars->cents
+                             price-87)
+                            price-87)
+                    "91" (if (parse-to-number? price-91)
+                           (dollars->cents
+                            price-91)
+                           price-91)}))
+       %))
+   (#(if-let [manually-closed? (get-in % [:config :manually-closed?])]
+       (assoc-in % [:config :manually-closed?]
+                 manually-closed?)
+       (assoc-in % [:config :manually-closed?] false)))
    (#(assoc % :config
             (str (:config %))))))
 
@@ -208,31 +251,38 @@
   "Display a zone's information"
   [zone]
   (fn [zone]
-    [:div {:class "row"}
-     [:div {:class "col-lg-12"}
-      [KeyVal "Name" (:name zone)]
-      [KeyVal "Rank" (:rank zone)]
-      [KeyVal "Active" (if (:active zone)
-                         "Yes"
-                         "No")]
-      (let [gas-price-87 (get-in zone [:config :gas-price :87])
-            gas-price-91 (get-in zone [:config :gas-price :91])]
-        [KeyVal "Gas Price" (str
-                             "87 "
-                             (if (int? gas-price-87)
-                               (str "$" (cents->dollars gas-price-87))
-                               gas-price-87)
-                             " | "
-                             "91 "
-                             (if (int? gas-price-91)
-                               (str "$" (cents->dollars gas-price-91))
-                               gas-price-91))])
-      [KeyVal "Zip Codes" (:zips zone)]
-      (when (get-in zone [:config :hours])
-        [KeyVal "Hours" (-> zone
-                            (get-in [:config :hours])
-                            (server-day-hours->form-day-hours)
-                            (form-zone-hours->hrf-string))])]]))
+    (let [hours (get-in zone [:config :hours])
+          gas-price-87 (get-in zone [:config :gas-price :87])
+          gas-price-91 (get-in zone [:config :gas-price :91])
+          time-choices (get-in zone [:config :time-choices])
+          ]
+      [:div {:class "row"}
+       [:div {:class "col-lg-12"}
+        [KeyVal "Name" (:name zone)]
+        [KeyVal "Rank" (:rank zone)]
+        [KeyVal "Active" (if (:active zone)
+                           "Yes"
+                           "No")]
+        [KeyVal "Closed" (if (get-in zone [:config :manually-closed?])
+                           "Yes"
+                           "No")]
+        (when (or  gas-price-87
+                   gas-price-91)
+          [KeyVal "Gas Price" (str
+                               "87 "
+                               (if (int? gas-price-87)
+                                 (str "$" (cents->dollars gas-price-87))
+                                 gas-price-87)
+                               " | "
+                               "91 "
+                               (if (int? gas-price-91)
+                                 (str "$" (cents->dollars gas-price-91))
+                                 gas-price-91))])
+        [KeyVal "Zip Codes" (:zips zone)]
+        (when (get-in zone [:config :hours])
+          [KeyVal "Hours" (-> hours
+                              (server-day-hours->form-day-hours)
+                              (form-zone-hours->hrf-string))])]])))
 
 (defn TimePickerComp
   [minutes-bracket]
@@ -373,7 +423,6 @@
 (defn DaysTimeRangeComp
   [hours zone]
   (let [days-atom (r/cursor zone [:config :hours])]
-    (reset! days-atom (server-day-hours->form-day-hours hours))
     (fn [hours]
       (let []
         (.log js/console "days-atom:" (clj->js @days-atom))
@@ -405,7 +454,12 @@
           active (r/cursor zone [:active])
           zips (r/cursor zone [:zips])
           config (r/cursor zone [:config])
-          hours (r/cursor config [:hours])]
+          hours (r/cursor config [:hours])
+          gas-price (r/cursor config [:gas-price])
+          price-87 (r/cursor gas-price ["87"])
+          price-91 (r/cursor gas-price ["91"])
+          manually-closed? (r/cursor config [:manually-closed?])
+          ]
       [:div {:class "row"}
        [:div {:class "col-lg-12"}
         ;; name
@@ -433,6 +487,59 @@
                                       (-> e
                                           (.-target)
                                           (.-checked))))}]]
+        ;;manually closed
+        [FormGroup {:label "Closed"
+                    :errors (get-in @errors [:config :manually-closed?])}
+         [:input {:type "checkbox"
+                  :checked @manually-closed?
+                  :style {:margin-left "4px"}
+                  :on-change (fn [e] (reset!
+                                      manually-closed?
+                                      (-> e
+                                          (.-target)
+                                          (.-checked))))}]]
+        ;; gas price
+        [FormGroup {:label "Gas Prices"
+                    :errors (get-in  @errors [:config :gas-price])}
+         (if (empty? @gas-price)
+           ;; gas not defined
+           [:div [:button {:type "button"
+                           :class "btn btn-sm btn-default"
+                           :on-click
+                           (fn [e]
+                             (.preventDefault e)
+                             (reset!
+                              gas-price
+                              (server-config-gas-price->form-config-gas-price
+                               default-server-config-gas-price)))}
+                  "Add Gas Prices"]]
+           ;; hours defined
+           [:div [:button {:type "button"
+                           :class "btn btn-sm btn-default"
+                           :on-click (fn [e]
+                                       (.preventDefault e)
+                                       (swap! config dissoc :gas-price))}
+                  "Remove Gas Prices"]
+            ;; 87 Price
+            [FormGroup {:label-for "87 price"
+                        :label "87 Octane"
+                        :errors (:price-87 @errors)
+                        :input-group-addon [:div {:class "input-group-addon"}
+                                            "$"]}
+             [TextInput {:value @price-87
+                         :on-change #(reset! price-87 (-> %
+                                                          (aget "target")
+                                                          (aget "value")))}]]
+            ;; 91 price
+            [FormGroup {:label-for "91 price"
+                        :label "91 Octane"
+                        :errors (:price-91 @errors)
+                        :input-group-addon [:div {:class "input-group-addon"}
+                                            "$"]}
+             [TextInput {:value @price-91
+                         :on-change #(reset! price-91 (-> %
+                                                          (aget "target")
+                                                          (aget "value")))}]]])]
         ;; zips
         [FormGroup {:label "Zip Codes"
                     :errors (:zips @errors)}
@@ -453,7 +560,8 @@
                            :on-click (fn [e]
                                        (.preventDefault e)
                                        (reset! hours
-                                               default-server-zone-hours))}
+                                               (server-day-hours->form-day-hours
+                                                default-server-zone-hours)))}
                   "Add Hours"]]
            ;; hours defined
            [:div [:button {:type "button"
@@ -461,8 +569,10 @@
                            :on-click (fn [e]
                                        (.preventDefault e)
                                        (swap! config dissoc :hours))}
-                  "Delete All Hours"]
-            [DaysTimeRangeComp @hours zone]])]]])))
+                  "Remove Hours"]
+            [DaysTimeRangeComp @hours zone]])]
+
+        ]])))
 
 (defn EditZoneFormComp
   [zone]
@@ -484,13 +594,17 @@
             diff-key-str {:name "Name"
                           :rank "Rank"
                           :active "Active"
+                          :manually-closed? "Closed"
                           :zips "Zip Codes"
-                          :hours "Hours"}
+                          :gas-price "Gas Price"
+                          :hours "Hours"
+                          }
             diff-msg-gen (fn [edit current]
                            (diff-message
                             edit
                             current
-                            diff-key-str))
+                            (select-keys diff-key-str (concat (keys edit)
+                                                              (keys current)))))
             zone->diff-msg-zone (fn [zone]
                                   (->> zone
                                        (#(if-let [hours
@@ -499,12 +613,40 @@
                                             %
                                             :hours
                                             (form-zone-hours->hrf-string hours))
-                                           %))))
+                                           %))
+                                       (#(if-let [gas-price
+                                                  (get-in % [:config
+                                                             :gas-price])]
+                                           (assoc
+                                            %
+                                            :gas-price
+                                            (form-config-gas-price->hrf-string
+                                             gas-price))
+                                           %))
+                                       (#(if-let
+                                             [manually-closed?
+                                              (get-in % [:config
+                                                         :manually-closed?])]
+                                           (assoc
+                                            %
+                                            :manually-closed?
+                                            (if manually-closed?
+                                              "Yes"
+                                              "No"))
+                                           (assoc % :manually-closed? "No")))
+                                       ))
             diff-msg-gen-zone (fn [edit-zone current-zone]
                                 (.log js/console "edit-zone: "
                                       (clj->js edit-zone))
                                 (.log js/console "current-zone: "
-                                      (clj->js current-zone))
+                                      (clj->js (server-zone->form-zone
+                                                current-zone)))
+                                (.log js/console "edit-zone: "
+                                      (clj->js (zone->diff-msg-zone edit-zone)))
+                                (.log js/console "edit-zone: "
+                                      (clj->js (zone->diff-msg-zone
+                                                (server-zone->form-zone
+                                                 current-zone))))
                                 (diff-msg-gen
                                  (zone->diff-msg-zone edit-zone)
                                  (zone->diff-msg-zone
@@ -527,9 +669,10 @@
                                   ;; there is a diff message, confirm change
                                   (reset! confirming? true))
                                 (do
+                                  (.log js/console "there is a diff message")
                                   ;; reset edit zone
-                                  (reset! edit-zone ;;(server-zone->form-zone @zone)
-                                          @zone)
+                                  (reset! edit-zone
+                                          (server-zone->form-zone @zone))
                                   ;; get rid of alert-success
                                   (reset! alert-success "")
                                   (reset! editing? true))))
@@ -564,8 +707,8 @@
                          ;; no longer editing
                          (reset! editing? false)
                          ;; reset edit-zone
-                         (reset! edit-zone ;;(server-zone->form-zone zone)
-                                 zone)
+                         (reset! edit-zone
+                                 (server-zone->form-zone @current-zone))
                          ;; reset confirming
                          (reset! confirming? false))]
         [:div
@@ -582,7 +725,8 @@
             :submit-fn submit-on-click
             :dismiss-fn dismiss-fn}]
           (if (and @confirming?
-                   (not-every? nil? (diff-msg-gen @edit-zone @current-zone)))
+                   (not-every? nil? (diff-msg-gen-zone
+                                     @edit-zone @current-zone)))
             [ConfirmationAlert
              {:confirmation-message confirm-msg
               :cancel-on-click dismiss-fn
@@ -618,11 +762,18 @@
                              [:h4 "Active: " (if  active
                                                "Yes"
                                                "No")]
+                             [:h4 "Closed: " (if (:manually-closed? config)
+                                               "Yes"
+                                               "No")]
+                             (when (:gas-price config)
+                               [:h4 "Gas Price: "
+                                (form-config-gas-price->hrf-string
+                                 (:gas-price config))])
                              [:h4 "Zip Codes: " zips]
                              (when (:hours config)
                                [:h4 "Hours: "
-                                (form-zone-hours->hrf-string (:hours config))])]
-                            ))
+                                (form-zone-hours->hrf-string (:hours config))])
+                             ]))
             submit-on-click (fn [e]
                               (.preventDefault e)
                               (if @editing?
