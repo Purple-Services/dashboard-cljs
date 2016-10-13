@@ -264,6 +264,7 @@
           gas-price-87 (get-in zone [:config :gas-price :87])
           gas-price-91 (get-in zone [:config :gas-price :91])
           time-choices (get-in zone [:config :time-choices])
+          default-time-choice (get-in zone [:config :default-time-choice])
           closed-message (get-in zone [:config :closed-message])
           ]
       [:div {:class "row"}
@@ -281,6 +282,10 @@
         (when time-choices
           [KeyVal "Delivery Times Available" (time-choices-server->hrf
                                               time-choices)])
+        (when default-time-choice
+          [KeyVal "Default Delivery Time" (str (minute-count->standard-hours
+                                                default-time-choice)
+                                               " Hour")])
         (when (or  gas-price-87
                    gas-price-91)
           [KeyVal "Gas Price" (str
