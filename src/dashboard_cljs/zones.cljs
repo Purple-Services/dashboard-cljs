@@ -255,7 +255,7 @@
           gas-price-87 (get-in zone [:config :gas-price :87])
           gas-price-91 (get-in zone [:config :gas-price :91])
           time-choices (get-in zone [:config :time-choices])
-          ]
+          closed-message (get-in zone [:config :closed-message])]
       [:div {:class "row"}
        [:div {:class "col-lg-12"}
         [KeyVal "Name" (:name zone)]
@@ -266,6 +266,8 @@
         [KeyVal "Closed" (if (get-in zone [:config :manually-closed?])
                            "Yes"
                            "No")]
+        (when closed-message
+          [KeyVal "Closed Message" closed-message])
         (when (or  gas-price-87
                    gas-price-91)
           [KeyVal "Gas Price" (str
