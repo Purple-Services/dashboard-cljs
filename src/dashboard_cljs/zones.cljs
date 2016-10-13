@@ -43,9 +43,6 @@
                     :create-edit-zone default-zone
                     :selected "active"}))
 
-;; this will eventually need to be a cursor
-(def days-atom (r/atom {}))
-
 (def default-zone-config
   {:hours [[[]] ; Su
            [[]] ; M
@@ -76,6 +73,8 @@
    :manually-closed? false
    :closed-message ""})
 
+(def days-of-week ["S" "M" "T" "W" "Th" "F" "Sa"])
+
 (def default-server-zone-hours
   [[[450 1350]] ; Su
    [[450 1350]] ; M
@@ -85,17 +84,6 @@
    [[450 1350]] ; F
    [[450 1350]] ; Sa
    ])
-
-;; this function converts a zone to a edit-form zone
-(defn server-zone->form-zone
-  "Convert a server-zone to form-zone"
-  [zone]
-  {:name (:name zone)
-   :rank (:rank zone)
-   :active (:active zone)
-   :zips (:zips zone)
-   :id (:id zone)
-   :config (:config zone)})
 
 (defn minute-count->standard-hours
   "Given a count of minutes elapsed in day, 
@@ -136,6 +124,85 @@
     (= period "AM")
     (+ (* standard-hours 60) minutes)))
 
+(defn server-hours->form-hours
+  "Convert a day's vec of vec hours into a map"
+  [server-hours]
+  (apply merge (map-indexed
+                (fn [idx itm]
+                  (let [id (str "t" idx)]
+                    {id
+                     {:id id
+                      :hours itm}}))
+                server-hours)))
+
+(defn server-day-hours->form-day-hours
+  "Convert hours from the server into a map used in forms"
+  [server-day-hours]
+  (apply merge (map-indexed
+                (fn [idx itm]
+                  {(nth days-of-week idx)
+                   (server-hours->form-hours (nth server-day-hours idx))})
+                days-of-week)))
+
+(defn single-digit->two-digit-str
+  [digit]
+  (if (< digit 10)
+    (str "0" digit)
+    (str digit)))
+
+(defn minute-count->hrf-time
+  [minute-count]
+  (str (minute-count->standard-hours minute-count) ":"
+       (single-digit->two-digit-str (minute-count->minutes minute-count)) " "
+       (minute-count->period minute-count)))
+
+(defn form-zone-hours->hrf-string
+  [form-zone-hours]
+  (s/join "\n"
+          (map (fn [day]
+                 (let [hours (vals (form-zone-hours day))
+                       times (map :hours hours)]
+                   (str day " "
+                        (s/join " "
+                                (map #(let [from-time (first %)
+                                            to-time (second %)]
+                                        (str (minute-count->hrf-time from-time)
+                                             " - "
+                                             (minute-count->hrf-time to-time)))
+                                     times)))))
+               days-of-week)))
+
+(defn form-hours->server-hours
+  [form-hours]
+  (into [] (map :hours (sort-by :id (vals form-hours)))))
+
+(defn form-day-hours->server-day-hours
+  [form-day-hours]
+  (mapv (fn [day] (form-hours->server-hours (form-day-hours day)))
+        days-of-week))
+
+;; this function converts a zone to a edit-form zone
+;; beware: not used the same way as in the rest of the dash
+(defn server-zone->form-zone
+  "Convert a server-zone to form-zone"
+  [zone]
+  (->>
+   zone
+   (#(if-let [hours (get-in % [:config :hours])]
+       (assoc-in % [:config :hours]
+                 (server-day-hours->form-day-hours hours))
+       %))))
+
+(defn form-zone->server-zone
+  [zone]
+  (->>
+   zone
+   (#(if-let [hours (get-in % [:config :hours])]
+       (assoc-in % [:config :hours]
+                 (form-day-hours->server-day-hours hours))
+       %))
+   (#(assoc % :config
+            (str (:config %))))))
 
 (defn DisplayedZoneComp
   "Display a zone's information"
@@ -162,9 +229,10 @@
                                gas-price-91))])
       [KeyVal "Zip Codes" (:zips zone)]
       (when (get-in zone [:config :hours])
-        [KeyVal "Hours" ;;(get-in zone [:config :hours])
-         "hours Placeholder"
-         ])]]))
+        [KeyVal "Hours" (-> zone
+                            (get-in [:config :hours])
+                            (server-day-hours->form-day-hours)
+                            (form-zone-hours->hrf-string))])]]))
 
 (defn TimePickerComp
   [minutes-bracket]
@@ -261,37 +329,6 @@
                    :display-key :period
                    :sort-keyword :id}]]]))))
 
-(def days-of-week ["S" "M" "T" "W" "Th" "F" "Sa"])
-
-(defn server-hours->form-hours
-  "Convert a day's vec of vec hours into a map"
-  [server-hours]
-  (apply merge (map-indexed
-                (fn [idx itm]
-                  (let [id (str "t" idx)]
-                    {id
-                     {:id id
-                      :hours itm}}))
-                server-hours)))
-
-(defn server-day-hours->form-day-hours
-  "Convert hours from the server into a map used in forms"
-  [server-day-hours]
-  (apply merge (map-indexed
-                (fn [idx itm]
-                  {(nth days-of-week idx)
-                   (server-hours->form-hours (nth server-day-hours idx))})
-                days-of-week)))
-
-(defn form-hours->server-hours
-  [form-hours]
-  (into [] (map :hours (sort-by :id (vals form-hours)))))
-
-(defn form-day-hours->server-day-hours
-  [form-day-hours]
-  (mapv (fn [day] (form-hours->server-hours (form-day-hours day)))
-        days-of-week))
-
 (defn insert-time!
   "Insert a time into days-atom"
   [day days-atom]
@@ -334,10 +371,8 @@
          "(-)"]))))
 
 (defn DaysTimeRangeComp
-  [hours]
-  (let [;; days-atom should eventually be a cursor
-        ;; days-atom (r/atom (server-day-hours->form-day-hours hours))
-        ]
+  [hours zone]
+  (let [days-atom (r/cursor zone [:config :hours])]
     (reset! days-atom (server-day-hours->form-day-hours hours))
     (fn [hours]
       (let []
@@ -427,7 +462,7 @@
                                        (.preventDefault e)
                                        (swap! config dissoc :hours))}
                   "Delete All Hours"]
-            [DaysTimeRangeComp @hours]])]]])))
+            [DaysTimeRangeComp @hours zone]])]]])))
 
 (defn EditZoneFormComp
   [zone]
@@ -449,23 +484,43 @@
             diff-key-str {:name "Name"
                           :rank "Rank"
                           :active "Active"
-                          :zips "Zip Codes"}
+                          :zips "Zip Codes"
+                          :hours "Hours"}
             diff-msg-gen (fn [edit current]
                            (diff-message
                             edit
                             current
                             diff-key-str))
+            zone->diff-msg-zone (fn [zone]
+                                  (->> zone
+                                       (#(if-let [hours
+                                                  (get-in % [:config :hours])]
+                                           (assoc
+                                            %
+                                            :hours
+                                            (form-zone-hours->hrf-string hours))
+                                           %))))
+            diff-msg-gen-zone (fn [edit-zone current-zone]
+                                (.log js/console "edit-zone: "
+                                      (clj->js edit-zone))
+                                (.log js/console "current-zone: "
+                                      (clj->js current-zone))
+                                (diff-msg-gen
+                                 (zone->diff-msg-zone edit-zone)
+                                 (zone->diff-msg-zone
+                                  (server-zone->form-zone current-zone))))
             confirm-msg (fn []
                           [:div (str "The following changes will be made to "
                                      (:name @current-zone))
                            (map (fn [el]
                                   ^{:key el}
                                   [:h4 el])
-                                (diff-msg-gen @edit-zone @current-zone))])
+                                (diff-msg-gen-zone @edit-zone @current-zone))])
             submit-on-click (fn [e]
                               (.preventDefault e)
                               (if @editing?
-                                (if (every? nil? (diff-msg-gen @edit-zone
+                                (if (every? nil?
+                                            (diff-msg-gen-zone @edit-zone
                                                                @current-zone))
                                   ;; there isn't a diff message, no changes
                                   (reset! editing? false)
@@ -473,13 +528,15 @@
                                   (reset! confirming? true))
                                 (do
                                   ;; reset edit zone
-                                  (reset! edit-zone (server-zone->form-zone @zone))
+                                  (reset! edit-zone ;;(server-zone->form-zone @zone)
+                                          @zone)
                                   ;; get rid of alert-success
                                   (reset! alert-success "")
                                   (reset! editing? true))))
             confirm-on-click (fn [_]
+                               (.log js/console "edit-zone" (clj->js @edit-zone))
                                (entity-save
-                                @edit-zone
+                                (form-zone->server-zone @edit-zone)
                                 "zone"
                                 "PUT"
                                 retrieving?
@@ -507,7 +564,8 @@
                          ;; no longer editing
                          (reset! editing? false)
                          ;; reset edit-zone
-                         (reset! edit-zone (server-zone->form-zone zone))
+                         (reset! edit-zone ;;(server-zone->form-zone zone)
+                                 zone)
                          ;; reset confirming
                          (reset! confirming? false))]
         [:div
@@ -551,7 +609,7 @@
             active (r/cursor edit-zone [:active])
             ;; helper fns
             confirm-msg (fn [zone]
-                          (let [{:keys [name rank active zips]} zone]
+                          (let [{:keys [name rank active zips config]} zone]
                             [:div
                              (str "Are you sure you want to create new zone "
                                   "with the following value?")
@@ -560,7 +618,11 @@
                              [:h4 "Active: " (if  active
                                                "Yes"
                                                "No")]
-                             [:h4 "Zip Codes: " zips]]))
+                             [:h4 "Zip Codes: " zips]
+                             (when (:hours config)
+                               [:h4 "Hours: "
+                                (form-zone-hours->hrf-string (:hours config))])]
+                            ))
             submit-on-click (fn [e]
                               (.preventDefault e)
                               (if @editing?
@@ -571,7 +633,7 @@
                                   (reset! editing? true))))
             confirm-on-click (fn [_]
                                (entity-save
-                                @edit-zone
+                                (form-zone->server-zone @edit-zone)
                                 "zone"
                                 "POST"
                                 retrieving?
