@@ -1045,21 +1045,26 @@
       [TableHeadSortable
        (conj props {:keyword :rank
                     :title "Zone rules are applied to a ZIP by starting with the lowest rank. Higher ranking zones supersede lower ranking zones when the rules are in conflict."
-                    :style {:cursor "help"}})
+                    :style {:cursor "help"
+                            :border-bottom "none"}})
        "Rank"]
       [TableHeadSortable
        (conj props {:keyword :name
                     :title "Zones that are manually closed are shown in light-gray."
-                    :style {:cursor "help"}})
+                    :style {:cursor "help"
+                            :border-bottom "none"}})
        "Name"]
       [TableHeadSortable
-       (conj props {:keyword :zip_count})
+       (conj props {:keyword :zip_count
+                    :style {:border-bottom "none"}})
        "No. Zips"]
       [:th {:style {:font-size "16px"
-                    :font-weight "normal"}}
+                    :font-weight "normal"
+                    :border-bottom "none"}}
        "Zips"]
       [TableHeadSortable
-       (conj props {:keyword :active})
+       (conj props {:keyword :active
+                    :style {:border-bottom "none"}})
        "Active?"]]]))
 
 (defn zone-row

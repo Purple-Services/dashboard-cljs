@@ -42,10 +42,10 @@
                   ;; (.getZoom (:google-map @state))
                   :cities
                   {
-                   "Seattle"
-                   {:coords (js-obj "lat" 47.605042
-                                    "lng" -122.261588)
-                    :zoom 12}
+                   ;; "Seattle"
+                   ;; {:coords (js-obj "lat" 47.605042
+                   ;;                  "lng" -122.261588)
+                   ;;  :zoom 12}
                    "Los Angeles"
                    {:coords (js-obj "lat" 34.0754335
                                     "lng" -118.379587)
@@ -53,11 +53,11 @@
                    "OC"
                    {:coords (js-obj "lat" 33.682791
                                     "lng" -117.816834)
-                    :zoom 12}
+                    :zoom 11}
                    "San Diego"
                    {:coords (js-obj "lat" 32.9032771
                                     "lng" -117.167791)
-                    :zoom 11}}
+                    :zoom 10}}
                   :zones (array)}))
 
 (defn send-xhr
