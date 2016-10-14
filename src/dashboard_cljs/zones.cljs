@@ -1048,39 +1048,38 @@
                     :style {:cursor "help"}})
        "Rank"]
       [TableHeadSortable
-       (conj props {:keyword :active})
-       "Active?"]
-      [TableHeadSortable
-       (conj props {:keyword :name})
+       (conj props {:keyword :name
+                    :title "Zones that are manually closed are shown in light-gray."
+                    :style {:cursor "help"}})
        "Name"]
       [TableHeadSortable
        (conj props {:keyword :zip_count})
-       "# of Zips"]
+       "No. Zips"]
       [:th {:style {:font-size "16px"
                     :font-weight "normal"}}
-       "Zips"]]]))
+       "Zips"]
+      [TableHeadSortable
+       (conj props {:keyword :active})
+       "Active?"]]]))
 
 (defn zone-row
   "A table row for a zone."
   [current-zone]
   (fn [zone]
-    [:tr {:class (when (= (:id zone)
-                          (:id @current-zone))
-                   "active")
-          :on-click (fn [_]
-                      (reset! current-zone zone)
-                      (reset! (r/cursor state [:editing?]) false)
-                      (reset! (r/cursor state [:alert-success]) ""))}
+    [:tr (merge {:class (when (= (:id zone)
+                                 (:id @current-zone))
+                          "active")
+                 :on-click (fn [_]
+                             (reset! current-zone zone)
+                             (reset! (r/cursor state [:editing?]) false)
+                             (reset! (r/cursor state [:alert-success]) ""))}
+                (when (:manually-closed? (:config zone))
+                  {:style {:color "#bbb"}}))
      ;; Rank
      [:td (str (:rank zone)
                (case (:rank zone)
                  100 " (mrkt)"
                  ""))]
-     ;; Active
-     [:td (if (-> zone
-                  :active)
-            "Yes"
-            "No")]
      ;; name
      [:td [:i {:class "fa fa-circle"
                :style {:color (:color zone)}}]
@@ -1094,7 +1093,12 @@
             subs-string (subs zips-string 0 68)]
         (if (> (count zips-string) 68)
           (str subs-string ", ...")
-          zips-string))]]))
+          zips-string))]
+     ;; Active
+     [:td (if (-> zone
+                  :active)
+            "Yes"
+            "No")]]))
 
 (defn zones-panel
   "Display a table of zones"
