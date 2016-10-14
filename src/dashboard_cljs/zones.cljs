@@ -20,6 +20,26 @@
                                           edit-on-error]]
             [clojure.string :as s]))
 
+;; Work Flow for adding options:
+;; 1. Edit [DisplayedZoneComp] to show item. (be sure it exists in the DB)
+;;    i. make a human readable translator, if needed
+;;       Note: form-item->hrf NOT server-item->hrf !!!
+;;       In [DisplayedZoneComp] you will do a (-> item (server-item->form-item)
+;;                                                     (form-item->hrf))
+;;    ii. add item for display
+;; 2. If needed, edit server-zone->form-zone and form-zone->server-zone
+;;    Note: When converting, best to use a flat map structure for r/cursor
+;;    Note: This will probably require writing a separate conversion
+;;          fn for the new item
+;; 3. Make changes to [ZoneFormComp] to include new item.
+;;    i. possibly write new sub-component for this
+;; 4. Edit [EditZoneFormComp]
+;;    i. diff-key-str
+;;    ii. zone->diff-msg-zone
+;;    iii. may need a item->hrf translator
+;; 5. Edit [CreateZoneFormComp]
+;;    i. edit confirm-msg
+
 (def default-zone
   {:errors nil
    :confirming? false
@@ -89,6 +109,12 @@
   {:87 299
    :91 319})
 
+;; when more time options are available, this will have to be modified
+(def default-server-time-choices
+  {:0 60
+   :1 180
+   :2 300})
+
 (defn minute-count->standard-hours
   "Given a count of minutes elapsed in day, 
   convert it to standard hours"
@@ -109,6 +135,43 @@
   determine if it is in the AM or PM"
   [minute-count]
   (if (< (quot minute-count 60) 12) "AM" "PM"))
+
+(defn server-time-choices->form-time-choices
+  [server-time-choices]
+  (->> default-server-time-choices
+       vals
+       (map-indexed (fn [idx itm]
+                      {(keyword (str "t" idx))
+                       {:minutes itm
+                        :selected (boolean
+                                   (some #(= itm %)
+                                         (vals server-time-choices)))}}))
+       (apply merge)))
+
+(defn form-time-choices->server-time-choices
+  [form-time-choices]
+  (->> form-time-choices
+       vals
+       (map #(if (:selected %) (:minutes %)))
+       (filter #(not (nil? %)))
+       sort
+       (zipmap (map (comp keyword str) (range)))))
+
+(defn server-time-choices->hrf
+  [time-choices-server]
+  (->> time-choices-server
+       vals
+       (map minute-count->standard-hours)
+       (map #(str % " Hour"))
+       sort
+       (s/join ", ")))
+
+(defn form-time-choices->hrf
+  [form-time-choices]
+  (->> form-time-choices
+       form-time-choices->server-time-choices
+       server-time-choices->hrf))
+
 
 (defn standard-time->minute-count
   [standard-hours minutes period]
@@ -199,14 +262,6 @@
   (mapv (fn [day] (form-hours->server-hours (form-day-hours day)))
         days-of-week))
 
-(defn time-choices-server->hrf
-  [time-choices-server]
-  (->> time-choices-server
-       vals
-       (map minute-count->standard-hours)
-       (map #(str % " Hour"))
-       sort
-       (s/join ", ")))
 
 ;; this function converts a zone to a edit-form zone
 (defn server-zone->form-zone
@@ -226,6 +281,10 @@
        (assoc-in % [:config :manually-closed?]
                  manually-closed?)
        (assoc-in % [:config :manually-closed?] false)))
+   (#(if-let [time-choices (get-in % [:config :time-choices])]
+       (assoc-in % [:config :time-choices]
+                 (server-time-choices->form-time-choices time-choices))
+       %))
    ))
 
 (defn form-zone->server-zone
@@ -253,6 +312,16 @@
        (assoc-in % [:config :manually-closed?]
                  manually-closed?)
        (assoc-in % [:config :manually-closed?] false)))
+   (#(if-let [time-choices (get-in % [:config :time-choices])]
+       (let [server-time-choices
+             (form-time-choices->server-time-choices time-choices)]
+         (if-not (empty? server-time-choices)
+           ;; there are still time choices
+           (assoc-in % [:config :time-choices]
+                     server-time-choices)
+           ;; there are not time choices
+           (assoc % :config (dissoc (:config %) :time-choices))))
+       %))
    (#(assoc % :config
             (str (:config %))))))
 
@@ -280,12 +349,15 @@
         (when closed-message
           [KeyVal "Closed Message" closed-message])
         (when time-choices
-          [KeyVal "Delivery Times Available" (time-choices-server->hrf
-                                              time-choices)])
-        (when default-time-choice
-          [KeyVal "Default Delivery Time" (str (minute-count->standard-hours
-                                                default-time-choice)
-                                               " Hour")])
+          [KeyVal "Delivery Times Available"
+           (form-time-choices->hrf
+            (server-time-choices->form-time-choices
+             time-choices))])
+        ;; come back to this later
+        ;; (when default-time-choice
+        ;;   [KeyVal "Default Delivery Time" (str (minute-count->standard-hours
+        ;;                                         default-time-choice)
+        ;;                                        " Hour")])
         (when (or  gas-price-87
                    gas-price-91)
           [KeyVal "Gas Price" (str
@@ -464,7 +536,6 @@
                    (keys (@days-atom day)))])
            days-of-week))]))))
 
-
 (defn ZoneFormComp
   "Create or edit a zone"
   [{:keys [zone errors]}]
@@ -479,7 +550,10 @@
           price-87 (r/cursor gas-price ["87"])
           price-91 (r/cursor gas-price ["91"])
           manually-closed? (r/cursor config [:manually-closed?])
-          closed-message (r/cursor config [:closed-message])]
+          closed-message (r/cursor config [:closed-message])
+          time-choices (r/cursor config [:time-choices])
+          default-time-choice (r/cursor config [:default-time-choice])
+          ]
       [:div {:class "row"}
        [:div {:class "col-lg-12"}
         ;; name
@@ -546,6 +620,55 @@
                                             (-> %
                                                 (aget "target")
                                                 (aget "value")))}]])]
+        ;; time choices will go here
+        [FormGroup {:label "Delivery Times Available"
+                    :errors (get-in @errors [:config :time-choices])}
+         (if-not @time-choices
+           ;; time-choices not define
+           [:div [:button {:type "button"
+                           :class "btn btn-sm btn-default"
+                           :on-click
+                           (fn [e]
+                             (.preventDefault e)
+                             (reset! time-choices
+                                     (server-time-choices->form-time-choices
+                                      default-server-time-choices)))}
+                  "Add Delivery Times"]
+            [:br]
+            [:br]]
+           [:div [:button {:type "button"
+                           :class "btn btn-sm btn-default"
+                           :on-click (fn [e]
+                                       (.preventDefault e)
+                                       (swap! config dissoc :time-choices))}
+                  "Remove Delivery Times"]
+            [:br]
+            [:br]
+            ;; time choice picker
+            [:div
+             (doall
+              (map
+               (fn [choice]
+                 ^{:key (get-in @time-choices [choice :minutes])}
+                 [:div
+                  (str (minute-count->standard-hours
+                        (get-in @time-choices [choice :minutes])) " Hour ")
+                  [:input {:type "checkbox"
+                           :checked (get-in @time-choices [choice :selected])
+                           :on-change (fn [e]
+                                        (reset!
+                                         (r/cursor time-choices
+                                                   [choice :selected])
+                                         (-> e
+                                             (.-target)
+                                             (.-checked))))}]])
+               (keys @time-choices)))
+             (when (empty?
+                    (form-time-choices->server-time-choices @time-choices))
+               [:div {:class "alert alert-danger"}
+                (str "Removing all time options does not neccesarily close the "
+                     "zone! Use the 'Closed' option to close the zone.")])
+             ]])]
         ;; gas price
         [FormGroup {:label "Gas Prices"
                     :errors (get-in  @errors [:config :gas-price])}
@@ -618,9 +741,7 @@
                                        (.preventDefault e)
                                        (swap! config dissoc :hours))}
                   "Remove Hours"]
-            [DaysTimeRangeComp @hours zone]])]
-
-        ]])))
+            [DaysTimeRangeComp @hours zone]])]]])))
 
 (defn EditZoneFormComp
   [zone]
@@ -644,6 +765,7 @@
                           :active "Active"
                           :manually-closed? "Closed"
                           :closed-message "Closed Message"
+                          :time-choices "Delivery Times Available"
                           :zips "Zip Codes"
                           :gas-price "Gas Price"
                           :hours "Hours"
@@ -692,7 +814,15 @@
                                             :closed-message
                                             closed-message)
                                            %))
-                                       ))
+                                       (#(if-let [time-choices
+                                                  (get-in % [:config
+                                                             :time-choices])]
+                                           (assoc
+                                            %
+                                            :time-choices
+                                            (form-time-choices->hrf
+                                             time-choices))
+                                           %))))
             diff-msg-gen-zone (fn [edit-zone current-zone]
                                 (.log js/console "edit-zone: "
                                       (clj->js edit-zone))
@@ -826,6 +956,9 @@
                              (when (:closed-message config)
                                [:h4 "Closed Message: "
                                 (:closed-message config)])
+                             (when (:time-choices config)
+                               [:h4 "Delivery Times Available"
+                                (form-time-choices->hrf (:time-choices config))])
                              (when (:gas-price config)
                                [:h4 "Gas Price: "
                                 (form-config-gas-price->hrf-string
