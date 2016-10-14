@@ -61,7 +61,10 @@
                     :create-retrieving? false
                     :edit-zone default-zone
                     :create-edit-zone default-zone
-                    :selected "active"}))
+                    :selected "active"
+                    :search-results #{}}))
+
+(def zone-search-results (r/cursor state [:search-results]))
 
 (def default-zone-config
   {:hours [[[]] ; Su
@@ -356,15 +359,15 @@
              service-fee-180 (delivery-fee "180")
              service-fee-300 (delivery-fee "300")]
          (assoc-in % [:config :delivery-fee]
-                   {"60"  (if (parse-to-number? service-fee-60)
-                            (dollars->cents
-                             service-fee-60)
-                            service-fee-60)
-                    "180" (if (parse-to-number? service-fee-180)
-                            (dollars->cents
-                             service-fee-180)
-                            service-fee-180)
-                    "300" (if (parse-to-number? service-fee-300)
+                   {(js/Number "60")  (if (parse-to-number? service-fee-60)
+                                        (dollars->cents
+                                         service-fee-60)
+                                        service-fee-60)
+                    (js/Number "180") (if (parse-to-number? service-fee-180)
+                                        (dollars->cents
+                                         service-fee-180)
+                                        service-fee-180)
+                    (js/Number "300") (if (parse-to-number? service-fee-300)
                             (dollars->cents
                              service-fee-300)
                             service-fee-300)}))
