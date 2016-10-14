@@ -230,13 +230,15 @@
                  (let [hours (vals (form-zone-hours day))
                        times (map :hours hours)]
                    (str day " "
-                        (s/join " "
-                                (map #(let [from-time (first %)
-                                            to-time (second %)]
-                                        (str (minute-count->hrf-time from-time)
-                                             " - "
-                                             (minute-count->hrf-time to-time)))
-                                     times)))))
+                        (if hours
+                          (s/join " "
+                                  (map #(let [from-time (first %)
+                                              to-time (second %)]
+                                          (str (minute-count->hrf-time from-time)
+                                               " - "
+                                               (minute-count->hrf-time to-time)))
+                                       times))
+                          "Closed"))))
                days-of-week)))
 
 (defn server-config-gas-price->form-config-gas-price
@@ -471,7 +473,7 @@
                    :display-key :period
                    :sort-keyword :id}]]]))))
 
-(defn insert-time!
+(defn insert-time-not-nil!
   "Insert a time into days-atom"
   [day days-atom]
   (let [day-hours (r/cursor days-atom [day])
@@ -485,12 +487,26 @@
                         :hours [450 1350]}]
     (swap! day-hours assoc next-id next-hours-map)))
 
+(defn insert-time!
+  "Insert a time into days-atom"
+  [day days-atom]
+  (let [day-hours (r/cursor days-atom [day])
+        next-hours-map {"t0"
+                        {:id "t0"
+                         :hours [450 1350]}}]
+    (if-not (nil? @day-hours)
+      (insert-time-not-nil! day days-atom)
+      (reset! day-hours next-hours-map))))
+
 (defn delete-time!
   "Delete a time from days-atom"
   [day days-atom hours-map-atom]
   (let [day-hours (r/cursor days-atom [day])
         hour-id (:id @hours-map-atom)]
-    (swap! day-hours dissoc hour-id)))
+    (if-not (= (:id hours-map-atom) "t0")
+      (swap! day-hours dissoc hour-id)
+      (reset! (r/cursor days-atom [day]) nil))))
+
 
 (defn AddTimeComp
   [day days-atom]
@@ -505,12 +521,11 @@
   [day days-atom hours-map-atom]
   (fn [day days-atom hours-map-atom]
     (let [hour-id (:id @hours-map-atom)]
-      (if-not (= hour-id "t0")
-        [:a {:href "#"
-             :on-click (fn [e]
-                         (.preventDefault e)
-                         (delete-time! day days-atom hours-map-atom))}
-         "(-)"]))))
+      [:a {:href "#"
+           :on-click (fn [e]
+                       (.preventDefault e)
+                       (delete-time! day days-atom hours-map-atom))}
+       "(-)"])))
 
 (defn DaysTimeRangeComp
   [hours zone]
