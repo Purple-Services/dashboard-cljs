@@ -826,16 +826,19 @@
   "A checkbox for controlling an order of status"
   [state status]
   (let [checkbox (crate/html [:input {:type "checkbox"
-                                      :name "orders"
+                                      :id (str "orders-" status)
                                       :value "orders"
                                       :class "orders-checkbox"
                                       :checked true}])
         control-text (crate/html
                       [:div {:class "setCenterText map-control-font"}
-                       checkbox status
-                       (legend-symbol (get-in @state [:status
-                                                      (keyword status)
-                                                      :color]))])]
+                       checkbox
+                       [:label {:for (str "orders-" status)
+                                :style {:cursor "pointer"}}
+                        status
+                        (legend-symbol (get-in @state [:status
+                                                       (keyword status)
+                                                       :color]))]])]
     (.addEventListener checkbox "click" #(do (if (aget checkbox "checked")
                                                (swap! state assoc-in
                                                       [:status (keyword status)
@@ -924,13 +927,15 @@
   on the map"
   [state]
   (let [checkbox (crate/html [:input {:type "checkbox"
-                                      :name "couriers"
+                                      :id "couriers"
                                       :value "couriers"
                                       :class "couriers-checkbox"
                                       :checked true}])
         control-text (crate/html
                       [:div {:class "setCenterText map-control-font"}
-                       checkbox "Couriers"
+                       checkbox [:label {:for "couriers"
+                                         :style {:cursor "pointer"}}
+                                 "Couriers"]
                        [:br]
                        "Busy"
                        (legend-symbol (get-in @state
@@ -961,7 +966,7 @@
   "A checkbox for controlling the display of zones"
   [state]
   (let [checkbox (crate/html [:input {:type "checkbox"
-                                      :name "zones"
+                                      :id "zones"
                                       :value "zones"
                                       :class "zones-checkbox"
                                       :checked (get-in @state
@@ -970,7 +975,9 @@
                                                         :selected?])}])
         control-text (crate/html
                       [:div {:class "setCenterText map-control-font"}
-                       checkbox "Zones"])]
+                       checkbox [:label {:for "zones"
+                                         :style {:cursor "pointer"}}
+                                 "Zones"]])]
     (.addEventListener
      checkbox "click" #(do (if (aget checkbox "checked")
                              (swap! state assoc-in
@@ -986,7 +993,7 @@
   "A Checkbox for controlling the display of zip codes inside of the zones"
   [state]
   (let [checkbox (crate/html [:input {:type "checkbox"
-                                      :name "zones-zips"
+                                      :id "zones-zips"
                                       :value "zones-zips"
                                       :class "zones-zips-checkbox"
                                       :checked (get-in @state
@@ -995,7 +1002,9 @@
                                                         :selected?] )}])
         control-text (crate/html
                       [:div {:class "setCenterText map-control-font"}
-                       checkbox "Zip Code Labels"])]
+                       checkbox [:label {:for "zones-zips"
+                                         :style {:cursor "pointer"}}
+                                 "Zip Code Labels"]])]
     (.addEventListener
      checkbox "click" #(do (if (aget checkbox "checked")
                              (swap! state assoc-in

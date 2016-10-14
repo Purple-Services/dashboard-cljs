@@ -109,27 +109,35 @@
     [:thead
      [:tr
       [TableHeadSortable
-       (conj props {:keyword :status})
+       (conj props {:keyword :status
+                    :style {:border-bottom "none"}})
        "Status"]
       [TableHeadSortable
-       (conj props {:keyword :courier_name})
+       (conj props {:keyword :courier_name
+                    :style {:border-bottom "none"}})
        "Courier"
        ]
       [TableHeadSortable
-       (conj props {:keyword :target_time_start})
+       (conj props {:keyword :target_time_start
+                    :style {:border-bottom "none"}})
        "Order Placed"]
       [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "Delivery Time"]
+                    :font-weight "normal"
+                    :border-bottom "none"}} "Delivery Time"]
       [TableHeadSortable
-       (conj props {:keyword :customer_name})
+       (conj props {:keyword :customer_name
+                    :style {:border-bottom "none"}})
        "Username"] 
       [TableHeadSortable
-       (conj props {:keyword :customer_phone_number})
+       (conj props {:keyword :customer_phone_number
+                    :style {:border-bottom "none"}})
        "Phone #"] 
       [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "Email"]
+                    :font-weight "normal"
+                    :border-bottom "none"}} "Email"]
       [TableHeadSortable
-       (conj props {:keyword :address_street})
+       (conj props {:keyword :address_street
+                    :border-bottom "none"})
        "Street Address"]]]))
 
 (defn current-orders-panel
