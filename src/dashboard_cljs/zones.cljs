@@ -342,14 +342,14 @@
        [:div {:class "col-lg-12"}
         [KeyVal "Name" (:name zone)]
         [KeyVal "Rank" (:rank zone)]
-        [KeyVal "Active" (if (:active zone)
-                           "Yes"
-                           "No")]
-        [KeyVal "Closed" (if (get-in zone [:config :manually-closed?])
-                           "Yes"
-                           "No")]
+        [KeyVal "Active?" (if (:active zone)
+                            "Yes"
+                            "No")]
+        [KeyVal "Manually Closed?" (if (get-in zone [:config :manually-closed?])
+                                     "Yes"
+                                     "No")]
         (when closed-message
-          [KeyVal "Closed Message" closed-message])
+          [KeyVal "Custom Closed Message" closed-message])
         (when time-choices
           [KeyVal "Delivery Times Available"
            (form-time-choices->hrf
@@ -580,13 +580,14 @@
         ;; rank
         [FormGroup {:label "Rank"
                     :errors (:rank @errors)}
-         [TextInput {:value @rank
+         [TextInput {:style {:max-width "60px"}
+                     :value @rank
                      :on-change #(let [value (get-input-value %)]
                                    (reset! rank (if (parse-to-number? value)
                                                   (js/parseInt value)
                                                   value)))}]]
         ;; active
-        [FormGroup {:label "Active"
+        [FormGroup {:label "Active? "
                     :errors (:active @errors)}
          [:input {:type "checkbox"
                   :checked @active
@@ -597,7 +598,7 @@
                                           (.-target)
                                           (.-checked))))}]]
         ;;manually closed
-        [FormGroup {:label "Closed"
+        [FormGroup {:label "Manually Closed? "
                     :errors (get-in @errors [:config :manually-closed?])}
          [:input {:type "checkbox"
                   :checked @manually-closed?
@@ -608,7 +609,7 @@
                                           (.-target)
                                           (.-checked))))}]]
         ;; closed message
-        [FormGroup {:label "Closed Message"
+        [FormGroup {:label "Custom Closed Message"
                     :errors (get-in  @errors [:config :closed-message])}
          (if-not @closed-message
            ;; closed message not defined
@@ -619,14 +620,14 @@
                              (.preventDefault e)
                              (reset! closed-message
                                      (str @name " is currently closed")))}
-                  "Add Closed Message"]]
+                  "Add Custom Closed Message"]]
            ;; closed message defined
            [:div [:button {:type "button"
                            :class "btn btn-sm btn-default"
                            :on-click (fn [e]
                                        (.preventDefault e)
                                        (swap! config dissoc :closed-message))}
-                  "Remove Closed Message"]
+                  "Remove Custom Closed Message"]
             [:br]
             [:br]
             ;; Close message
@@ -1057,53 +1058,62 @@
     [:thead
      [:tr
       [TableHeadSortable
-       (conj props {:keyword :rank})
+       (conj props {:keyword :rank
+                    :title "Zone rules are applied to a ZIP by starting with the lowest rank. Higher ranking zones supersede lower ranking zones when the rules are in conflict."
+                    :style {:cursor "help"}})
        "Rank"]
       [TableHeadSortable
-       (conj props {:keyword :active})
-       "Active"]
-      [TableHeadSortable
-       (conj props {:keyword :name})
+       (conj props {:keyword :name
+                    :title "Zones that are manually closed are shown in light-gray."
+                    :style {:cursor "help"}})
        "Name"]
       [TableHeadSortable
        (conj props {:keyword :zip_count})
-       "# of Zips"]
+       "No. Zips"]
       [:th {:style {:font-size "16px"
                     :font-weight "normal"}}
-       "Zips"]]]))
+       "Zips"]
+      [TableHeadSortable
+       (conj props {:keyword :active})
+       "Active?"]]]))
 
 (defn zone-row
   "A table row for a zone."
   [current-zone]
   (fn [zone]
-    [:tr {:class (when (= (:id zone)
-                          (:id @current-zone))
-                   "active")
-          :on-click (fn [_]
-                      (reset! current-zone zone)
-                      (reset! (r/cursor state [:editing?]) false)
-                      (reset! (r/cursor state [:alert-success]) ""))}
+    [:tr (merge {:class (when (= (:id zone)
+                                 (:id @current-zone))
+                          "active")
+                 :on-click (fn [_]
+                             (reset! current-zone zone)
+                             (reset! (r/cursor state [:editing?]) false)
+                             (reset! (r/cursor state [:alert-success]) ""))}
+                (when (:manually-closed? (:config zone))
+                  {:style {:color "#bbb"}}))
      ;; Rank
-     [:td (-> zone
-              :rank)]
-     ;; Active
-     [:td (if (-> zone
-                  :active)
-            "Yes"
-            "No")]
+     [:td (str (:rank zone)
+               (case (:rank zone)
+                 100 " (mrkt)"
+                 ""))]
      ;; name
-     [:td (-> zone
-              :name)]
+     [:td [:i {:class "fa fa-circle"
+               :style {:color (:color zone)}}]
+      " " (:name zone)]
      ;; # of zips
      [:td (-> zone
               :zip_count)]
      ;; Zips
-     [:td {:style {:overflow "scroll"}}
+     [:td ;; {:style {:overflow "scroll"}}
       (let [zips-string (:zips zone)
             subs-string (subs zips-string 0 68)]
         (if (> (count zips-string) 68)
           (str subs-string ", ...")
-          zips-string))]]))
+          zips-string))]
+     ;; Active
+     [:td (if (-> zone
+                  :active)
+            "Yes"
+            "No")]]))
 
 (defn zones-panel
   "Display a table of zones"

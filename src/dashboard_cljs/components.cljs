@@ -37,7 +37,7 @@
           sort-fn   (if (nil? (:sort-fn props))
                       (partial sort-by :id)
                       (:sort-fn props))]
-      [:table {:class "table table-bordered table-hover table-striped"}
+      [:table {:class "table table-bordered table-hover"}
        (:table-header props)
        [:tbody
         (map (fn [element]
@@ -57,7 +57,9 @@
   (fn [props text]
     [:th
      {:class "fake-link"
-      :style {:white-space "nowrap"}
+      :style (merge {:white-space "nowrap"}
+                    (:style props))
+      :title (:title props)
       :on-click #(do
                    (reset! (:sort-keyword props) (:keyword props))
                    (swap! (:sort-reversed? props) not))}
