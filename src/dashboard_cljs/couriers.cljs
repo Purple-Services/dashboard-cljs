@@ -26,8 +26,7 @@
                                           edit-on-error]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->fmt unix-epoch->hrf
-                                          base-url markets
-                                          accessible-routes pager-helper!
+                                          base-url accessible-routes pager-helper!
                                           diff-message now get-event-time
                                           select-toggle-key!]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
@@ -109,7 +108,11 @@
        ;; name
        [:td (:name courier)]
        ;; market
-       [:td (markets (quot (first (:zones courier)) 50))]
+       [:td (:name
+             (first
+              (filter #(and (= 100 (:rank %))
+                            (contains? (set (:zones courier)) (:id %)))
+                      @datastore/zones)))]
        ;; orders count
        [:td (->> @datastore/orders
                  (filter (fn [order] (= (:id courier)
@@ -292,33 +295,10 @@
                                    .join))
         diff-key-str {:zones "Assigned Zones"
                       :active "Active?"}
-        market-select-options (set (map (fn [m] {:id (key m)
-                                                 :display-key (val m)})
-                                        markets))
         diff-msg-gen (fn [edit current] (diff-message
                                          edit
                                          (displayed-courier current)
                                          diff-key-str))
-        ;; get the zones by market
-        market-id->zones (fn [zone-id]
-                           (->
-                            (sort (filter #(= zone-id (quot % 50))
-                                          (map :id @datastore/zones)))
-                            sort clj->js .join))
-        ;; split up the markets into individual keys
-        market-keys (map #(hash-map % (get markets %)) (keys markets))
-        ;; generate a city / zones hashmap list
-        city-zones (map #(hash-map (first (vals %))
-                                   (market-id->zones (first (keys %))))
-                        market-keys)
-        ;; cities regex pattern
-        cities-pattern (re-pattern (s/join "|" (flatten (map keys city-zones))))
-        ;; get the city-zone-replacement
-        city-zone-replacement (apply merge city-zones)
-        ;; replace the cities with string
-        cities->zones (fn [zone-string]
-                        (s/replace zone-string cities-pattern
-                                   city-zone-replacement))
         submit-on-click (fn [e]
                           (.preventDefault e)
                           (if @editing?
@@ -379,14 +359,11 @@
            [TextInput {:value @zones
                        :default-value @zones
                        :on-change (fn [e]
-                                    (let [value (-> e
-                                                    (aget "target")
-                                                    (aget "value"))
-                                          converted-value
-                                          (cities->zones value)]
-                                      (reset!
-                                       zones
-                                       converted-value)))}]]]
+                                    (reset!
+                                     zones
+                                     (-> e
+                                         (aget "target")
+                                         (aget "value"))))}]]]
          [:div
           [KeyVal "Active" (if (:active @current-courier)
                              "Yes"

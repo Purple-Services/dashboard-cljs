@@ -68,13 +68,13 @@
 (def zone-search-results (r/cursor state [:search-results]))
 
 (def default-zone-config
-  {:hours [[[]] ; Su
-           [[]] ; M
+  {:hours [[[]] ; M
            [[]] ; T
            [[]] ; W
            [[]] ; Th
            [[]] ; F
            [[]] ; Sa
+           [[]] ; Su
            ]
    :gas-price {}
    :gas-price-diff-percent {}
@@ -97,18 +97,18 @@
    :manually-closed? false
    :closed-message ""})
 
-(def days-of-week ["S" "M" "T" "W" "Th" "F" "Sa"])
+(def days-of-week ["M" "Tu" "W" "Th" "F" "Sa" "Su"])
 
 ;; all of these defaults should be pulled from the server
 ;; ideally, from the Earth Zone
 (def default-server-zone-hours
-  [[[450 1350]] ; Su
-   [[450 1350]] ; M
-   [[450 1350]] ; T
+  [[[450 1350]] ; M
+   [[450 1350]] ; Tu
    [[450 1350]] ; W
    [[450 1350]] ; Th
    [[450 1350]] ; F
    [[450 1350]] ; Sa
+   [[450 1350]] ; Su
    ])
 
 (def default-server-config-gas-price
@@ -404,7 +404,7 @@
           ]
       [:div {:class "row"}
        [:div {:class "col-lg-12"}
-        [KeyVal "Name" (:name zone)]
+        [KeyVal "Name (ID)" (str (:name zone) " (" (:id zone) ")")]
         [KeyVal "Rank" (:rank zone)]
         [KeyVal "Active?" (if (:active zone)
                             "Yes"
@@ -1437,28 +1437,47 @@
                               zone-names]} @search-results]
                   [:div
                    [:h3 @recent-search-term]
-                   [KeyVal "Custom Closed Message" closed-message]
-                   [KeyVal "Default Gallon Choice" default-gallon-choice]
-                   [KeyVal "Delivery Fees"
-                    (form-delivery-fee->hrf
-                     (server-delivery-fee->form-delivery-fee delivery-fee))]
-                   [KeyVal "Gallon Choices" (str
-                                             (s/join ", "
-                                                     (vals gallon-choices))
-                                             " gallons")]
+                   [KeyVal "Zones"
+                    (if zone-names
+                      (s/join " < "
+                              (map #(str (val %) " (" (key %) ")")
+                                   (zipmap zone-ids zone-names)))
+                      [:span {:style {:color "rgb(217, 83, 79)"}} "Missing!"])]
                    [KeyVal "Gas Price"
-                    (form-config-gas-price->hrf-string
-                     (server-config-gas-price->form-config-gas-price
-                      gas-price))]
+                    (if gas-price
+                      (form-config-gas-price->hrf-string
+                       (server-config-gas-price->form-config-gas-price
+                        gas-price))
+                      [:span {:style {:color "rgb(217, 83, 79)"}} "Missing!"])]
                    [KeyVal "Hours"
-                    (-> hours
-                        (server-day-hours->form-day-hours)
-                        (form-zone-hours->hrf-string))]
-                   [KeyVal "Manually Closed?" (if manually-closed?
-                                                "Yes"
-                                                "No")]
+                    (if hours
+                      (-> hours
+                          (server-day-hours->form-day-hours)
+                          (form-zone-hours->hrf-string))
+                      [:span {:style {:color "rgb(217, 83, 79)"}} "Missing!"])]
+                   [KeyVal "Delivery Fees"
+                    (if delivery-fee
+                      (form-delivery-fee->hrf
+                       (server-delivery-fee->form-delivery-fee delivery-fee))
+                      [:span {:style {:color "rgb(217, 83, 79)"}} "Missing!"])]
+                   [KeyVal "Gallon Choices"
+                    (if gallon-choices
+                      (str
+                       (s/join ", "
+                               (vals gallon-choices))
+                       " gallons")
+                      [:span {:style {:color "rgb(217, 83, 79)"}} "Missing!"])]
+                   [KeyVal "Default Gallon Choice"
+                    (if default-gallon-choice
+                      default-gallon-choice
+                      [:span {:style {:color "rgb(217, 83, 79)"}} "Missing!"])]
                    [KeyVal "Tire Pressure Price"
-                    (str "$ " (cents->dollars
-                               tire-pressure-price))]
-                   [KeyVal "Zone IDs" (s/join ", " zone-ids)]
-                   [KeyVal "Zone Names" (s/join ", " zone-names)]]))])]])])))
+                    (if tire-pressure-price
+                      (str "$" (cents->dollars tire-pressure-price))
+                      [:span {:style {:color "rgb(217, 83, 79)"}} "Missing!"])]
+                   [KeyVal "Manually Closed?"
+                    (if manually-closed?
+                      "Yes"
+                      "No")]
+                   [KeyVal "Closed Message" closed-message]
+                   ]))])]])])))
