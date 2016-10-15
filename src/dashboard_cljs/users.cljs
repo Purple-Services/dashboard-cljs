@@ -111,7 +111,7 @@
       [:div {:class "row"}
        [:div {:class "col-lg-12 col-xs -12"}
         [:div
-         [:h3 {:style {:margin-top "0"}}
+         [:h3 {:style {:margin-top "0px"}}
           (str "Users (" @(r/cursor state [:users-count]) ") ")
           [:span {:style {:color "#5cb85c"}}
            (str  "Members (" @(r/cursor state [:members-count]) ") ")

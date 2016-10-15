@@ -158,29 +158,37 @@
     [:thead
      [:tr
       [TableHeadSortable
-       (conj props {:keyword :name})
+       (conj props {:keyword :name
+                    :style {:border-bottom "none"}})
        "Name"]
       [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "Market"]
+                    :font-weight "normal"
+                    :border-bottom "none"}} "Market"]
       [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "Current Orders"]
+                    :font-weight "normal"
+                    :border-bottom "none"}} "Current Orders"]
       [TableHeadSortable
-       (conj props {:keyword :phone_number})
+       (conj props {:keyword :phone_number
+                    :style {:border-bottom "none"}})
        "Phone"]
       ;; [TableHeadSortable
       ;;  (conj props {:keyword :last_ping})
       ;;  "Last Active"]
       [TableHeadSortable
-       (conj props {:keyword :timestamp_created})
+       (conj props {:keyword :timestamp_created
+                    :style {:border-bottom "none"}})
        "Joined"]
       [TableHeadSortable
-       (conj props {:keyword :os})
+       (conj props {:keyword :os
+                    :style {:border-bottom "none"}})
        "OS"]
       [TableHeadSortable
-       (conj props {:keyword :app_version})
+       (conj props {:keyword :app_version
+                    :style {:border-bottom "none"}})
        "App Version"]
       [TableHeadSortable
-       (conj props {:keyword :connected})
+       (conj props {:keyword :connected
+                    :style {:border-bottom "none"}})
        "Status"]]]))
 
 (defn courier-orders-header

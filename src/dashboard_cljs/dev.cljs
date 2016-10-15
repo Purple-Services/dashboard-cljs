@@ -1,6 +1,11 @@
 (ns dashboard-cljs.dev
-  (:require [weasel.repl :as repl]
-            [dashboard-cljs.core :as core]))
+  (:require [dashboard-cljs.core :as core]
+            [dashboard-cljs.state :as state]
+            [dashboard-cljs.utils :as utils]
+            [reagent.core :as r]))
 
-(when-not (repl/alive?)
-  (repl/connect "ws://127.0.0.1:9001"))
+(defn ^:export on-jsload
+  []
+  (core/init-new-dash)
+  (utils/select-toggle-key! (r/cursor state/landing-state [:tab-content-toggle])
+                            :zones-view))

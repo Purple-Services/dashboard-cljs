@@ -153,10 +153,9 @@
            (:lat order) (:lng order)]]
      ;; market
      [:td [:i {:class "fa fa-circle"
-               :style {:color (:zone-color order)}}] " "
-      (->> (:zone order)
-           (get-by-id @datastore/zones)
-           :name)]]))
+               :style {:color (:market-color order)}}] " "
+      (:market order)
+      ]]))
 
 (defn order-table-header
   "props is:
@@ -194,9 +193,9 @@
                     :font-weight "normal"}} "Email"]
       [TableHeadSortable
        (conj props {:keyword :address_street})
-       "Street Address"]
+       "Address"]
       [TableHeadSortable
-       (conj props {:keyword :zone})
+       (conj props {:keyword :market})
        "Market"]]]))
 
 (defn assign-courier
@@ -685,8 +684,8 @@
             ;; filter out the couriers to only those assigned
             ;; to the zone
             (->> @datastore/couriers
-                 (filter #(contains? (set (:zones %))
-                                     (:zone @order)))
+                 (filter #(some (set (:zones %))
+                                (:zones @order)))
                  (filter :active))
             assigned-courier (if (not (nil? (:courier_name @order)))
                                ;; there is a courier currently assigned
@@ -722,39 +721,51 @@
               [:div {:id "customer-info-text"
                      :style {:padding-left "1em"
                              :padding-bottom "1em"}}
-               [:h3 "Customer Info"]
-               ;; map
-               [:div {:id "customer-info-highlighted"
-                      :style {:background-color "#efefff"
-                              :border "solid 2px #ddd"
-                              :padding-left "5px"}}
-                ;;  name
-                [:h5 [UserCrossLink
-                      {:on-click (fn []
-                                   (user-cross-link-on-click
-                                    (:user_id @order)))}
-                      (:customer_name @order)]
-                 (when-not (= 0 (:subscription_id @order))
-                   [:span {:style {:color "#5cb85c"}}
-                    (str " "
-                         (subscription-id->name (:subscription_id @order))
-                         " Plan")])]
-                [:h5 [:span [GoogleMapLink
-                             (:address_street @order)
-                             (:lat @order)
-                             (:lng @order)] ", " (:address_zip @order)]]
-                ;;  email
-                [:h5 [Mailto (:email @order)]]
-                ;;  phone number
-                [:h5  [TelephoneNumber (:customer_phone_number @order)]]]
+               ;; Customer Info
+               ;;  name
+               [:h5 [UserCrossLink
+                     {:on-click (fn []
+                                  (user-cross-link-on-click
+                                   (:user_id @order)))}
+                     (:customer_name @order)]
+                (when-not (= 0 (:subscription_id @order))
+                  [:span {:style {:color "#5cb85c"}}
+                   (str " "
+                        (subscription-id->name (:subscription_id @order))
+                        " Plan")])]
+               ;;  email
+               [:h5 [Mailto (:email @order)]]
+               ;;  phone number
+               [:h5  [TelephoneNumber (:customer_phone_number @order)]]
+               ;; order price
+               [KeyVal "Total Price"
+                [:span
+                 (cents->$dollars (:total_price @order))
+                 " "
+                 ;; declined payment?
+                 (if (declined-payment? @order)
+                   [:span {:class "text-danger"} "Payment declined!"])]]
+               ;; payment info
+               (let [payment-info (json-string->clj (:payment_info @order))]
+                 (when (not (nil? payment-info))
+                   [KeyVal "Payment Info" (str (:brand payment-info)
+                                               " "
+                                               (:last4 payment-info)
+                                               " "
+                                               (:exp_month payment-info) "/"
+                                               (:exp_year payment-info))]))
+               ;; coupon code
+               (when (not (s/blank? (:coupon_code @order)))
+                 [KeyVal "Coupon" (:coupon_code @order)])
                ;; vehicle description
                (let [{:keys [year make model color]} (:vehicle @order)]
                  [KeyVal "Vehicle" (str year " " make " " model " " "(" color ")")])
                ;; license plate
-               [KeyVal "License Plate" (:license_plate @order)]]]
+               [KeyVal "Plate #" (:license_plate @order)]]]
+             ;; Map with Order Location
              [:div {:class "col-lg-6 col-xs-12"}
               [gmap {:id gmap-keyword
-                     :style {:height "300px"
+                     :style {:height "250px"
                              :margin "10px"}
                      :center {:lat (:lat @order)
                               :lng (:lng @order)}}]]]]]
@@ -763,47 +774,38 @@
                   :style {:border "solid 2px #ddd"
                           :padding-left "1em"
                           :padding-bottom "1em"}}
-            [:h3 "Order Info"]
-            ;; order id
-            [KeyVal "Order ID" (:id @order)]
-            ;; order price
-            [KeyVal "Total Price"
+            ;; zone
+            [KeyVal "Market"
              [:span
-              (cents->$dollars (:total_price @order))
+              [:i {:class "fa fa-circle"
+                   :style {:color (:market-color @order)}}]
               " "
-              ;; declined payment?
-              (if (declined-payment? @order)
-                [:span {:class "text-danger"} "Payment declined!"])]]
-            ;; payment info
-            (let [payment-info (json-string->clj (:payment_info @order))]
-              (when (not (nil? payment-info))
-                [KeyVal "Payment Info" (str (:brand payment-info)
-                                            " "
-                                            (:last4 payment-info)
-                                            " "
-                                            (:exp_month payment-info) "/"
-                                            (:exp_year payment-info))]))
-            ;; coupon code
-            (when (not (s/blank? (:coupon_code @order)))
-              [KeyVal "Coupon" (:coupon_code @order)])
-            ;; gallons and type
-            [KeyVal "Gallons" (str (:gallons @order)
-                                   " ("
-                                   (:gas_type @order)
-                                   " Octane)")]
+              (:market @order)
+              ]]
+            [KeyVal "Address" [:span [GoogleMapLink
+                                      (:address_street @order)
+                                      (:lat @order)
+                                      (:lng @order)] ", " (:address_zip @order)]]
+            ;; order id
+            [KeyVal "ID" (:id @order)]
             ;; time order was placed
-            [KeyVal "Order Placed" (unix-epoch->hrf (:target_time_start
-                                                     @order))]
+            [KeyVal "Placed" (unix-epoch->hrf (:target_time_start
+                                               @order))]
             ;; completion time
             (when-let [completion-time (get-event-time
                                         (:event_log @order) "complete")]
               [KeyVal "Completion Time" (unix-epoch->hrf completion-time)])
             ;; delivery time
-            [KeyVal "Delivery Time"
+            [KeyVal "Time Limit"
              (str (.diff (js/moment.unix (:target_time_end @order))
                          (js/moment.unix (:target_time_start @order))
                          "hours")
                   " Hr")]
+            ;; gallons and type
+            [KeyVal "Gallons" (str (:gallons @order)
+                                   " ("
+                                   (:gas_type @order)
+                                   " Octane)")]
             ;; special instructions field
             (when (not (s/blank? (:special_instructions @order)))
               [KeyVal "Special Instructions" (:special_instructions
@@ -819,17 +821,8 @@
             ;; review
             (when (not (s/blank? (:text_rating @order)))
               [KeyVal "Review" (:text_rating @order)])
-            ;; market
-            [KeyVal "Market"
-             [:span
-              [:i {:class "fa fa-circle"
-                   :style {:color (:zone-color @order)}}]
-              " "
-              (->> (:zone @order)
-                   (get-by-id @datastore/zones)
-                   :name)]]
-            ;; tire pressure check
-            [KeyVal "Tire Pressure Check"
+            ;; tire pressure fill-up
+            [KeyVal "Tire Pressure Fill-up"
              (if (:tire_pressure_check @order)
                [:span {:class "text-danger"}
                 "Yes"]
@@ -910,9 +903,9 @@ as in orders. If not, reset the current-order"
         sort-reversed? (r/atom true)
         current-page (r/atom 1)
         page-size 20
-        selected-filter (r/atom "Current Orders")
-        filters {"Show All" (constantly true)
-                 "Current Orders" current-order?}]
+        selected-filter (r/atom "Current")
+        filters {"Past" (complement current-order?)
+                 "Current" current-order?}]
     (fn [orders]
       (let [sort-fn (fn []
                       (if @sort-reversed?
@@ -974,15 +967,15 @@ as in orders. If not, reset the current-order"
           [:div {:class "btn-toolbar"
                  :role "toolbar"}
            [:div {:class "btn-group" :role "group"}
-            [TableFilterButton {:text "Show All"
-                                :filter-fn (constantly true)
+            [TableFilterButton {:text "Past"
+                                :filter-fn (complement current-order?)
                                 :hide-count true
                                 :on-click  (fn []
                                              (reset! sort-reversed? false)
                                              (table-filter-button-on-click))
                                 :data orders
                                 :selected-filter selected-filter}]
-            [TableFilterButton {:text "Current Orders"
+            [TableFilterButton {:text "Current"
                                 :filter-fn current-order?
                                 :hide-count false
                                 :on-click (fn []

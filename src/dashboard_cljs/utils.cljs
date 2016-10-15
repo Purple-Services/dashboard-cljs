@@ -267,3 +267,10 @@
   ({1 "Standard"
     2 "Express"
     3 "Unlimited"} subscription-id))
+
+(defn get-input-value
+  "Get the field value of a form. Useful in on-change"
+  [field]
+  (-> field
+      (.-target)
+      (.-value)))

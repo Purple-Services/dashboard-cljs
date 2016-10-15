@@ -80,9 +80,12 @@
   (edit-on-error edit-user)
   (edit-on-error edit-coupon)
   "
-  [edit-entity & {:keys [aux-fn] :or {aux-fn (fn [] true)}}]
+  [edit-entity & {:keys [aux-fn response-fn]
+                  :or {aux-fn (fn [] true)
+                       response-fn (fn [response] true)}}]
   (fn [response]
     (reset! (r/cursor edit-entity [:retrieving?]) false)
     (reset! (r/cursor edit-entity [:alert-success]) "")
     (reset! (r/cursor edit-entity [:errors]) (first (:validation response)))
-    (aux-fn)))
+    (aux-fn)
+    (response-fn (first (:validation response)))))
