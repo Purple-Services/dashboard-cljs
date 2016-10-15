@@ -618,8 +618,7 @@
   (let [zctas (aget zone "zctas")]
     (mapv add-centers-to-zcta! zctas)
     (mapv (partial modify-zone-zcta!
-                   #(let [centers (aget % "centers")
-                          labels
+                   #(aset % "labels"
                           (clj->js
                            (mapv (fn [center]
                                    (js/MapLabel.
@@ -632,9 +631,8 @@
                                             "strokeWeight" 0
                                             "align" "center"
                                             "minZoom" 11))) 
-                                 centers))]
-                      (aset % "labels" labels))
-                   ) zctas)))
+                                 (aget % "centers")))))
+          zctas)))
 
 (defn change-zone-color!
   "Given a zone, set zctas to color"
