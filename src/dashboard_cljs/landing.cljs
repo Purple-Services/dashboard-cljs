@@ -247,13 +247,13 @@
            ;; zones page
            [TabContent
             {:toggle (r/cursor tab-content-toggle [:zones-view])}
-            [:div {:class "row"}
-             [:div {:class "col-lg-12"}
-              (when (subset? #{{:uri "/zones"
-                                :method "GET"}}
-                             @accessible-routes)
-                [:div
-                 [zones/zones-panel @datastore/zones]])]]]
+            (when (subset? #{{:uri "/zones"
+                              :method "GET"}}
+                           @accessible-routes)
+              [:div
+               [zones/ZipsSearchBarComp zones/zips-search-state]
+               [zones/ZipsSearchResults zones/zips-search-state]
+               [zones/zones-panel @datastore/zones]])]
            ;; orders page
            [TabContent
             {:toggle (r/cursor tab-content-toggle [:orders-view])}

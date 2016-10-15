@@ -15,7 +15,8 @@
                                                EditFormSubmit DismissButton
                                                ConfirmationAlert AlertSuccess
                                                SubmitDismissConfirmGroup
-                                               TextAreaInput Select]]
+                                               TextAreaInput Select
+                                               ProcessingIcon]]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error]]
             [clojure.string :as s]))
@@ -61,7 +62,10 @@
                     :create-retrieving? false
                     :edit-zone default-zone
                     :create-edit-zone default-zone
-                    :selected "active"}))
+                    :selected "active"
+                    :search-results #{}}))
+
+(def zone-search-results (r/cursor state [:search-results]))
 
 (def default-zone-config
   {:hours [[[]] ; Su
@@ -95,6 +99,8 @@
 
 (def days-of-week ["S" "M" "T" "W" "Th" "F" "Sa"])
 
+;; all of these defaults should be pulled from the server
+;; ideally, from the Earth Zone
 (def default-server-zone-hours
   [[[450 1350]] ; Su
    [[450 1350]] ; M
@@ -114,6 +120,11 @@
   {:0 60
    :1 180
    :2 300})
+
+(def default-server-delivery-fee
+  {:60 599
+   :180 399
+   :300 299})
 
 (defn minute-count->standard-hours
   "Given a count of minutes elapsed in day, 
@@ -172,6 +183,33 @@
        form-time-choices->server-time-choices
        server-time-choices->hrf))
 
+;; even though the server is technically saving
+;; the edn as {"60" <price> "180" <price> "300" <price>}
+;; when pulling in the json, :keywordize-keys true
+;; is used
+
+;; note: if additional delivery options are added,
+;; this will need to be updated!
+(defn server-delivery-fee->form-delivery-fee
+  [server-delivery-fee]
+  (let [service-fee-60 (server-delivery-fee :60)
+        service-fee-180 (server-delivery-fee :180)
+        service-fee-300 (server-delivery-fee :300)]
+    {"60"  (cents->dollars service-fee-60)
+     "180" (cents->dollars service-fee-180)
+     "300" (cents->dollars service-fee-300)
+     }))
+
+
+(defn form-delivery-fee->hrf
+  [form-delivery-fee]
+  (let [service-fee-60 (form-delivery-fee "60")
+        service-fee-180 (form-delivery-fee "180")
+        service-fee-300 (form-delivery-fee "300")]
+    ;; this could not be hard-coded
+    (str "1 Hour Delivery Fee: $" service-fee-60 " "
+         "3 Hour Delivery Fee: $" service-fee-180 " "
+         "5 Hour Delivery Fee: $" service-fee-300)))
 
 (defn standard-time->minute-count
   [standard-hours minutes period]
@@ -241,6 +279,10 @@
                           "Closed"))))
                days-of-week)))
 
+;; even though the server is technically saving
+;; the edn as {"87" <price> "91" <price>}
+;; when pulling in the json, :keywordize-keys true
+;; is used
 (defn server-config-gas-price->form-config-gas-price
   [server-config-gas-price]
   (let [price-87 (server-config-gas-price :87)
@@ -264,7 +306,6 @@
   (mapv (fn [day] (form-hours->server-hours (form-day-hours day)))
         days-of-week))
 
-
 ;; this function converts a zone to a edit-form zone
 (defn server-zone->form-zone
   "Convert a server-zone to form-zone"
@@ -286,6 +327,10 @@
    (#(if-let [time-choices (get-in % [:config :time-choices])]
        (assoc-in % [:config :time-choices]
                  (server-time-choices->form-time-choices time-choices))
+       %))
+   (#(if-let [delivery-fee (get-in % [:config :delivery-fee])]
+       (assoc-in % [:config :delivery-fee]
+                 (server-delivery-fee->form-delivery-fee delivery-fee))
        %))
    ))
 
@@ -309,6 +354,24 @@
                            (dollars->cents
                             price-91)
                            price-91)}))
+       %))
+   (#(if-let [delivery-fee (get-in % [:config :delivery-fee])]
+       (let [service-fee-60 (delivery-fee "60")
+             service-fee-180 (delivery-fee "180")
+             service-fee-300 (delivery-fee "300")]
+         (assoc-in % [:config :delivery-fee]
+                   {(js/Number "60")  (if (parse-to-number? service-fee-60)
+                                        (dollars->cents
+                                         service-fee-60)
+                                        service-fee-60)
+                    (js/Number "180") (if (parse-to-number? service-fee-180)
+                                        (dollars->cents
+                                         service-fee-180)
+                                        service-fee-180)
+                    (js/Number "300") (if (parse-to-number? service-fee-300)
+                                        (dollars->cents
+                                         service-fee-300)
+                                        service-fee-300)}))
        %))
    (#(if-let [manually-closed? (get-in % [:config :manually-closed?])]
        (assoc-in % [:config :manually-closed?]
@@ -336,6 +399,7 @@
           gas-price-91 (get-in zone [:config :gas-price :91])
           time-choices (get-in zone [:config :time-choices])
           default-time-choice (get-in zone [:config :default-time-choice])
+          delivery-fee (get-in zone [:config :delivery-fee])
           closed-message (get-in zone [:config :closed-message])
           ]
       [:div {:class "row"}
@@ -360,6 +424,10 @@
         ;;   [KeyVal "Default Delivery Time" (str (minute-count->standard-hours
         ;;                                         default-time-choice)
         ;;                                        " Hour")])
+        (when delivery-fee
+          [KeyVal "Delivery Fees" (form-delivery-fee->hrf
+                                   (server-delivery-fee->form-delivery-fee
+                                    delivery-fee))])
         (when (or  gas-price-87
                    gas-price-91)
           [KeyVal "Gas Price" (str
@@ -568,7 +636,10 @@
           closed-message (r/cursor config [:closed-message])
           time-choices (r/cursor config [:time-choices])
           default-time-choice (r/cursor config [:default-time-choice])
-          ]
+          delivery-fee (r/cursor config [:delivery-fee])
+          service-fee-60 (r/cursor delivery-fee ["60"])
+          service-fee-180 (r/cursor delivery-fee ["180"])
+          service-fee-300 (r/cursor delivery-fee ["300"])]
       [:div {:class "row"}
        [:div {:class "col-lg-12"}
         ;; name
@@ -636,7 +707,7 @@
                                             (-> %
                                                 (aget "target")
                                                 (aget "value")))}]])]
-        ;; time choices will go here
+        ;; time choices
         [FormGroup {:label "Delivery Times Available"
                     :errors (get-in @errors [:config :time-choices])}
          (if-not @time-choices
@@ -650,7 +721,6 @@
                                      (server-time-choices->form-time-choices
                                       default-server-time-choices)))}
                   "Add Delivery Times"]
-            [:br]
             [:br]]
            [:div [:button {:type "button"
                            :class "btn btn-sm btn-default"
@@ -685,6 +755,53 @@
                 (str "Removing all time options does not neccesarily close the "
                      "zone! Use the 'Closed' option to close the zone.")])
              ]])]
+        ;; delivery-fee
+        [FormGroup {:label "Delivery Fees"
+                    :errors (get-in @errors [:config :delivery-fee])}
+         (if (empty? @delivery-fee)
+           ;; delivery fee not defined
+           [:div [:button {:type "button"
+                           :class "btn btn-sm btn-default"
+                           :on-click (fn [e]
+                                       (.preventDefault e)
+                                       (reset!
+                                        delivery-fee
+                                        (server-delivery-fee->form-delivery-fee
+                                         default-server-delivery-fee)))}
+                  "Add Delivery Fees"]]
+           ;; delivery fee defined
+           [:div [:button {:type "button"
+                           :class "btn btn-sm btn-default"
+                           :on-click (fn [e]
+                                       (.preventDefault e)
+                                       (swap! config dissoc :delivery-fee))}
+                  "Remove Delivery Fees"]
+            ;; once again, these should be automatically generated
+            ;; not hardcoded
+            ;; 1 hour fee
+            [FormGroup {:label "1 Hour Delivery Fee"
+                        :errors (get-in @errors [:delivery-fee "60"])}
+             [TextInput {:value @service-fee-60
+                         :on-change #(reset! service-fee-60
+                                             (-> %
+                                                 (aget "target")
+                                                 (aget "value")))}]]
+            ;; 3 hour fee
+            [FormGroup {:label "3 Hour Delivery Fee"
+                        :errors (get-in @errors [:delivery-fee "180"])}
+             [TextInput {:value @service-fee-180
+                         :on-change #(reset! service-fee-180
+                                             (-> %
+                                                 (aget "target")
+                                                 (aget "value")))}]]
+            ;; 5 hour fee
+            [FormGroup {:label "5 Hour Delivery Fee"
+                        :errors (get-in @errors [:delivery-fee "300"])}
+             [TextInput {:value @service-fee-300
+                         :on-change #(reset! service-fee-300
+                                             (-> %
+                                                 (aget "target")
+                                                 (aget "value")))}]]])]
         ;; gas price
         [FormGroup {:label "Gas Prices"
                     :errors (get-in  @errors [:config :gas-price])}
@@ -782,6 +899,7 @@
                           :manually-closed? "Closed"
                           :closed-message "Closed Message"
                           :time-choices "Delivery Times Available"
+                          :delivery-fee "Delivery Fees"
                           :zips "Zip Codes"
                           :gas-price "Gas Price"
                           :hours "Hours"
@@ -838,7 +956,17 @@
                                             :time-choices
                                             (form-time-choices->hrf
                                              time-choices))
-                                           %))))
+                                           %))
+                                       (#(if-let [delivery-fee
+                                                  (get-in % [:config
+                                                             :delivery-fee])]
+                                           (assoc
+                                            %
+                                            :delivery-fee
+                                            (form-delivery-fee->hrf
+                                             delivery-fee))
+                                           %))
+                                       ))
             diff-msg-gen-zone (fn [edit-zone current-zone]
                                 (.log js/console "edit-zone: "
                                       (clj->js edit-zone))
@@ -974,7 +1102,11 @@
                                 (:closed-message config)])
                              (when (:time-choices config)
                                [:h4 "Delivery Times Available"
-                                (form-time-choices->hrf (:time-choices config))])
+                                (form-time-choices->hrf
+                                 (:time-choices config))])
+                             (when (:delivery-fee config)
+                               [:h4 "Delivery Fees"
+                                (form-delivery-fee->hrf (:delivery-fee config))])
                              (when (:gas-price config)
                                [:h4 "Gas Price: "
                                 (form-config-gas-price->hrf-string
@@ -1209,3 +1341,124 @@
            [:div {:class "col-lg-12"}
             [CreateZoneFormComp]]]]]))))
 
+(def zips-search-state (r/atom {:search-retrieving? false
+                                :recent-search-term ""
+                                :search-term ""}))
+
+(defn ZipsSearchBarComp
+  [state]
+  (let [state zips-search-state
+        retrieving? (r/cursor state [:search-retrieving?])
+        search-results (r/cursor state [:search-results])
+        recent-search-term (r/cursor state [:recent-search-term])
+        search-term (r/cursor state [:search-term])
+        retrieve-results (fn [zip]
+                           (retrieve-url
+                            (str base-url "zips/" zip)
+                            "GET"
+                            {}
+                            (partial
+                             xhrio-wrapper
+                             (fn [r]
+                               (let [response (js->clj
+                                               r :keywordize-keys true)]
+                                 (reset! retrieving? false)
+                                 (reset! recent-search-term @search-term)
+                                 (reset! search-results response))))))]
+
+    (fn []
+      [:div {:class "row"}
+       [:div {:class "col-lg-6 col-xs-12"}
+        [:form
+         [:div {:class "input-group"}
+          [:input {:type "text"
+                   :class "form-control"
+                   :placeholder "Zip Info"
+                   :on-change (fn [e]
+                                (reset! search-term
+                                        (-> e
+                                            (aget "target")
+                                            (aget "value"))))
+                   :value @search-term}]
+          [:div {:class "input-group-btn"}
+           [:button {:class "btn btn-default"
+                     :type "submit"
+                     :on-click
+                     (fn [e]
+                       (.preventDefault e)
+                       (when-not (s/blank? @search-term)
+                         (reset! retrieving? true)
+                         (retrieve-results @search-term)
+                         (reset! (r/cursor state [:current-user]) nil)
+                         (reset! (r/cursor state [:current-order]) nil)))}
+            [:i {:class "fa fa-search"}]]]]]]])))
+
+(defn ZipsSearchResults
+  "Display result"
+  [state]
+  (fn []
+    (let [search-term (r/cursor state [:search-term])
+          retrieving? (r/cursor state [:search-retrieving?])
+          recent-search-term (r/cursor state [:recent-search-term])
+          search-results (r/cursor state [:search-results])]
+      [:div
+       (when @retrieving?
+         (.scrollTo js/window 0 0)
+         [:h4 "Retrieving results for \""
+          [:strong
+           {:style {:white-space "pre"}}
+           @search-term]
+          "\" "
+          [ProcessingIcon]])
+       (when-not (nil? (and @search-term @recent-search-term))
+         [:div {:class "row" :id "search-results"}
+          [:div {:class "col-lg-12 col-lg-12"}
+           (when-not @retrieving?
+             [:div
+              (when (and (empty? @search-results)
+                         (not (empty? @recent-search-term))
+                         (not @retrieving?))
+                [:div [:h4 "Your search - \""
+                       [:strong {:style {:white-space "pre"}}
+                        @recent-search-term]
+                       \"" - did not match any Zips."]])
+              (when-not (empty? @search-results)
+                (let [{:keys [closed-message
+                              default-gallon-choice
+                              delivery-fee
+                              gallon-choices
+                              gas-price
+                              hours
+                              manually-closed?
+                              one-hour-constraining-zone-id
+                              time-choice
+                              tire-pressure-price
+                              zone-ids
+                              zone-names]} @search-results]
+                  [:div
+                   [:h3 @recent-search-term]
+                   [KeyVal "Custom Closed Message" closed-message]
+                   [KeyVal "Default Gallon Choice" default-gallon-choice]
+                   [KeyVal "Delivery Fees"
+                    (form-delivery-fee->hrf
+                     (server-delivery-fee->form-delivery-fee delivery-fee))]
+                   [KeyVal "Gallon Choices" (str
+                                             (s/join ", "
+                                                     (vals gallon-choices))
+                                             " gallons")]
+                   [KeyVal "Gas Price"
+                    (form-config-gas-price->hrf-string
+                     (server-config-gas-price->form-config-gas-price
+                      gas-price))]
+                   [KeyVal "Hours"
+                    (-> hours
+                        (server-day-hours->form-day-hours)
+                        (form-zone-hours->hrf-string))]
+                   [KeyVal "Manually Closed?" (if manually-closed?
+                                                "Yes"
+                                                "No")]
+                   [KeyVal "Tire Pressure Price"
+                    (str "$ " (cents->dollars
+                               tire-pressure-price))]
+                   [KeyVal "Zone IDs" (s/join ", " zone-ids)]
+                   [KeyVal "Zone Names" (s/join ", " zone-names)]]))])]])])))
