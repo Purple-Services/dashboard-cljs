@@ -15,7 +15,8 @@
                                                EditFormSubmit DismissButton
                                                ConfirmationAlert AlertSuccess
                                                SubmitDismissConfirmGroup
-                                               TextAreaInput Select]]
+                                               TextAreaInput Select
+                                               ProcessingIcon]]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error]]
             [clojure.string :as s]))
@@ -368,9 +369,9 @@
                                          service-fee-180)
                                         service-fee-180)
                     (js/Number "300") (if (parse-to-number? service-fee-300)
-                            (dollars->cents
-                             service-fee-300)
-                            service-fee-300)}))
+                                        (dollars->cents
+                                         service-fee-300)
+                                        service-fee-300)}))
        %))
    (#(if-let [manually-closed? (get-in % [:config :manually-closed?])]
        (assoc-in % [:config :manually-closed?]
@@ -1340,3 +1341,124 @@
            [:div {:class "col-lg-12"}
             [CreateZoneFormComp]]]]]))))
 
+(def zips-search-state (r/atom {:search-retrieving? false
+                                :recent-search-term ""
+                                :search-term ""}))
+
+(defn ZipsSearchBarComp
+  [state]
+  (let [state zips-search-state
+        retrieving? (r/cursor state [:search-retrieving?])
+        search-results (r/cursor state [:search-results])
+        recent-search-term (r/cursor state [:recent-search-term])
+        search-term (r/cursor state [:search-term])
+        retrieve-results (fn [zip]
+                           (retrieve-url
+                            (str base-url "zips/" zip)
+                            "GET"
+                            {}
+                            (partial
+                             xhrio-wrapper
+                             (fn [r]
+                               (let [response (js->clj
+                                               r :keywordize-keys true)]
+                                 (reset! retrieving? false)
+                                 (reset! recent-search-term @search-term)
+                                 (reset! search-results response))))))]
+
+    (fn []
+      [:div {:class "row"}
+       [:div {:class "col-lg-6 col-xs-12"}
+        [:form
+         [:div {:class "input-group"}
+          [:input {:type "text"
+                   :class "form-control"
+                   :placeholder "Zip Info"
+                   :on-change (fn [e]
+                                (reset! search-term
+                                        (-> e
+                                            (aget "target")
+                                            (aget "value"))))
+                   :value @search-term}]
+          [:div {:class "input-group-btn"}
+           [:button {:class "btn btn-default"
+                     :type "submit"
+                     :on-click
+                     (fn [e]
+                       (.preventDefault e)
+                       (when-not (s/blank? @search-term)
+                         (reset! retrieving? true)
+                         (retrieve-results @search-term)
+                         (reset! (r/cursor state [:current-user]) nil)
+                         (reset! (r/cursor state [:current-order]) nil)))}
+            [:i {:class "fa fa-search"}]]]]]]])))
+
+(defn ZipsSearchResults
+  "Display result"
+  [state]
+  (fn []
+    (let [search-term (r/cursor state [:search-term])
+          retrieving? (r/cursor state [:search-retrieving?])
+          recent-search-term (r/cursor state [:recent-search-term])
+          search-results (r/cursor state [:search-results])]
+      [:div
+       (when @retrieving?
+         (.scrollTo js/window 0 0)
+         [:h4 "Retrieving results for \""
+          [:strong
+           {:style {:white-space "pre"}}
+           @search-term]
+          "\" "
+          [ProcessingIcon]])
+       (when-not (nil? (and @search-term @recent-search-term))
+         [:div {:class "row" :id "search-results"}
+          [:div {:class "col-lg-12 col-lg-12"}
+           (when-not @retrieving?
+             [:div
+              (when (and (empty? @search-results)
+                         (not (empty? @recent-search-term))
+                         (not @retrieving?))
+                [:div [:h4 "Your search - \""
+                       [:strong {:style {:white-space "pre"}}
+                        @recent-search-term]
+                       \"" - did not match any Zips."]])
+              (when-not (empty? @search-results)
+                (let [{:keys [closed-message
+                              default-gallon-choice
+                              delivery-fee
+                              gallon-choices
+                              gas-price
+                              hours
+                              manually-closed?
+                              one-hour-constraining-zone-id
+                              time-choice
+                              tire-pressure-price
+                              zone-ids
+                              zone-names]} @search-results]
+                  [:div
+                   [:h3 @recent-search-term]
+                   [KeyVal "Custom Closed Message" closed-message]
+                   [KeyVal "Default Gallon Choice" default-gallon-choice]
+                   [KeyVal "Delivery Fees"
+                    (form-delivery-fee->hrf
+                     (server-delivery-fee->form-delivery-fee delivery-fee))]
+                   [KeyVal "Gallon Choices" (str
+                                             (s/join ", "
+                                                     (vals gallon-choices))
+                                             " gallons")]
+                   [KeyVal "Gas Price"
+                    (form-config-gas-price->hrf-string
+                     (server-config-gas-price->form-config-gas-price
+                      gas-price))]
+                   [KeyVal "Hours"
+                    (-> hours
+                        (server-day-hours->form-day-hours)
+                        (form-zone-hours->hrf-string))]
+                   [KeyVal "Manually Closed?" (if manually-closed?
+                                                "Yes"
+                                                "No")]
+                   [KeyVal "Tire Pressure Price"
+                    (str "$ " (cents->dollars
+                               tire-pressure-price))]
+                   [KeyVal "Zone IDs" (s/join ", " zone-ids)]
+                   [KeyVal "Zone Names" (s/join ", " zone-names)]]))])]])])))
