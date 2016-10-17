@@ -499,7 +499,7 @@
                   (reset! hours [from-minute-count to-minute-count]))))
             ;; whenever the hours are updated, change the hours bracket
             track-hours @(r/track standard-times->minute-count-brackets)]
-        (.log js/console "hours: " (clj->js @hours))
+        ;;(.log js/console "hours: " (clj->js @hours))
         [:div {:style {:display "inline-block"}}
          [:div {:style {:max-width "3em"
                         :display "inline-block"}}
@@ -600,9 +600,9 @@
   (let [days-atom (r/cursor zone [:config :hours])]
     (fn [hours]
       (let []
-        (.log js/console "days-atom:" (clj->js @days-atom))
-        (.log js/console "converted days-atom"
-              (clj->js (form-day-hours->server-day-hours @days-atom)))
+        ;;(.log js/console "days-atom:" (clj->js @days-atom))
+        ;; (.log js/console "converted days-atom"
+        ;;       (clj->js (form-day-hours->server-day-hours @days-atom)))
         [:div
          (doall
           (map
@@ -968,17 +968,17 @@
                                            %))
                                        ))
             diff-msg-gen-zone (fn [edit-zone current-zone]
-                                (.log js/console "edit-zone: "
-                                      (clj->js edit-zone))
-                                (.log js/console "current-zone: "
-                                      (clj->js (server-zone->form-zone
-                                                current-zone)))
-                                (.log js/console "edit-zone: "
-                                      (clj->js (zone->diff-msg-zone edit-zone)))
-                                (.log js/console "edit-zone: "
-                                      (clj->js (zone->diff-msg-zone
-                                                (server-zone->form-zone
-                                                 current-zone))))
+                                ;; (.log js/console "edit-zone: "
+                                ;;       (clj->js edit-zone))
+                                ;; (.log js/console "current-zone: "
+                                ;;       (clj->js (server-zone->form-zone
+                                ;;                 current-zone)))
+                                ;; (.log js/console "edit-zone: "
+                                ;;       (clj->js (zone->diff-msg-zone edit-zone)))
+                                ;; (.log js/console "edit-zone: "
+                                ;;       (clj->js (zone->diff-msg-zone
+                                ;;                 (server-zone->form-zone
+                                ;;                  current-zone))))
                                 (diff-msg-gen
                                  (zone->diff-msg-zone edit-zone)
                                  (zone->diff-msg-zone
@@ -1001,7 +1001,7 @@
                                   ;; there is a diff message, confirm change
                                   (reset! confirming? true))
                                 (do
-                                  (.log js/console "there is a diff message")
+                                  ;;(.log js/console "there is a diff message")
                                   ;; reset edit zone
                                   (reset! edit-zone
                                           (server-zone->form-zone @zone))
@@ -1009,7 +1009,7 @@
                                   (reset! alert-success "")
                                   (reset! editing? true))))
             confirm-on-click (fn [_]
-                               (.log js/console "edit-zone" (clj->js @edit-zone))
+                               ;;(.log js/console "edit-zone" (clj->js @edit-zone))
                                (entity-save
                                 (form-zone->server-zone @edit-zone)
                                 "zone"
