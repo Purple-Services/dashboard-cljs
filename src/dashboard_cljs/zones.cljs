@@ -279,6 +279,26 @@
                           "Closed"))))
                days-of-week)))
 
+(defn form-zone-hours->hrf-html
+  [form-zone-hours]
+  [:table
+   (map (fn [day]
+          (let [hours (vals (form-zone-hours day))
+                times (map :hours hours)]
+            [:tr
+             [:td {:style {:font-weight "bold" :padding-right "5px"}} day]
+             [:td
+              (if hours
+                (s/join " "
+                        (map #(let [from-time (first %)
+                                    to-time (second %)]
+                                (str (minute-count->hrf-time from-time)
+                                     " - "
+                                     (minute-count->hrf-time to-time)))
+                             times))
+                "Closed")]]))
+        days-of-week)])
+
 ;; even though the server is technically saving
 ;; the edn as {"87" <price> "91" <price>}
 ;; when pulling in the json, :keywordize-keys true
@@ -294,8 +314,10 @@
   [form-config-gas-price]
   (let [price-87 (form-config-gas-price "87")
         price-91 (form-config-gas-price "91")]
-    (str "87 Octane: $" price-87 " "
-         "91 Octane: $" price-91)))
+    [:div
+     "87 Octane: $" price-87
+     [:br]
+     "91 Octane: $" price-91]))
 
 (defn form-hours->server-hours
   [form-hours]
@@ -428,23 +450,24 @@
           [KeyVal "Delivery Fees" (form-delivery-fee->hrf
                                    (server-delivery-fee->form-delivery-fee
                                     delivery-fee))])
-        (when (or  gas-price-87
-                   gas-price-91)
-          [KeyVal "Gas Price" (str
-                               "87 "
+        (when (or gas-price-87
+                  gas-price-91)
+          [KeyVal "Gas Price" [:div
+                               "87 Octane: "
                                (if (int? gas-price-87)
                                  (str "$" (cents->dollars gas-price-87))
                                  gas-price-87)
-                               " | "
-                               "91 "
+                               [:br]
+                               "91 Octane: "
                                (if (int? gas-price-91)
                                  (str "$" (cents->dollars gas-price-91))
-                                 gas-price-91))])
+                                 gas-price-91)]])
         [KeyVal "Zip Codes" (:zips zone)]
         (when (get-in zone [:config :hours])
-          [KeyVal "Hours" (-> hours
-                              (server-day-hours->form-day-hours)
-                              (form-zone-hours->hrf-string))])]])))
+          [KeyVal "Hours" [:div
+                           (-> hours
+                               (server-day-hours->form-day-hours)
+                               (form-zone-hours->hrf-html))]])]])))
 
 (defn TimePickerComp
   [minutes-bracket]
@@ -990,8 +1013,8 @@
                                  (zone->diff-msg-zone
                                   (server-zone->form-zone current-zone))))
             confirm-msg (fn []
-                          [:div (str "The following changes will be made to "
-                                     (:name @current-zone))
+                          [:div "The following changes will be made to "
+                           (:name @current-zone)
                            (map (fn [el]
                                   ^{:key el}
                                   [:h4 el])
@@ -1120,7 +1143,7 @@
                              [:h4 "Zip Codes: " zips]
                              (when (:hours config)
                                [:h4 "Hours: "
-                                (form-zone-hours->hrf-string (:hours config))])
+                                (form-zone-hours->hrf-html (:hours config))])
                              ]))
             submit-on-click (fn [e]
                               (.preventDefault e)
@@ -1437,7 +1460,7 @@
                               hours
                               manually-closed?
                               one-hour-constraining-zone-id
-                              time-choice
+                              time-choices
                               tire-pressure-price
                               zone-ids
                               zone-names]} @search-results]
@@ -1451,15 +1474,21 @@
                       [:span {:style {:color "rgb(217, 83, 79)"}} "Missing!"])]
                    [KeyVal "Gas Price"
                     (if gas-price
-                      (form-config-gas-price->hrf-string
-                       (server-config-gas-price->form-config-gas-price
-                        gas-price))
+                      [:div (form-config-gas-price->hrf-string
+                             (server-config-gas-price->form-config-gas-price
+                              gas-price))]
                       [:span {:style {:color "rgb(217, 83, 79)"}} "Missing!"])]
                    [KeyVal "Hours"
                     (if hours
-                      (-> hours
-                          (server-day-hours->form-day-hours)
-                          (form-zone-hours->hrf-string))
+                      [:div (-> hours
+                                (server-day-hours->form-day-hours)
+                                (form-zone-hours->hrf-html))]
+                      [:span {:style {:color "rgb(217, 83, 79)"}} "Missing!"])]
+                   [KeyVal "Delivery Times Available"
+                    (if time-choices
+                      (form-time-choices->hrf
+                       (server-time-choices->form-time-choices
+                        time-choices))
                       [:span {:style {:color "rgb(217, 83, 79)"}} "Missing!"])]
                    [KeyVal "Delivery Fees"
                     (if delivery-fee
