@@ -740,6 +740,12 @@
                   (str (minute-count->standard-hours
                         (get-in @time-choices [choice :minutes])) " Hour ")
                   [:input {:type "checkbox"
+                           :disabled
+                           (if (> (minute-count->standard-hours
+                                   (get-in @time-choices [choice :minutes]))
+                                  1)
+                             true
+                             false)
                            :checked (get-in @time-choices [choice :selected])
                            :on-change (fn [e]
                                         (reset!
