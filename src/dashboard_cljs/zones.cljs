@@ -285,6 +285,7 @@
    (map (fn [day]
           (let [hours (vals (form-zone-hours day))
                 times (map :hours hours)]
+            ^{:key day}
             [:tr
              [:td {:style {:font-weight "bold" :padding-right "5px"}} day]
              [:td
