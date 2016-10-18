@@ -17,7 +17,8 @@
                    :color "#8E44AD"}
                   :zones-control
                   {:zones-display {:selected? true}
-                   :zones-zips-display {:selected? true}}
+                   :zones-zips-display {:selected? true}
+                   :traffic-display {:selected? false}}
                   :google-map nil
                   :from-date nil
                   :to-date nil
@@ -1017,12 +1018,41 @@
                            ))
     control-text))
 
+(defn traffic-display
+  "A checkbox for controlling the display of traffic"
+  [state]
+  (let [checkbox (crate/html [:input {:type "checkbox"
+                                      :id "traffic"
+                                      :value "traffic"
+                                      :class "traffic-checkbox"
+                                      :checked (get-in @state
+                                                       [:zones-control
+                                                        :traffic-display
+                                                        :selected?])}])
+        control-text (crate/html
+                      [:div {:class "setCenterText map-control-font"}
+                       checkbox [:label {:for "traffic"
+                                         :style {:cursor "pointer"}}
+                                 "Traffic"]])]
+    (.addEventListener
+     checkbox "click" #(do (if (aget checkbox "checked")
+                             (do (swap! state assoc-in
+                                        [:zones-control :traffic-display :selected?]
+                                        true)
+                                 (.setMap (:traffic-layer @state) (:google-map @state)))
+                             (do (swap! state assoc-in
+                                        [:zones-control :traffic-display :selected?]
+                                        false)
+                                 (.setMap (:traffic-layer @state) nil)))))
+    control-text))
+
 (defn zones-control
   "A control for zones"
   [state]
   (crate/html [:div [:div {:class "setCenterUI" :title "select zones"}
                      (zones-display state)
-                     (zones-zips-display state)]]))
+                     (zones-zips-display state)
+                     (traffic-display state)]]))
 
 (defn move-to-city
   "given a city-name, pan and zoom to that city"
@@ -1128,6 +1158,11 @@
             (js-obj "center"
                     (get-in @state [:cities "Los Angeles" :coords])
                     "zoom" 12)))
+    ;; add traffic layer
+    (swap! state
+           assoc
+           :traffic-layer
+           (js/google.maps.TrafficLayer.))
     ;; move to Los Angeles with proper zoom
     (move-to-city state "Los Angeles")
     ;; put a traffic layer on the map
