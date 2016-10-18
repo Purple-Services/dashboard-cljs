@@ -282,23 +282,24 @@
 (defn form-zone-hours->hrf-html
   [form-zone-hours]
   [:table
-   (map (fn [day]
-          (let [hours (vals (form-zone-hours day))
-                times (map :hours hours)]
-            ^{:key day}
-            [:tr
-             [:td {:style {:font-weight "bold" :padding-right "5px"}} day]
-             [:td
-              (if hours
-                (s/join " "
-                        (map #(let [from-time (first %)
-                                    to-time (second %)]
-                                (str (minute-count->hrf-time from-time)
-                                     " - "
-                                     (minute-count->hrf-time to-time)))
-                             times))
-                "Closed")]]))
-        days-of-week)])
+   [:tbody
+    (map (fn [day]
+           (let [hours (vals (form-zone-hours day))
+                 times (map :hours hours)]
+             ^{:key day}
+             [:tr
+              [:td {:style {:font-weight "bold" :padding-right "5px"}} day]
+              [:td
+               (if hours
+                 (s/join " "
+                         (map #(let [from-time (first %)
+                                     to-time (second %)]
+                                 (str (minute-count->hrf-time from-time)
+                                      " - "
+                                      (minute-count->hrf-time to-time)))
+                              times))
+                 "Closed")]]))
+         days-of-week)]])
 
 ;; even though the server is technically saving
 ;; the edn as {"87" <price> "91" <price>}
