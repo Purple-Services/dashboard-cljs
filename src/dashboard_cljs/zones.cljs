@@ -1332,7 +1332,10 @@
                              (reset! refreshing? false)))))
             table-pager-on-click (fn []
                                    (reset! current-zone
-                                           (first (paginated-zones))))]
+                                           (first (paginated-zones)))
+                                   (reset! (r/cursor state [:editing?]) false)
+                                   (reset! (r/cursor state [:alert-success]) "")
+                                   )]
         (when (nil? @current-zone)
           (table-pager-on-click))
         [:div {:class "panel panel-default"}
