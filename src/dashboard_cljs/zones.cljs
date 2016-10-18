@@ -315,6 +315,13 @@
   [form-config-gas-price]
   (let [price-87 (form-config-gas-price "87")
         price-91 (form-config-gas-price "91")]
+    (str "87 Octane: $" price-87 " "
+         "91 Octane: $" price-91)))
+
+(defn form-config-gas-price->hrf-html
+  [form-config-gas-price]
+  (let [price-87 (form-config-gas-price "87")
+        price-91 (form-config-gas-price "91")]
     [:div
      "87 Octane: $" price-87
      [:br]
@@ -1475,7 +1482,7 @@
                       [:span {:style {:color "rgb(217, 83, 79)"}} "Missing!"])]
                    [KeyVal "Gas Price"
                     (if gas-price
-                      [:div (form-config-gas-price->hrf-string
+                      [:div (form-config-gas-price->hrf-html
                              (server-config-gas-price->form-config-gas-price
                               gas-price))]
                       [:span {:style {:color "rgb(217, 83, 79)"}} "Missing!"])]
