@@ -501,11 +501,13 @@
                              (:id %)) time-period-options)))]
     ;; from
     (reset! from-hours (minute-count->standard-hours from-time))
-    (reset! from-minutes (minute-count->minutes from-time))
+    (reset! from-minutes (single-digit->two-digit-str
+                          (minute-count->minutes from-time)))
     (reset! from-period (:id (minute-count->time-period-option from-time)))
     ;; to
     (reset! to-hours (minute-count->standard-hours to-time))
-    (reset! to-minutes (minute-count->minutes to-time))
+    (reset! to-minutes (single-digit->two-digit-str
+                        (minute-count->minutes to-time)))
     (reset! to-period (:id (minute-count->time-period-option to-time)))
     (fn [minutes-bracket]
       (let [all-times-parse-to-number?
