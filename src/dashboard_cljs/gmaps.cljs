@@ -17,7 +17,8 @@
                    :color "#8E44AD"}
                   :zones-control
                   {:zones-display {:selected? true}
-                   :zones-zips-display {:selected? true}}
+                   :zones-zips-display {:selected? true}
+                   :traffic-display {:selected? false}}
                   :google-map nil
                   :from-date nil
                   :to-date nil
@@ -42,10 +43,10 @@
                   ;; (.getZoom (:google-map @state))
                   :cities
                   {
-                   "Seattle"
-                   {:coords (js-obj "lat" 47.605042
-                                    "lng" -122.261588)
-                    :zoom 12}
+                   ;; "Seattle"
+                   ;; {:coords (js-obj "lat" 47.605042
+                   ;;                  "lng" -122.261588)
+                   ;;  :zoom 12}
                    "Los Angeles"
                    {:coords (js-obj "lat" 34.0754335
                                     "lng" -118.379587)
@@ -53,11 +54,11 @@
                    "OC"
                    {:coords (js-obj "lat" 33.682791
                                     "lng" -117.816834)
-                    :zoom 12}
+                    :zoom 11}
                    "San Diego"
                    {:coords (js-obj "lat" 32.9032771
                                     "lng" -117.167791)
-                    :zoom 11}}
+                    :zoom 10}}
                   :zones (array)}))
 
 (defn send-xhr
@@ -309,17 +310,15 @@
       "Courier" (aget order "courier_name")
       "Customer" (aget order "customer_name")
       "Phone" (aget order "customer_phone_number")
-      "Address"  (crate/raw
-                  (str
-                   (aget order "address_street")
-                   "</br>"
-                   (if (and (not (nil? (seq address-city)))
-                            (not (nil? (seq address-state))))
-                     (str (aget order "address_city")
-                          ","
-                          (aget order "address_state")
-                          " "))
-                   (aget order "address_zip")))
+      "Address"  (crate/html [:span (aget order "address_street")
+                              [:br]
+                              (str (if (and (not (nil? (seq address-city)))
+                                            (not (nil? (seq address-state))))
+                                     (str (aget order "address_city")
+                                          ","
+                                          (aget order "address_state")
+                                          " "))
+                                   (aget order "address_zip"))])
       "Plate #" (aget order "license_plate")
       "Gallons" (aget order "gallons")
       "Octane"  (aget order "gas_type")
@@ -328,7 +327,8 @@
       "Placed"  (-> (aget order "target_time_start")
                     (unix-epoch->hrf))
       "Deadline" (-> (aget order "target_time_end")
-                     (unix-epoch->hrf))))))
+                     (unix-epoch->hrf))
+      ))))
 
 (defn create-courier-info-window-node
   "Create an html node containing information about order"
@@ -619,8 +619,7 @@
   (let [zctas (aget zone "zctas")]
     (mapv add-centers-to-zcta! zctas)
     (mapv (partial modify-zone-zcta!
-                   #(let [centers (aget % "centers")
-                          labels
+                   #(aset % "labels"
                           (clj->js
                            (mapv (fn [center]
                                    (js/MapLabel.
@@ -633,9 +632,8 @@
                                             "strokeWeight" 0
                                             "align" "center"
                                             "minZoom" 11))) 
-                                 centers))]
-                      (aset % "labels" labels))
-                   ) zctas)))
+                                 (aget % "centers")))))
+          zctas)))
 
 (defn change-zone-color!
   "Given a zone, set zctas to color"
@@ -722,7 +720,7 @@
   (retrieve-route
    "zctas"
    (js/JSON.stringify ;;(clj->js {:zips (.join (aget zone "zip_codes") ",")})
-    (clj->js  {:zips (aget zone "zip_codes")})
+    (clj->js  {:zips (aget zone "zips")})
     )
    (partial xhrio-wrapper
             #(let [server-zctas (aget % "zctas")]
@@ -730,7 +728,8 @@
                  (let [zctas (mapv (partial
                                     process-zcta!
                                     (:google-map @state)
-                                    (aget zone "color"))
+                                    (aget zone "color")
+                                    )
                                    server-zctas)]
                    (aset zone "zctas" (clj->js zctas))
                    (modify-zone-zctas! zone)
@@ -791,10 +790,14 @@
    "GET"
    {}
    (partial xhrio-wrapper
-            #(let [zones %]
-               (if (not (nil? zones))
-                 (mapv (partial sync-zone! state) zones))
-               ))))
+            (fn [zones]
+              (if (not (nil? zones))
+                (mapv (partial sync-zone! state)
+                      (filter #(and (= 100 (aget % "rank"))
+                                    ;; TODO make map react to
+                                    ;; changes in 'active' state 
+                                    (aget % "active"))
+                              zones)))))))
 
 (defn sync-zones!
   "Retrieve the zones and sync them with the state"
@@ -822,16 +825,19 @@
   "A checkbox for controlling an order of status"
   [state status]
   (let [checkbox (crate/html [:input {:type "checkbox"
-                                      :name "orders"
+                                      :id (str "orders-" status)
                                       :value "orders"
                                       :class "orders-checkbox"
                                       :checked true}])
         control-text (crate/html
                       [:div {:class "setCenterText map-control-font"}
-                       checkbox status
-                       (legend-symbol (get-in @state [:status
-                                                      (keyword status)
-                                                      :color]))])]
+                       checkbox
+                       [:label {:for (str "orders-" status)
+                                :style {:cursor "pointer"}}
+                        status
+                        (legend-symbol (get-in @state [:status
+                                                       (keyword status)
+                                                       :color]))]])]
     (.addEventListener checkbox "click" #(do (if (aget checkbox "checked")
                                                (swap! state assoc-in
                                                       [:status (keyword status)
@@ -920,13 +926,15 @@
   on the map"
   [state]
   (let [checkbox (crate/html [:input {:type "checkbox"
-                                      :name "couriers"
+                                      :id "couriers"
                                       :value "couriers"
                                       :class "couriers-checkbox"
                                       :checked true}])
         control-text (crate/html
                       [:div {:class "setCenterText map-control-font"}
-                       checkbox "Couriers"
+                       checkbox [:label {:for "couriers"
+                                         :style {:cursor "pointer"}}
+                                 "Couriers"]
                        [:br]
                        "Busy"
                        (legend-symbol (get-in @state
@@ -957,7 +965,7 @@
   "A checkbox for controlling the display of zones"
   [state]
   (let [checkbox (crate/html [:input {:type "checkbox"
-                                      :name "zones"
+                                      :id "zones"
                                       :value "zones"
                                       :class "zones-checkbox"
                                       :checked (get-in @state
@@ -966,7 +974,9 @@
                                                         :selected?])}])
         control-text (crate/html
                       [:div {:class "setCenterText map-control-font"}
-                       checkbox "Zones"])]
+                       checkbox [:label {:for "zones"
+                                         :style {:cursor "pointer"}}
+                                 "Zones"]])]
     (.addEventListener
      checkbox "click" #(do (if (aget checkbox "checked")
                              (swap! state assoc-in
@@ -982,7 +992,7 @@
   "A Checkbox for controlling the display of zip codes inside of the zones"
   [state]
   (let [checkbox (crate/html [:input {:type "checkbox"
-                                      :name "zones-zips"
+                                      :id "zones-zips"
                                       :value "zones-zips"
                                       :class "zones-zips-checkbox"
                                       :checked (get-in @state
@@ -991,7 +1001,9 @@
                                                         :selected?] )}])
         control-text (crate/html
                       [:div {:class "setCenterText map-control-font"}
-                       checkbox "Zip Code Labels"])]
+                       checkbox [:label {:for "zones-zips"
+                                         :style {:cursor "pointer"}}
+                                 "Zip Code Labels"]])]
     (.addEventListener
      checkbox "click" #(do (if (aget checkbox "checked")
                              (swap! state assoc-in
@@ -1006,12 +1018,41 @@
                            ))
     control-text))
 
+(defn traffic-display
+  "A checkbox for controlling the display of traffic"
+  [state]
+  (let [checkbox (crate/html [:input {:type "checkbox"
+                                      :id "traffic"
+                                      :value "traffic"
+                                      :class "traffic-checkbox"
+                                      :checked (get-in @state
+                                                       [:zones-control
+                                                        :traffic-display
+                                                        :selected?])}])
+        control-text (crate/html
+                      [:div {:class "setCenterText map-control-font"}
+                       checkbox [:label {:for "traffic"
+                                         :style {:cursor "pointer"}}
+                                 "Traffic"]])]
+    (.addEventListener
+     checkbox "click" #(do (if (aget checkbox "checked")
+                             (do (swap! state assoc-in
+                                        [:zones-control :traffic-display :selected?]
+                                        true)
+                                 (.setMap (:traffic-layer @state) (:google-map @state)))
+                             (do (swap! state assoc-in
+                                        [:zones-control :traffic-display :selected?]
+                                        false)
+                                 (.setMap (:traffic-layer @state) nil)))))
+    control-text))
+
 (defn zones-control
   "A control for zones"
   [state]
   (crate/html [:div [:div {:class "setCenterUI" :title "select zones"}
                      (zones-display state)
-                     (zones-zips-display state)]]))
+                     (zones-zips-display state)
+                     (traffic-display state)]]))
 
 (defn move-to-city
   "given a city-name, pan and zoom to that city"
@@ -1117,6 +1158,11 @@
             (js-obj "center"
                     (get-in @state [:cities "Los Angeles" :coords])
                     "zoom" 12)))
+    ;; add traffic layer
+    (swap! state
+           assoc
+           :traffic-layer
+           (js/google.maps.TrafficLayer.))
     ;; move to Los Angeles with proper zoom
     (move-to-city state "Los Angeles")
     ;; put a traffic layer on the map

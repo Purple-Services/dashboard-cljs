@@ -35,28 +35,7 @@
                        :label "1y"},
                       {:step "all"}]}))
 
-(def data-default
-  {:data [{}]})
-
-(def hourly-defaults
-  (merge data-default
-         {:from-date (-> (now))
-          :to-date (now)}))
-
-(def daily-defaults
-  (merge data-default
-         {:from-date (-> (js/moment)
-                         (.startOf "month")
-                         (.unix))
-          :to-date (now)}))
-
-(def weekly-defaults
-  (merge data-default
-         {:from-date (-> (js/moment)
-                         (.startOf "year")
-                         (.unix))
-          :to-date (now)}))
-
+;; not really using this
 (defn csv-data-default
   [timeframe]
   (merge {:data [{}]
@@ -117,122 +96,6 @@
                               :timestamp  (:timestamp response)))))))
 
 
-(defn stats-panel
-  "A panel for downloading stats.csv"
-  []
-  (let [stats-status (r/cursor state [:stats-status])
-        status (r/cursor stats-status [:status])
-        timestamp   (r/cursor stats-status [:timestamp])
-        alert-success (r/cursor state [:alert-success])
-        alert-danger   (r/cursor state [:alert-danger])
-        retrieving? (r/cursor state [:retrieving?])]
-    (get-stats-status stats-status)
-    (fn []
-      [:div {:class "panel panel-default hidden-xs hidden-sm"}
-       [:div {:class "panel-body"}
-        [:h2 "stats.csv"]
-        [:h3
-         (when (= @status "ready")
-           [:div
-            ;; link for downloading
-            [:a {:href (str base-url "download-stats-csv")
-                 :on-click (fn [e]
-                             (.preventDefault e)
-                             (reset! retrieving? true)
-                             ;; check to make sure that the file
-                             ;; is still available for download
-                             (retrieve-url
-                              (str base-url "status-stats-csv")
-                              "GET"
-                              {}
-                              (partial
-                               xhrio-wrapper
-                               #(let [response
-                                      (js->clj % :keywordize-keys true)]
-                                  (reset! retrieving? false)
-                                  ;; the file is processing,
-                                  ;; someone else must have initiated
-                                  (when (= "processing"
-                                           (:status response))
-                                    (reset! status "processing")
-                                    ;; tell the user the file is
-                                    ;; processing
-                                    (reset!
-                                     alert-danger
-                                     (str "stats.csv file is currently"
-                                          " processing. Someone else"
-                                          " initiated a stats.csv "
-                                          "generation")))
-                                  ;; the file is not processing
-                                  ;; proceed as normal
-                                  (when (= "ready"
-                                           (:status response)))
-                                  (set! (.-location js/window)
-                                        (str base-url "download-stats-csv"))
-                                  ))))}
-             (str "Download stats.csv generated at "
-                  (unix-epoch->fmt (:timestamp @stats-status) "h:mm A")
-                  " on "
-                  (unix-epoch->fmt (:timestamp @stats-status) "M/D"))]
-            [:br]
-            [:br]])
-         ;; button for recalculating
-         (when (or (= @status "ready")
-                   (= @status "non-existent")))
-         [:button {:type "submit"
-                   :class "btn btn-default"
-                   :on-click (fn [e]
-                               ;; initiate generation of stats file
-                               (retrieve-url
-                                (str base-url "generate-stats-csv")
-                                "GET"
-                                {}
-                                (fn []))
-                               ;; processing? is now true
-                               (reset! status "processing")
-                               ;; create a message to let the user know
-                               (reset!
-                                alert-success
-                                (str "stats.csv generation initiated."
-                                     " Generation of file may take"
-                                     " some time, but will be"
-                                     " immediately"
-                                     " available when done."
-                                     " No need to refresh the browser."
-                                     )))}
-          "Generate New stats.csv"]]
-        ;;stats.csv file is processing
-        (when  (= @status "processing")
-          (reset! retrieving? true)
-          (continuous-update-until
-           #(get-stats-status stats-status)
-           #(= @status "ready")
-           5000)
-          [:h3 "stat.csv file processing "
-           [:i {:class "fa fa-lg fa-spinner fa-pulse "}]])
-        ;; get rid of all messages when processing is complete
-        (when (= @status "ready")
-          (reset! alert-danger "")
-          (reset! alert-success ""))
-        ;; alert success message
-        (when (not (empty? @alert-success))
-          [:div {:class "alert alert-success alert-dismissible"}
-           [:button {:type "button"
-                     :class "close"
-                     :aria-label "Close"}
-            [:i {:class "fa fa-times"
-                 :on-click #(reset! alert-success "")}]]
-           [:strong @alert-success]])
-        ;; alert error message
-        (when (not (empty? @alert-danger))
-          [:div {:class "alert alert-danger alert-dismissible"}
-           [:button {:type "button"
-                     :class "close"
-                     :aria-label "Close"}
-            [:i {:class "fa fa-times"
-                 :on-click #(reset! alert-danger "")}]]
-           [:strong @alert-danger]])]])))
-
 (defn unix-epoch->YYYY-MM-DD
   [epoch]
   (unix-epoch->fmt epoch "YYYY-MM-DD"))
@@ -262,8 +125,7 @@
         data (clj->js [trace1])
         layout (clj->js {;;:barmode "stack"
                          :title "April 2016"
-                         :yaxis {:title "Orders"}
-                         })
+                         :yaxis {:title "Orders"}})
         ;; a list of buttons to remove:
         ;; http://community.plot.ly/t/remove-options-from-the-hover-toolbar/130
         config (clj->js {:modeBarButtonsToRemove
@@ -296,14 +158,14 @@
   "Display the total orders per day"
   []
   (let [data  (r/cursor state [:total-orders-per-day :data])
-        _ (retrieve-json {:url "total-orders"
+        _ (retrieve-json {:url "total-orders-customer"
                           :data-atom data
                           :timeframe "daily"
                           :from-date "2015-04-01"
                           :to-date (unix-epoch->YYYY-MM-DD (now))})
         refresh-fn (fn [refreshing?]
                      (reset! refreshing? true)
-                     (retrieve-json {:url "total-orders"
+                     (retrieve-json {:url "total-orders-customer"
                                      :data-atom data
                                      :timeframe "daily"
                                      :from-date "2015-04-01"
@@ -321,6 +183,7 @@
                          [:total-orders-per-day :layout])
               :config  @(r/cursor
                          state [:total-orders-per-day :config])}]]))
+
 (defn retrieve-csv
   "Retrieve analytics csv from server using url"
   [{:keys [url data-atom timeframe filename from-date to-date refresh-fn]}]
@@ -346,144 +209,213 @@
                       ".csv"))
                 (when refresh-fn (refresh-fn)))))))
 
-(defn DownloadCSV
-  "Download links for obtaining the orders per courier
-  props is:
-  {:url        ; str
-   :timeframe? ; boolean - whether or not to include a timeframe,
-                           default it true
-  }"
+
+(defn DownloadXLSX
   [props]
-  (let [{:keys [url timeframe]
-         :or {timeframe true}} props
-         data (r/atom (csv-data-default "daily"))
-         data-atom (r/atom [{}])
-         from-date (r/cursor data [:from-date])
-         to-date   (r/cursor data [:to-date])
-         filename (r/atom "no-data")
-         timeframe-id->timeframe-str {"t0" "hourly"
-                                      "t1" "daily"
-                                      "t2" "weekly"
-                                      "t3" "monthly"}
-         timeframe-id (r/atom "t1")
-         refresh-fn (fn [refreshing?]
-                      (reset! refreshing? true)
-                      (reset! filename "no-data")
-                      (retrieve-csv {:url url
-                                     :data-atom data-atom
-                                     :timeframe (timeframe-id->timeframe-str
-                                                 @timeframe-id)
-                                     :filename filename
-                                     :from-date (unix-epoch->YYYY-MM-DD
-                                                 @from-date)
-                                     :to-date (unix-epoch->YYYY-MM-DD @to-date)
-                                     :refresh-fn #(reset! refreshing?
-                                                          false)}))
-         refreshing? (r/atom false)]
+  (let [{:keys [use-timeframe? use-datepicker? filename
+                from-date to-date]
+         :or {use-timeframe? true
+              use-datepicker? true
+              from-date (-> (js/moment)
+                            (.startOf "month")
+                            (.unix))
+              to-date (now)}} props
+              data (r/atom (csv-data-default "daily"))
+              from-date (r/cursor data [:from-date])
+              to-date   (r/cursor data [:to-date])
+              timeframe-id->timeframe-str {"t0" "hourly"
+                                           "t1" "daily"
+                                           "t2" "weekly"
+                                           "t3" "monthly"}
+              timeframe-id (r/atom "t1")
+              file-status  (r/atom {:status ""
+                                    :timestamp ""})
+              status (r/cursor file-status [:status])
+              timestamp (r/cursor file-status [:timestamp])
+              alert-danger (r/atom "")
+              get-file-status
+              (fn []
+                (retrieve-url
+                 (str base-url (str "status-file/" filename))
+                 "GET"
+                 {}
+                 (partial xhrio-wrapper
+                          #(let [response (js->clj % :keywordize-keys true)]
+                             ;; reset the state
+                             (reset! file-status
+                                     {:status (:status response)
+                                      :timestamp  (:timestamp response)})))))]
     (r/create-class
      {:component-did-mount
       (fn [this]
-        (retrieve-csv {:url url
-                       :data-atom data-atom
-                       :timeframe (timeframe-id->timeframe-str
-                                   @timeframe-id)
-                       :filename filename
-                       :from-date (unix-epoch->YYYY-MM-DD @from-date)
-                       :to-date   (unix-epoch->YYYY-MM-DD @to-date)}))
+        (get-file-status))
       :reagent-render
-      (fn [args this]
+      (fn [argrs this]
         [:div
-         [:h3
-          (if (= @filename "no-data")
-            [:span "CSV file is processing "
-             [:i {:class "fa fa-lg fa-spinner fa-pulse "}]]
-            [:span [DownloadCSVLink {:content  @data-atom
-                                     :filename @filename}
-                    @filename]
-             " "
-             [RefreshButton
-              {:refresh-fn
-               refresh-fn
-               :refreshing? refreshing?
-               }]])]
-         (when timeframe
-           [Select {:value timeframe-id
-                    :options #{{:id "t0" :display-key "hourly"}
-                               {:id "t1"  :display-key "daily"}
-                               {:id "t2" :display-key "weekly"}
-                               {:id "t3" :display-key "monthly"}}
-                    :display-key :display-key}])
-         [:div {:class "form-group"
-                :style {:margin-left "1px"}}
-          [:label {:for "expires?"
-                   :class "control-label"}
-           [:div {:style {:display "inline-block"}}
+         (when (or (= @status "non-existent")
+                   (= @status "ready"))
+           [:div
+            [:h3
+             (when (= @status "ready")
+               ;; clear any error message
+               (reset! alert-danger "")
+               [:div
+                ;; link for downloading
+                [:a {:href (str base-url "download-file/" filename)
+                     :on-click (fn [e]
+                                 (.preventDefault e)
+                                 ;; check to make sure that the file
+                                 ;; is still available for download
+                                 (retrieve-url
+                                  (str base-url (str "status-file/" filename))
+                                  "GET"
+                                  {}
+                                  (partial
+                                   xhrio-wrapper
+                                   #(let [response
+                                          (js->clj % :keywordize-keys true)]
+                                      ;; the file is processing,
+                                      ;; someone else must have initiated
+                                      (when (= "processing"
+                                               (:status response))
+                                        (reset! status "processing")
+                                        ;; tell the user the file is
+                                        ;; processing
+                                        (reset!
+                                         alert-danger
+                                         (str filename " is currently"
+                                              " processing. Someone else"
+                                              " initiated a " filename
+                                              " generation")))
+                                      (when (= "non-existent"
+                                               (:status response))
+                                        (reset! status "non-existent")
+                                        ;; tell the user the file is
+                                        ;; processing
+                                        (reset!
+                                         alert-danger
+                                         (str filename " is currently"
+                                              " non-existent. Someone else"
+                                              " deleted " filename)))
+                                      ;; the file is not processing
+                                      ;; proceed as normal
+                                      (when (= "ready"
+                                               (:status response))
+                                        (set! (.-location js/window)
+                                              (str base-url "download-file/"
+                                                   filename)))))))}
+                 (str "Download " filename " generated at "
+                      (unix-epoch->fmt (:timestamp @file-status) "h:mm A")
+                      " on "
+                      (unix-epoch->fmt (:timestamp @file-status) "M/D"))]])
+             (when (= @status "non-existent")
+               (str filename " does not exist. Click below to generate "
+                    "a new one."))
+             ]
+            ;;generation button
             [:div
-             [:div {:class "input-group"}
-              [DatePicker from-date]]]]]
-          [:span {:style {:font-size "3em"
-                          :color "grey"}} " - "]
-          [:label {:for "expires?"
-                   :class "control-label"}
-           [:div {:style {:display "inline-block"}}
-            [:div
-             [:div {:class "input-group"}
-              [DatePicker to-date]]]]]]])})))
+             [:button
+              {:type "submit"
+               :class "btn btn-default"
+               :on-click
+               (fn [e]
+                 ;; initiate generation of stats file
+                 (retrieve-url
+                  (str base-url "generate-file/" filename)
+                  "POST"
+                  (js/JSON.stringify
+                   (clj->js
+                    {:parameters {:from-date
+                                  (unix-epoch->YYYY-MM-DD @from-date)
+                                  :to-date (unix-epoch->YYYY-MM-DD @to-date)
+                                  :timeframe (timeframe-id->timeframe-str
+                                              @timeframe-id)
+                                  :timezone @timezone}}))
+                  (partial
+                   xhrio-wrapper
+                   #(let [response
+                          (js->clj % :keywordize-keys true)]
+                      ;; the file is processing,
+                      ;; someone else must have initiated
+                      (when (= "processing"
+                               (:message response))
+                        (reset! status "processing")
+                        ;; tell the user the file is
+                        ;; processing
+                        (reset!
+                         alert-danger
+                         (str filename " is currently"
+                              " processing. Someone else"
+                              " initiated a " filename
+                              " generation")))
+                      ;; the file is not processing
+                      ;; proceed as normal
+                      (when (:success response)
+                        ;; processing? is now true
+                        (reset! status "processing"))))))}
+              (str "Generate " filename)]
+             [:br]
+             [:br]]
+            ;;timeframe
+            (when use-timeframe?
+              [Select {:value timeframe-id
+                       :options #{{:id "t0" :display-key "hourly"}
+                                  {:id "t1"  :display-key "daily"}
+                                  {:id "t2" :display-key "weekly"}
+                                  {:id "t3" :display-key "monthly"}}
+                       :display-key :display-key}])
+            ;;datepicker
+            (when use-datepicker?
+              [:div {:class "form-group"
+                     :style {:margin-left "1px"}}
+               [:label {:for "expires?"
+                        :class "control-label"}
+                [:div {:style {:display "inline-block"}}
+                 [:div
+                  [:div {:class "input-group"}
+                   [DatePicker from-date]]]]]
+               [:span {:style {:font-size "3em"
+                               :color "grey"}} " - "]
+               [:label {:for "expires?"
+                        :class "control-label"}
+                [:div {:style {:display "inline-block"}}
+                 [:div
+                  [:div {:class "input-group"}
+                   [DatePicker to-date]]]]]])])
+         ;;if the file is processing, check to see if it is done
+         (when (= @status "processing")
+           (continuous-update-until
+            get-file-status
+            #(= @status "ready")
+            5000)
+           [:h3 [:span (str filename " is processing ")
+                 [:i {:class "fa fa-lg fa-spinner fa-pulse"}]]])
+         ;;alert error message
+         (when (not (empty? @alert-danger))
+           [:div {:class "alert alert-danger alert-dismissible"}
+            [:button {:type "button"
+                      :class "close"
+                      :aria-label "Close"}
+             [:i {:class "fa fa-times"
+                  :on-click #(reset! alert-danger "")}]]
+            [:strong @alert-danger]])])})))
 
 (defn analytics-panel
-  "Panel for the analytics table"
+  "Entire content of analytics tab"
   []
   (fn []
     [:div
-     [stats-panel]
+     [DownloadXLSX {:filename "stats.xlsx"
+                    :use-timeframe? false
+                    :use-datepicker? false}]
      [total-orders-per-day-chart]
-     [:div {:class "hidden-xs hidden-sm"}
-      [:h2 "Total Completed Orders"]
-      [DownloadCSV {:url "total-orders"}]
-      [:h2 "Total Cancelled Orders"]
-      [DownloadCSV {:url "total-cancelled-orders"}]
-      [:h2 "Cancelled Unassigned Orders"]
-      [DownloadCSV {:url "cancelled-unassigned-orders"}]
-      [:h2 "Completed Orders Per Courier"]
-      [DownloadCSV {:url "orders-per-courier"}]
-      [:h2 "Cancelled Orders Per Courier"]
-      [DownloadCSV {:url "cancelled-orders-per-courier"}]
-      [:h2 "Scheduled Orders Per Courier"]
-      [DownloadCSV {:url "scheduled-orders-per-courier"}]
-      [:h2 "Flex Orders Per Courier"]
-      [DownloadCSV {:url "flex-orders-per-courier"}]
-      [:h2 "Total Gallons Sold"]
-      [DownloadCSV {:url "total-gallons"}]
-      [:h2 "Total 87 Octance Gallons Sold"]
-      [DownloadCSV {:url "total-87-gallons"}]
-      [:h2 "Total 91 Octance Gallons Sold"]
-      [DownloadCSV {:url "total-91-gallons"}]
-      [:h2 "Gallons Sold Per Courier"]
-      [DownloadCSV {:url "gallons-per-courier"}]
-      [:h2 "Gallons 87 Octane Sold Per Courier"]
-      [DownloadCSV {:url "gallons-87-per-courier"}]
-      [:h2 "Gallons 91 Octane Sold Per Courier"]
-      [DownloadCSV {:url "gallons-91-per-courier"}]
-      [:h2 "Total Revenue"]
-      [DownloadCSV {:url "total-revenue"}]
-      [:h2 "Revenue Per Courier"]
-      [DownloadCSV {:url "revenue-per-courier"}]
-      [:h2 "Service Fees"]
-      [DownloadCSV {:url "service-fees"}]
-      [:h2 "Service Fee Per Courier"]
-      [DownloadCSV {:url "service-fees-per-courier"}]
-      [:h2 "Referral Gallons Cost"]
-      [DownloadCSV {:url "referral-gallons-cost"}]
-      [:h2 "Coupon Cost"]
-      [DownloadCSV {:url "coupon-cost"}]
-      [:h2 "Total Fuel Price"]
-      [DownloadCSV {:url "fuel-price"}]
-      [:h2 "Fuel Price Per Courier"]
-      [DownloadCSV {:url "fuel-price-per-courier"}]
-      [:h2 "Fleet Invoices"]
-      [DownloadCSV {:url "fleets-invoice"
-                    :timeframe false}]
-      [:h2 "Managed Accounts Invoices"]
-      [DownloadCSV {:url "managed-accounts-invoice"
-                    :timeframe false}]
-      ]]))
+     [DownloadXLSX {:filename "totals.xlsx"}]
+     [DownloadXLSX {:filename "couriers-totals.xlsx"}]
+     [DownloadXLSX {:filename "managed-accounts.xlsx"
+                    :use-timeframe? false
+                    :from-date (-> (js/moment)
+                                   (.subtract 1 "day"))}]
+     [DownloadXLSX {:filename "fleet-accounts.xlsx"
+                    :use-timeframe? false
+                    :from-date (-> (js/moment)
+                                   (.subtract 1 "day"))}]]))

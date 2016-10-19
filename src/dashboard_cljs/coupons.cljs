@@ -473,11 +473,11 @@
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
-            displayed-coupons coupons
+            ;; remove all groupon coupons
+            displayed-coupons (filter #(not (re-matches #"GR.*" (:code %)))
+                                      coupons)
             sorted-coupons (fn []
                              (->> displayed-coupons
-                                  ;; remove all groupon coupons
-                                  (filter #(not (re-matches #"GR.*" (:code %))))
                                   (filter (:filter-fn
                                            (get filters @selected-filter)))
                                   sort-fn
@@ -523,7 +523,7 @@
                                                 (reset! current-page 1)
                                                 (table-pager-on-click))
                                     :filters filters
-                                    :data coupons
+                                    :data displayed-coupons
                                     :selected-filter selected-filter}]]
           [:div {:class "btn-toolbar"
                  :role "toolbar"}
