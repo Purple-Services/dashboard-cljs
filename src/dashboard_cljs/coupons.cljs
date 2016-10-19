@@ -449,7 +449,7 @@
      ;; expiration date
      [:td (unix-epoch->fmt (:expiration_time coupon) "M/D/YYYY")]
      ;; number of users
-     [:td (-> coupon :used_by_user_ids (s/split #",") count)]
+     [:td (-> coupon :used_by_user_ids (s/split #",") (#(remove s/blank? %)) count)]
      ;; first order only?
      [:td (if (:only_for_first_orders coupon)
             "Yes"
