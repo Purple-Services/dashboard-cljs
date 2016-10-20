@@ -107,19 +107,14 @@
      ;; courier assigned
      [:td (:courier_name order)]
      ;; order placed
-     [:td
-      (first (s/split (unix-epoch->hrf (:target_time_start order)) #" "))
-      [:br]
-      (s/join " " (rest (s/split (unix-epoch->hrf (:target_time_start order)) #" ")))]
+     [:td (unix-epoch->hrf (:target_time_start order))]
      ;; order deadline
      [:td {:style (when-not (contains? #{"complete" "cancelled"} (:status order))
                     (when (< (- (:target_time_end order)
                                 (now))
                              (* 60 60))
                       {:color "#d9534f"}))}
-      (first (s/split (unix-epoch->hrf (:target_time_end order)) #" "))
-      [:br]
-      (s/join " " (rest (s/split (unix-epoch->hrf (:target_time_end order)) #" ")))
+      (unix-epoch->hrf (:target_time_end order))
       (when (:tire_pressure_check order)
         ;; http://www.flaticon.com/free-icon/car-wheel_75660#term=wheel&page=1&position=34
         [:img {:src (str base-url "/images/car-wheel.png")
@@ -148,10 +143,11 @@
        {:on-click (fn [] (user-cross-link-on-click (:user_id order)))}
        [:span {:style (when-not (= 0 (:subscription_id order))
                         {:color "#5cb85c"})}  (:customer_name order)]]]
-     ;; phone / email
+     ;; phone
      [:td
-      [TelephoneNumber (:customer_phone_number order)]
-      [:br]
+      [TelephoneNumber (:customer_phone_number order)]]
+     ;; email
+     [:td
       [Mailto (:email order)]]
      ;; street address
      [:td [GoogleMapLink (str (:address_street order)
@@ -183,12 +179,10 @@
        (conj props {:keyword :courier_name})
        "Courier"]
       [TableHeadSortable
-       (conj props {:keyword :target_time_start
-                    :style {:width "85px"}})
+       (conj props {:keyword :target_time_start})
        "Placed"]
       [TableHeadSortable
-       (conj props {:keyword :target_time_end
-                    :style {:width "85px"}})
+       (conj props {:keyword :target_time_end})
        "Deadline"]
       [:th {:style {:font-size "16px"
                     :font-weight "normal"}} "Completed"]
@@ -198,7 +192,9 @@
        (conj props {:keyword :customer_name})
        "Name"]
       [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "Phone / Email"]
+                    :font-weight "normal"}} "Phone"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}} "Email"]
       [TableHeadSortable
        (conj props {:keyword :address_street})
        "Address"]
