@@ -1086,28 +1086,31 @@
         [:div
          (when-not @editing?
            [DisplayedZoneComp @current-zone])
-         [:form {:class "form-horizontal"}
-          (when @editing?
-            [ZoneFormComp {:zone edit-zone
-                           :errors errors}])
-          [SubmitDismissConfirmGroup
-           {:confirming? confirming?
-            :editing? editing?
-            :retrieving? retrieving?
-            :submit-fn submit-on-click
-            :dismiss-fn dismiss-fn}]
-          (if (and @confirming?
-                   (not-every? nil? (diff-msg-gen-zone
-                                     @edit-zone @current-zone)))
-            [ConfirmationAlert
-             {:confirmation-message confirm-msg
-              :cancel-on-click dismiss-fn
-              :confirm-on-click confirm-on-click
-              :retrieving? retrieving?}]
-            (reset! confirming? false))
-          (when-not (empty? @alert-success)
-            [AlertSuccess {:message @alert-success
-                           :dismiss #(reset! alert-success)}])]]))))
+         (when (subset? #{{:uri "/zone"
+                           :method "PUT"}}
+                        @accessible-routes)
+           [:form {:class "form-horizontal"}
+            (when @editing?
+              [ZoneFormComp {:zone edit-zone
+                             :errors errors}])
+            [SubmitDismissConfirmGroup
+             {:confirming? confirming?
+              :editing? editing?
+              :retrieving? retrieving?
+              :submit-fn submit-on-click
+              :dismiss-fn dismiss-fn}]
+            (if (and @confirming?
+                     (not-every? nil? (diff-msg-gen-zone
+                                       @edit-zone @current-zone)))
+              [ConfirmationAlert
+               {:confirmation-message confirm-msg
+                :cancel-on-click dismiss-fn
+                :confirm-on-click confirm-on-click
+                :retrieving? retrieving?}]
+              (reset! confirming? false))
+            (when-not (empty? @alert-success)
+              [AlertSuccess {:message @alert-success
+                             :dismiss #(reset! alert-success)}])])]))))
 
 (defn CreateZoneFormComp
   []
@@ -1344,15 +1347,12 @@
          [:div {:class "panel-body"}
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
-            (when (subset? #{{:uri "/zone"
-                              :method "PUT"}}
-                           @accessible-routes)
-              [:div {:class "panel-body"}
-               [:h2 [:i {:class "fa fa-circle"
-                         :style {:color
-                                 (:color @current-zone)}}]
-                (str " " (:name @current-zone))]
-               [EditZoneFormComp current-zone]])]]
+            [:div {:class "panel-body"}
+             [:h2 [:i {:class "fa fa-circle"
+                       :style {:color
+                               (:color @current-zone)}}]
+              (str " " (:name @current-zone))]
+             [EditZoneFormComp current-zone]]]]
           [:br]
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
@@ -1382,7 +1382,11 @@
           [:br]
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
-            [CreateZoneFormComp]]]]]))))
+            (when (subset? #{{:uri "/zone"
+                              :method "POST"}}
+                           @accessible-routes)
+              (.log js/console "user is allowed to create zones")
+              [CreateZoneFormComp])]]]]))))
 
 (def zips-search-state (r/atom {:search-retrieving? false
                                 :recent-search-term ""
