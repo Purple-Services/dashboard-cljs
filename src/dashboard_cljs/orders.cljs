@@ -108,13 +108,13 @@
      [:td (:courier_name order)]
      ;; order placed
      [:td (unix-epoch->hrf (:target_time_start order))]
-     ;; order dealine
+     ;; order deadline
      [:td {:style (when-not (contains? #{"complete" "cancelled"} (:status order))
                     (when (< (- (:target_time_end order)
                                 (now))
                              (* 60 60))
                       {:color "#d9534f"}))}
-      (unix-epoch->hrf (:target_time_end order)) " "
+      (unix-epoch->hrf (:target_time_end order))
       (when (:tire_pressure_check order)
         ;; http://www.flaticon.com/free-icon/car-wheel_75660#term=wheel&page=1&position=34
         [:img {:src (str base-url "/images/car-wheel.png")
@@ -143,18 +143,23 @@
        {:on-click (fn [] (user-cross-link-on-click (:user_id order)))}
        [:span {:style (when-not (= 0 (:subscription_id order))
                         {:color "#5cb85c"})}  (:customer_name order)]]]
-     ;; phone #
-     [:td [TelephoneNumber (:customer_phone_number order)]]
+     ;; phone
+     [:td
+      [TelephoneNumber (:customer_phone_number order)]]
      ;; email
-     [:td [Mailto (:email order)]]
+     [:td
+      [Mailto (:email order)]]
      ;; street address
      [:td [GoogleMapLink (str (:address_street order)
                               ", " (:address_zip order))
            (:lat order) (:lng order)]]
-     ;; market
+     ;; zone
      [:td [:i {:class "fa fa-circle"
-               :style {:color (:market-color order)}}] " "
+               :style {:color (:market-color order)}}]
+      " "
       (:market order)
+      " - "
+      (:submarket order)
       ]]))
 
 (defn order-table-header
@@ -185,10 +190,9 @@
                     :font-weight "normal"}} "Limit"]
       [TableHeadSortable
        (conj props {:keyword :customer_name})
-       "Name"] 
-      [TableHeadSortable
-       (conj props {:keyword :customer_phone_number})
-       "Phone"]
+       "Name"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}} "Phone"]
       [:th {:style {:font-size "16px"
                     :font-weight "normal"}} "Email"]
       [TableHeadSortable
@@ -196,7 +200,7 @@
        "Address"]
       [TableHeadSortable
        (conj props {:keyword :market})
-       "Market"]]]))
+       "Zone"]]]))
 
 (defn assign-courier
   "Assign order to selected-courier from the list of couriers. error
@@ -775,12 +779,14 @@
                           :padding-left "1em"
                           :padding-bottom "1em"}}
             ;; zone
-            [KeyVal "Market"
+            [KeyVal "Zone"
              [:span
               [:i {:class "fa fa-circle"
                    :style {:color (:market-color @order)}}]
               " "
               (:market @order)
+              " - "
+              (:submarket @order)
               ]]
             [KeyVal "Address" [:span [GoogleMapLink
                                       (:address_street @order)
