@@ -1237,7 +1237,8 @@
        (conj props {:keyword :rank
                     :title "Zone rules are applied to a ZIP by starting with the lowest rank. Higher ranking zones supersede lower ranking zones when the rules are in conflict."
                     :style {:cursor "help"
-                            :border-bottom "none"}})
+                            :border-bottom "none"
+                            :width "134px"}})
        "Rank"]
       [TableHeadSortable
        (conj props {:keyword :name
@@ -1245,19 +1246,23 @@
                     :style {:cursor "help"
                             :border-bottom "none"}})
        "Name"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}} "87"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}} "91"]
+      [:th {:style {:font-size "16px"
+                    :font-weight "normal"}} "Delivery Times"]
       [TableHeadSortable
        (conj props {:keyword :zip_count
                     :style {:border-bottom "none"}})
-       "No. Zips"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"
-                    :border-bottom "none"}}
-       "Zips"]]]))
+       "# Zips"]
+      ]]))
 
 (defn zone-row
   "A table row for a zone."
   [current-zone]
   (fn [zone]
+    ;; (.log js/console (geta (get-in zone [:config :gas-price]) "87"))
     [:tr (merge {:class (when (= (:id zone)
                                  (:id @current-zone))
                           "active")
@@ -1268,24 +1273,27 @@
                 (when (:manually-closed? (:config zone))
                   {:style {:color "#bbb"}}))
      ;; Rank
-     [:td (str (:rank zone)
-               (case (:rank zone)
-                 100 " (mrkt)"
-                 ""))]
+     [:td (str (case (:rank zone)
+                 100 "Market (100)"
+                 1000 "Submarket (1000)"
+                 (:rank zone)))]
      ;; name
      [:td [:i {:class "fa fa-circle"
                :style {:color (:color zone)}}]
       " " (:name zone)]
+     ;; 87
+     [:td (when-let [price-87 (get-in zone [:config :gas-price :87])]
+            (cents->$dollars price-87))]
+     ;; 91
+     [:td (when-let [price-91 (get-in zone [:config :gas-price :91])]
+            (cents->$dollars price-91))]
+     ;; Delivery Times Available
+     [:td (form-time-choices->hrf
+           (server-time-choices->form-time-choices
+            (get-in zone [:config :time-choices])))]
      ;; # of zips
-     [:td (-> zone
-              :zip_count)]
-     ;; Zips
-     [:td ;; {:style {:overflow "scroll"}}
-      (let [zips-string (:zips zone)
-            subs-string (subs zips-string 0 68)]
-        (if (> (count zips-string) 68)
-          (str subs-string ", ...")
-          zips-string))]]))
+     [:td (:zip_count zone)]
+     ]))
 
 (defn zones-panel
   "Display a table of zones"
@@ -1360,7 +1368,7 @@
              [:div {:class "btn-group" :role "group"}
               [TableFilterButton {:text "Active"
                                   :filter-fn :active
-                                  ;:hide-count true
+                                        ;:hide-count true
                                   :on-click  (fn []
                                                (reset! sort-reversed? false)
                                                (table-filter-button-on-click))
@@ -1368,7 +1376,7 @@
                                   :selected-filter selected-filter}]
               [TableFilterButton {:text "Inactive"
                                   :filter-fn (complement :active)
-                                  ;:hide-count false
+                                        ;:hide-count false
                                   :on-click (fn []
                                               (reset! sort-reversed? true)
                                               (table-filter-button-on-click))
@@ -1397,7 +1405,6 @@
             (when (subset? #{{:uri "/zone"
                               :method "POST"}}
                            @accessible-routes)
-              (.log js/console "user is allowed to create zones")
               [CreateZoneFormComp])]]]]))))
 
 (def zips-search-state (r/atom {:search-retrieving? false
