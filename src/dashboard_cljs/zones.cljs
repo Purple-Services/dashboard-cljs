@@ -13,6 +13,7 @@
                                                RefreshButton TablePager
                                                FormGroup TextInput KeyVal
                                                EditFormSubmit DismissButton
+                                               TableFilterButton
                                                ConfirmationAlert AlertSuccess
                                                SubmitDismissConfirmGroup
                                                TextAreaInput Select
@@ -1251,11 +1252,7 @@
       [:th {:style {:font-size "16px"
                     :font-weight "normal"
                     :border-bottom "none"}}
-       "Zips"]
-      [TableHeadSortable
-       (conj props {:keyword :active
-                    :style {:border-bottom "none"}})
-       "Active?"]]]))
+       "Zips"]]]))
 
 (defn zone-row
   "A table row for a zone."
@@ -1288,12 +1285,7 @@
             subs-string (subs zips-string 0 68)]
         (if (> (count zips-string) 68)
           (str subs-string ", ...")
-          zips-string))]
-     ;; Active
-     [:td (if (-> zone
-                  :active)
-            "Yes"
-            "No")]]))
+          zips-string))]]))
 
 (defn zones-panel
   "Display a table of zones"
@@ -1304,7 +1296,10 @@
         sort-reversed? (r/atom true)
         selected (r/cursor state [:selected])
         current-page (r/atom 1)
-        page-size 15]
+        page-size 15
+        selected-filter (r/atom "Active")
+        filters {"Active" :active
+                 "Inactive" (complement :active)}]
     (fn [zones]
       (let [sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
@@ -1314,7 +1309,8 @@
                            (->> displayed-zones
                                 sort-fn
                                 ;; we're not displaying the Earth Zone
-                                (filter #(not= (:id %) 1))
+                                (filter (every-pred #(not= (:id %) 1)
+                                                    (get filters @selected-filter)))
                                 (partition-all page-size)))
             paginated-zones (fn []
                               (-> (sorted-zones)
@@ -1339,8 +1335,11 @@
                                    (reset! current-zone
                                            (first (paginated-zones)))
                                    (reset! (r/cursor state [:editing?]) false)
-                                   (reset! (r/cursor state [:alert-success]) "")
-                                   )]
+                                   (reset! (r/cursor state [:alert-success]) ""))
+            table-filter-button-on-click (fn []
+                                           (reset! sort-keyword :rank)
+                                           (reset! current-page 1)
+                                           (table-pager-on-click))]
         (when (nil? @current-zone)
           (table-pager-on-click))
         [:div {:class "panel panel-default"}
@@ -1356,12 +1355,25 @@
           [:br]
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
-            [:div [:h3 {:class "pull-left"
-                        :style {:margin-top "4px"
-                                :margin-bottom 0}}
-                   "Zones"]]
             [:div {:class "btn-toolbar"
                    :role "toolbar"}
+             [:div {:class "btn-group" :role "group"}
+              [TableFilterButton {:text "Active"
+                                  :filter-fn :active
+                                  ;:hide-count true
+                                  :on-click  (fn []
+                                               (reset! sort-reversed? false)
+                                               (table-filter-button-on-click))
+                                  :data zones
+                                  :selected-filter selected-filter}]
+              [TableFilterButton {:text "Inactive"
+                                  :filter-fn (complement :active)
+                                  ;:hide-count false
+                                  :on-click (fn []
+                                              (reset! sort-reversed? true)
+                                              (table-filter-button-on-click))
+                                  :data zones
+                                  :selected-filter selected-filter}]]
              [:div {:class "btn-group"
                     :role "group"}
               [RefreshButton {:refresh-fn
