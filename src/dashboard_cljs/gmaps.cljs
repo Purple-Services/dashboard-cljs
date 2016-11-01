@@ -25,7 +25,7 @@
                   :status
                   {:unassigned {:color "#ff0000"
                                 :selected? true}
-                   :assigned   {:color "#ffc0cb"
+                   :assigned   {:color "#FF8300"
                                 :selected? true}
                    :accepted   {:color "#808080"
                                 :selected? true}
@@ -36,7 +36,7 @@
                    :complete   {:color "#00ff00"
                                 :selected? true}
                    :cancelled  {:color "#000000"
-                                :selected? true}}
+                                :selected? false}}
                   ;; note: if you want to find centers, use
                   ;; (.getCenter (:google-map @state))
                   ;; and
@@ -828,7 +828,10 @@
                                       :id (str "orders-" status)
                                       :value "orders"
                                       :class "orders-checkbox"
-                                      :checked true}])
+                                      :checked (get-in
+                                                @state
+                                                [:status (keyword status)
+                                                 :selected?])}])
         control-text (crate/html
                       [:div {:class "setCenterText map-control-font"}
                        checkbox
@@ -837,7 +840,8 @@
                         status
                         (legend-symbol (get-in @state [:status
                                                        (keyword status)
-                                                       :color]))]])]
+                                                       :color])
+                                       )]])]
     (.addEventListener checkbox "click" #(do (if (aget checkbox "checked")
                                                (swap! state assoc-in
                                                       [:status (keyword status)
