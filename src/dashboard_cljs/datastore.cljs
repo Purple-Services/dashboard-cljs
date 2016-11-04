@@ -139,6 +139,18 @@
 ;; zones
 (def zones (r/atom #{}))
 
+(defn retrieve-zones!
+  []
+  (retrieve-url
+   (str base-url "zones")
+   "GET"
+   {}
+   (partial xhrio-wrapper
+            (fn [response]
+              (put! modify-data-chan
+                    {:topic "zones"
+                     :data (js->clj response :keywordize-keys
+                                    true)})))))
 (defn process-orders
   "Given a set of orders, handle putting them on modify-data-chan
   and resetting the most-recent-order and last-acknowledged-order atoms"
@@ -189,7 +201,8 @@
       (continuous-update
        ;; prevent retrieval of more orders
        ;; until init orders has completed
-       #(when (:timestamp_created @most-recent-order)
+       #(when ;;(:timestamp_created @most-recent-order)
+            (first @orders)
           (retrieve-url
            (str base-url "orders-since-date")
            "POST"
@@ -237,13 +250,9 @@
                       :method "GET"}} @accessible-routes)
       (sync-state! zones (sub read-data-chan "zones" (chan)))
       ;; initialize zones
-      (retrieve-url
-       (str base-url "zones")
-       "GET"
-       {}
-       (partial xhrio-wrapper
-                (fn [response]
-                  (put! modify-data-chan
-                        {:topic "zones"
-                         :data (js->clj response :keywordize-keys
-                                        true)})))))))
+      (retrieve-zones!)
+      ;; periodically retrieval of zones
+      (continuous-update
+       #(when (first @zones)
+          (retrieve-zones!))
+       10000))))
