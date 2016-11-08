@@ -8,7 +8,8 @@
                                           json-string->clj cents->$dollars
                                           cents->dollars dollars->cents
                                           parse-to-number? accessible-routes
-                                          diff-message get-input-value]]
+                                          diff-message get-input-value
+                                          get-by-id]]
             [dashboard-cljs.components :refer [StaticTable TableHeadSortable
                                                RefreshButton TablePager
                                                FormGroup TextInput KeyVal
@@ -355,7 +356,7 @@
    (#(if-let [manually-closed? (get-in % [:config :manually-closed?])]
        (assoc-in % [:config :manually-closed?]
                  manually-closed?)
-       (assoc-in % [:config :manually-closed?] false)))
+       %))
    (#(if-let [time-choices (get-in % [:config :time-choices])]
        (assoc-in % [:config :time-choices]
                  (server-time-choices->form-time-choices time-choices))
@@ -408,7 +409,7 @@
    (#(if-let [manually-closed? (get-in % [:config :manually-closed?])]
        (assoc-in % [:config :manually-closed?]
                  manually-closed?)
-       (assoc-in % [:config :manually-closed?] false)))
+       %))
    (#(if-let [time-choices (get-in % [:config :time-choices])]
        (let [server-time-choices
              (form-time-choices->server-time-choices time-choices)]
@@ -534,7 +535,6 @@
                   (reset! hours [from-minute-count to-minute-count]))))
             ;; whenever the hours are updated, change the hours bracket
             track-hours @(r/track standard-times->minute-count-brackets)]
-        ;;(.log js/console "hours: " (clj->js @hours))
         [:div {:style {:display "inline-block"}}
          [:div {:style {:max-width "3em"
                         :display "inline-block"}}
@@ -635,9 +635,6 @@
   (let [days-atom (r/cursor zone [:config :hours])]
     (fn [hours]
       (let []
-        ;;(.log js/console "days-atom:" (clj->js @days-atom))
-        ;; (.log js/console "converted days-atom"
-        ;;       (clj->js (form-day-hours->server-day-hours @days-atom)))
         [:div
          (doall
           (map
@@ -915,7 +912,11 @@
                                        (.preventDefault e)
                                        (swap! config dissoc :hours))}
                   "Remove Hours"]
-            [DaysTimeRangeComp @hours zone]])]]])))
+            [DaysTimeRangeComp @hours zone]])]
+        ;; stale warning
+        (when (:current-zone @errors)
+          [:div {:class "alert alert-danger"}
+           (first (:current-zone @errors))])]])))
 
 (defn EditZoneFormComp
   [zone]
@@ -943,8 +944,7 @@
                           :delivery-fee "Delivery Fees"
                           :zips "Zip Codes"
                           :gas-price "Gas Price"
-                          :hours "Hours"
-                          }
+                          :hours "Hours"}
             diff-msg-gen (fn [edit current]
                            (diff-message
                             edit
@@ -1009,17 +1009,6 @@
                                            %))
                                        ))
             diff-msg-gen-zone (fn [edit-zone current-zone]
-                                ;; (.log js/console "edit-zone: "
-                                ;;       (clj->js edit-zone))
-                                ;; (.log js/console "current-zone: "
-                                ;;       (clj->js (server-zone->form-zone
-                                ;;                 current-zone)))
-                                ;; (.log js/console "edit-zone: "
-                                ;;       (clj->js (zone->diff-msg-zone edit-zone)))
-                                ;; (.log js/console "edit-zone: "
-                                ;;       (clj->js (zone->diff-msg-zone
-                                ;;                 (server-zone->form-zone
-                                ;;                  current-zone))))
                                 (diff-msg-gen
                                  (zone->diff-msg-zone edit-zone)
                                  (zone->diff-msg-zone
@@ -1042,7 +1031,6 @@
                                   ;; there is a diff message, confirm change
                                   (reset! confirming? true))
                                 (do
-                                  ;;(.log js/console "there is a diff message")
                                   ;; reset edit zone
                                   (reset! edit-zone
                                           (server-zone->form-zone @zone))
@@ -1050,9 +1038,11 @@
                                   (reset! alert-success "")
                                   (reset! editing? true))))
             confirm-on-click (fn [_]
-                               ;;(.log js/console "edit-zone" (clj->js @edit-zone))
                                (entity-save
-                                (form-zone->server-zone @edit-zone)
+                                (assoc (form-zone->server-zone @edit-zone)
+                                       :current-zone
+                                       (form-zone->server-zone
+                                        (server-zone->form-zone @current-zone)))
                                 "zone"
                                 "PUT"
                                 retrieving?
@@ -1262,7 +1252,6 @@
   "A table row for a zone."
   [current-zone]
   (fn [zone]
-    ;; (.log js/console (geta (get-in zone [:config :gas-price]) "87"))
     [:tr (merge {:class (when (= (:id zone)
                                  (:id @current-zone))
                           "active")
@@ -1294,6 +1283,11 @@
      ;; # of zips
      [:td (:zip_count zone)]
      ]))
+
+(defn track-current-zone!
+  [zones current-zone editing?]
+  (when (not @editing?)
+    (reset! current-zone (get-by-id zones (:id @current-zone)))))
 
 (defn zones-panel
   "Display a table of zones"
@@ -1347,7 +1341,11 @@
             table-filter-button-on-click (fn []
                                            (reset! sort-keyword :rank)
                                            (reset! current-page 1)
-                                           (table-pager-on-click))]
+                                           (table-pager-on-click))
+            track-current-zone! @(r/track track-current-zone!
+                                          zones
+                                          current-zone
+                                          (r/cursor state [:editing?]))]
         (when (nil? @current-zone)
           (table-pager-on-click))
         [:div {:class "panel panel-default"}
@@ -1368,7 +1366,6 @@
              [:div {:class "btn-group" :role "group"}
               [TableFilterButton {:text "Active"
                                   :filter-fn :active
-                                        ;:hide-count true
                                   :on-click  (fn []
                                                (reset! sort-reversed? false)
                                                (table-filter-button-on-click))
