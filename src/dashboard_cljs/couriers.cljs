@@ -5,7 +5,7 @@
             [clojure.string :as s]
             [cljs.reader :refer [read-string]]
             [reagent.core :as r]
-            [dashboard-cljs.components :refer [StaticTable TableHeadSortable
+            [dashboard-cljs.components :refer [DynamicTable
                                                TableFilterButtonGroup
                                                RefreshButton KeyVal StarRating
                                                ErrorComp TablePager
@@ -20,8 +20,7 @@
                                                Tab
                                                TabContent
                                                Plotly
-                                               Select
-                                               ]]
+                                               Select]]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error]]
             [dashboard-cljs.datastore :as datastore]
@@ -82,200 +81,6 @@
   [edit-courier current-courier]
   (reset! edit-courier
           (displayed-courier @current-courier)))
-
-(defn courier-row
-  "A table row for a courier in a table. current-courier is an r/atom."
-  [current-courier]
-  (fn [courier]
-    (let [courier-orders (fn [courier]
-                           (->> @datastore/orders
-                                (filter (fn [order]
-                                          (= (:id courier)
-                                             (:courier_id order))))))]
-      [:tr {:class (when (= (:id courier)
-                            (:id @current-courier))
-                     "active")
-            :on-click #(do
-                         (reset! current-courier courier)
-                         (reset! (r/cursor state [:alert-success]) "")
-                         (when (<= (count (courier-orders courier))
-                                   0)
-                           (select-toggle-key!
-                            (r/cursor state [:tab-content-toggle])
-                            :info-view))
-                         (reset! (r/cursor state [:courier-orders-current-page])
-                                 1))}
-       ;; name
-       [:td (:name courier)]
-       ;; market
-       [:td (:name
-             (first
-              (filter #(and (= 100 (:rank %))
-                            (contains? (set (:zones courier)) (:id %)))
-                      @datastore/zones)))]
-       ;; orders count
-       [:td (->> @datastore/orders
-                 (filter (fn [order] (= (:id courier)
-                                        (:courier_id order))))
-                 (filter (fn [order] (not (contains? #{"cancelled" "complete"}
-                                                     (:status order)))))
-                 count)]
-       ;; phone
-       [:td [TelephoneNumber (:phone_number courier)]]
-       ;; last active
-       ;; [:td (if-not (= (:last_ping courier) 0)
-       ;;        (unix-epoch->fmt
-       ;;         (:last_ping courier)
-       ;;         "M/D/YYYY h:mm A")
-       ;;        "Never")]
-       ;; joined
-       [:td (unix-epoch->fmt (:timestamp_created courier) "M/D/YYYY")]
-       ;; os
-       [:td (:os courier)]
-       ;; app version
-       [:td (:app_version courier)]
-       ;; status
-       [:td
-        (let [connected? (and (:connected courier)
-                              (:on_duty courier)
-                              (:active courier))]
-          [:div
-           [:i {:class
-                (str "fa fa-circle "
-                     (if connected?
-                       "courier-active"
-                       "courier-inactive"
-                       ))}]
-           (if connected?
-             " Online"
-             " Offline")])]])))
-
-(defn courier-table-header
-  "props is:
-  {
-  :sort-keyword   ; reagent atom keyword used to sort table
-  :sort-reversed? ; reagent atom boolean for determing if the sort is reversed
-  }"
-  [props]
-  (fn [props]
-    [:thead
-     [:tr
-      [TableHeadSortable
-       (conj props {:keyword :name
-                    :style {:border-bottom "none"}})
-       "Name"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"
-                    :border-bottom "none"}} "Market"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"
-                    :border-bottom "none"}} "Current Orders"]
-      [TableHeadSortable
-       (conj props {:keyword :phone_number
-                    :style {:border-bottom "none"}})
-       "Phone"]
-      ;; [TableHeadSortable
-      ;;  (conj props {:keyword :last_ping})
-      ;;  "Last Active"]
-      [TableHeadSortable
-       (conj props {:keyword :timestamp_created
-                    :style {:border-bottom "none"}})
-       "Joined"]
-      [TableHeadSortable
-       (conj props {:keyword :os
-                    :style {:border-bottom "none"}})
-       "OS"]
-      [TableHeadSortable
-       (conj props {:keyword :app_version
-                    :style {:border-bottom "none"}})
-       "App Version"]
-      [TableHeadSortable
-       (conj props {:keyword :connected
-                    :style {:border-bottom "none"}})
-       "Status"]]]))
-
-(defn courier-orders-header
-  "props is:
-  {
-  :sort-keyword   ; reagent atom keyword used to sort table
-  :sort-reversed? ; reagent atom boolean for determing if the sort is reversed
-  }"
-  [props]
-  (fn [props]
-    [:thead
-     [:tr
-      [TableHeadSortable
-       (conj props {:keyword :status})
-       "Status"]
-      [TableHeadSortable
-       (conj props {:keyword :target_time_start})
-       "Placed"]
-      [TableHeadSortable
-       (conj props {:keyword :target_time_end})
-       "Deadline"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "Completed"]
-      [TableHeadSortable
-       (conj props {:keyword :customer_name})
-       "Customer Name"]
-      [TableHeadSortable
-       (conj props {:keyword :customer_phone_number})
-       "Customer Phone"]
-      [TableHeadSortable
-       (conj props {:keyword :address_street})
-       "Order Address"]
-      [TableHeadSortable
-       (conj props {:keyword :number_rating})
-       "Courier Rating"]]]))
-
-(defn courier-orders-row
-  "Table row to display a couriers orders"
-  []
-  (fn [order]
-    [:tr
-     ;; order status
-     [:td (:status order)]
-     ;; order placed
-     [:td (unix-epoch->hrf (:target_time_start order))]
-     ;; order dealine
-     [:td {:style (when-not (contains? #{"complete" "cancelled"} (:status order))
-                    (when (< (- (:target_time_end order)
-                                (now))
-                             (* 60 60))
-                      {:color "#d9534f"}))}
-      (unix-epoch->hrf (:target_time_end order)) " "
-      (when (:tire_pressure_check order)
-        ;; http://www.flaticon.com/free-icon/car-wheel_75660#term=wheel&page=1&position=34
-        [:img {:src (str base-url "/images/car-wheel.png")
-               :alt "tire-check"}])]
-     ;; order completed
-     [:td
-      (when (contains? #{"complete"} (:status order))
-        (let [completed-time
-              (get-event-time (:event_log order) "complete")]
-          [:span {:style
-                  (when (> completed-time
-                           (:target_time_end order)) {:color "#d9534f"})}
-           (unix-epoch->hrf completed-time)]))
-      (when (contains? #{"cancelled"} (:status order))
-        "Cancelled")
-      (when-not (contains? #{"complete" "cancelled"} (:status order))
-        "In-Progress")]
-     ;; username
-     [:td {:style (when-not (= 0 (:subscription_id order))
-                    {:color "#5cb85c"})}
-      (:customer_name order)]
-     ;; phone #
-     [:td [TelephoneNumber (:customer_phone_number order)]]
-     ;; street address
-     [:td [GoogleMapLink (str (:address_street order)
-                              ", " (:address_zip order))
-           (:lat order) (:lng order)]]
-     ;; star rating
-     [:td
-      (let [number-rating (:number_rating order)]
-        (when number-rating
-          [StarRating number-rating]))]]))
 
 (defn courier-form
   "Form for editing a courier"
@@ -417,28 +222,6 @@
        (when-not (empty? @alert-success)
          [AlertSuccess {:message @alert-success
                         :dismiss #(reset! alert-success "")}])])))
-(defn orders-per-courier
-  [props]
-  (let [id-datatype {"t0" :hourly
-                     "t1" :daily
-                     "t2" :weekly}
-        selected-timeframe (r/cursor state [:orders-data :selected-timeframe])]
-    (fn [props]
-      [:div {:class "row"}
-       [:div {:class "col-lg-12"}
-        [:h2 "Completed Orders per "
-         [Select {:value selected-timeframe
-                  :options #{{:id "t0" :time "Hour"}
-                             {:id "t1" :time "Day"}
-                             {:id "t2" :time "Week"}}
-                  :display-key :time
-                  :sort-keyword :id}]]
-        [Plotly {:data [(merge @(r/cursor state
-                                          [:orders-data :data
-                                           (id-datatype @selected-timeframe)])
-                               {:type "scatter"})]
-                 :layout @(r/cursor state [:orders-data :layout])
-                 :config @(r/cursor state [:orders-data :config])}]]])))
 
 (defn courier-panel
   "Display detailed and editable fields for an courier. current-courier is an
@@ -556,11 +339,87 @@
              [:div {:class "row"}
               [:div {:class "col-lg-12 col-xs-12"}
                [:div {:class "table-responsive"}
-                [StaticTable
-                 {:table-header [courier-orders-header
-                                 {:sort-keyword sort-keyword
-                                  :sort-reversed? sort-reversed?}]
-                  :table-row (courier-orders-row)}
+                [DynamicTable {:current-item current-courier
+                               :tr-props-fn (constantly true)
+                               :sort-keyword sort-keyword
+                               :sort-reversed? sort-reversed?
+                               :table-vecs
+                               [["Status" :status :status]
+                                ["Placed" :target_time_start
+                                 #(unix-epoch->hrf
+                                   (:target_time_start %))]
+                                ["Deadline" :target_time_end
+                                 (fn [order]
+                                   [:span
+                                    {:style
+                                     (when-not (contains?
+                                                #{"complete" "cancelled"}
+                                                (:status order))
+                                       (when (< (- (:target_time_end order)
+                                                   (now))
+                                                (* 60 60))
+                                         {:color "#d9534f"}))}
+                                    (unix-epoch->hrf (:target_time_end order))
+                                    (when (:tire_pressure_check order)
+                                      ;; http://www.flaticon.com/free-icon/car-wheel_75660#term=wheel&page=1&position=34
+                                      [:img
+                                       {:src
+                                        (str base-url "/images/car-wheel.png")
+                                        :alt "tire-check"}])])]
+                                ["Completed"
+                                 (fn [order]
+                                   (cond (contains? #{"cancelled"}
+                                                    (:status order))
+                                         "Cancelled"
+                                         (contains? #{"complete"}
+                                                    (:status order))
+                                         (unix-epoch->hrf
+                                          (get-event-time (:event_log order)
+                                                          "complete"))
+                                         :else "In-Progress"))
+                                 (fn [order]
+                                   [:span
+                                    (when (contains? #{"complete"}
+                                                     (:status order))
+                                      (let [completed-time
+                                            (get-event-time (:event_log order)
+                                                            "complete")]
+                                        [:span {:style
+                                                (when
+                                                    (> completed-time
+                                                       (:target_time_end order))
+                                                  {:color "#d9534f"})}
+                                         (unix-epoch->hrf completed-time)]))
+                                    (when (contains? #{"cancelled"}
+                                                     (:status order))
+                                      "Cancelled")
+                                    (when-not
+                                        (contains? #{"complete" "cancelled"}
+                                                   (:status order))
+                                      "In-Progress")])]
+                                ["Customer Name" :customer_name
+                                 (fn [order]
+                                   [:span {:style
+                                           (when-not
+                                               (= 0
+                                                  (:subscription_id order))
+                                             {:color "#5cb85c"})}
+                                    (:customer_name order)])]
+                                ["Customer Phone" :customer_phone_number
+                                 (fn [order]
+                                   [TelephoneNumber (:customer_phone_number
+                                                     order)])]
+                                ["Order Address" :address_street
+                                 (fn [order]
+                                   [GoogleMapLink
+                                    (str (:address_street order)
+                                         ", " (:address_zip order))
+                                    (:lat order) (:lng order)])]
+                                ["Courier Rating" :number_rating
+                                 (fn [order]
+                                   (let [number-rating (:number_rating order)]
+                                     (when number-rating
+                                       [StarRating number-rating])))]]}
                  paginated-orders]]
                [TablePager
                 {:total-pages (count sorted-orders )
@@ -648,11 +507,100 @@
              [RefreshButton {:refresh-fn refresh-fn}]]]]
           [:div {:class "col-lg-12"}
            [:div {:class "table-responsive"}
-            [StaticTable
-             {:table-header [courier-table-header
-                             {:sort-keyword sort-keyword
-                              :sort-reversed? sort-reversed?}]
-              :table-row (courier-row current-courier)}
+            [DynamicTable {:current-item current-courier
+                           :tr-props-fn
+                           (fn [courier current-courier]
+                             (let [courier-orders
+                                   (fn [courier]
+                                     (->> @datastore/orders
+                                          (filter (fn [order]
+                                                    (= (:id courier)
+                                                       (:courier_id order))))))]
+                               {:class (when (= (:id courier)
+                                                (:id @current-courier))
+                                         "active")
+                                :on-click
+                                #(do
+                                   (reset! current-courier courier)
+                                   (reset! (r/cursor state [:alert-success]) "")
+                                   (when (<= (count (courier-orders courier))
+                                             0)
+                                     (select-toggle-key!
+                                      (r/cursor state [:tab-content-toggle])
+                                      :info-view))
+                                   (reset!
+                                    (r/cursor state
+                                              [:courier-orders-current-page])
+                                    1))}))
+                           :sort-keyword sort-keyword
+                           :sort-reversed? sort-reversed?
+                           :table-vecs
+                           [["Name" :name :name]
+                            ["Market"
+                             (fn [courier]
+                               (:name
+                                (first
+                                 (filter
+                                  #(and (= 100 (:rank %))
+                                        (contains? (set (:zones courier))
+                                                   (:id %)))
+                                  @datastore/zones))))
+                             (fn [courier]
+                               (:name
+                                (first
+                                 (filter
+                                  #(and (= 100 (:rank %))
+                                        (contains? (set (:zones courier))
+                                                   (:id %)))
+                                  @datastore/zones))))]
+                            ["Current Orders"
+                             (fn [courier]
+                               (->> @datastore/orders
+                                    (filter
+                                     (fn [order] (= (:id courier)
+                                                    (:courier_id order))))
+                                    (filter
+                                     (fn [order]
+                                       (not
+                                        (contains? #{"cancelled" "complete"}
+                                                   (:status order)))))
+                                    count))
+                             (fn [courier]
+                               (->> @datastore/orders
+                                    (filter
+                                     (fn [order] (= (:id courier)
+                                                    (:courier_id order))))
+                                    (filter
+                                     (fn [order]
+                                       (not
+                                        (contains? #{"cancelled" "complete"}
+                                                   (:status order)))))
+                                    count))]
+                            ["Phone" :phone_number
+                             (fn [courier]
+                               [TelephoneNumber (:phone_number courier)])]
+                            ["Joined"
+                             :timestamp_created
+                             (fn [courier]
+                               (unix-epoch->fmt (:timestamp_created courier)
+                                                "M/D/YYYY"))]
+                            ["OS" :os :os]
+                            ["App Version" :app_version :app_version]
+                            ["Status" :connected
+                             (fn [courier]
+                               (let [connected? (and (:connected courier)
+                                                     (:on_duty courier)
+                                                     (:active courier))]
+                                 [:span
+                                  [:i {:class
+                                       (str "fa fa-circle "
+                                            (if connected?
+                                              "courier-active"
+                                              "courier-inactive"
+                                              ))}]
+                                  (if connected?
+                                    " Online"
+                                    " Offline")]))]]}
              (paginated-couriers)]]]
           [TablePager
            {:total-pages (count (sorted-couriers))
