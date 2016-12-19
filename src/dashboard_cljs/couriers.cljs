@@ -25,7 +25,8 @@
                                           edit-on-error]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.utils :refer [unix-epoch->fmt unix-epoch->hrf
-                                          base-url accessible-routes pager-helper!
+                                          base-url accessible-routes
+                                          pager-helper!
                                           diff-message now get-event-time
                                           select-toggle-key!]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
