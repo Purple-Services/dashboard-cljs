@@ -10,7 +10,8 @@
                                           parse-to-number? accessible-routes
                                           diff-message get-input-value
                                           get-by-id]]
-            [dashboard-cljs.components :refer [StaticTable TableHeadSortable
+            [dashboard-cljs.components :refer [DynamicTable StaticTable
+                                               TableHeadSortable
                                                RefreshButton TablePager
                                                FormGroup TextInput KeyVal
                                                EditFormSubmit DismissButton
@@ -1213,77 +1214,6 @@
             [AlertSuccess {:message @alert-success
                            :dismiss #(reset! alert-success)}])]]))))
 
-(defn zone-table-header
-  "props is:
-  {
-  :sort-keyword   ; reagent atom keyword used to sort table
-  :sort-reversed? ; reagent atom boolean for determing if the sort is reversed
-  }"
-  [props]
-  (fn [props]
-    [:thead
-     [:tr
-      [TableHeadSortable
-       (conj props {:keyword :rank
-                    :title "Zone rules are applied to a ZIP by starting with the lowest rank. Higher ranking zones supersede lower ranking zones when the rules are in conflict."
-                    :style {:cursor "help"
-                            :border-bottom "none"
-                            :width "134px"}})
-       "Rank"]
-      [TableHeadSortable
-       (conj props {:keyword :name
-                    :title "Zones that are manually closed are shown in light-gray."
-                    :style {:cursor "help"
-                            :border-bottom "none"}})
-       "Name"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "87"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "91"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "Delivery Times"]
-      [TableHeadSortable
-       (conj props {:keyword :zip_count
-                    :style {:border-bottom "none"}})
-       "# Zips"]
-      ]]))
-
-(defn zone-row
-  "A table row for a zone."
-  [current-zone]
-  (fn [zone]
-    [:tr (merge {:class (when (= (:id zone)
-                                 (:id @current-zone))
-                          "active")
-                 :on-click (fn [_]
-                             (reset! current-zone zone)
-                             (reset! (r/cursor state [:editing?]) false)
-                             (reset! (r/cursor state [:alert-success]) ""))}
-                (when (:manually-closed? (:config zone))
-                  {:style {:color "#bbb"}}))
-     ;; Rank
-     [:td (str (case (:rank zone)
-                 100 "Market (100)"
-                 1000 "Submarket (1000)"
-                 (:rank zone)))]
-     ;; name
-     [:td [:i {:class "fa fa-circle"
-               :style {:color (:color zone)}}]
-      " " (:name zone)]
-     ;; 87
-     [:td (when-let [price-87 (get-in zone [:config :gas-price :87])]
-            (cents->$dollars price-87))]
-     ;; 91
-     [:td (when-let [price-91 (get-in zone [:config :gas-price :91])]
-            (cents->$dollars price-91))]
-     ;; Delivery Times Available
-     [:td (form-time-choices->hrf
-           (server-time-choices->form-time-choices
-            (get-in zone [:config :time-choices])))]
-     ;; # of zips
-     [:td (:zip_count zone)]
-     ]))
-
 (defn track-current-zone!
   [zones current-zone editing?]
   (when (not @editing?)
@@ -1311,8 +1241,9 @@
                            (->> displayed-zones
                                 sort-fn
                                 ;; we're not displaying the Earth Zone
-                                (filter (every-pred #(not= (:id %) 1)
-                                                    (get filters @selected-filter)))
+                                (filter (every-pred
+                                         #(not= (:id %) 1)
+                                         (get filters @selected-filter)))
                                 (partition-all page-size)))
             paginated-zones (fn []
                               (-> (sorted-zones)
@@ -1386,11 +1317,69 @@
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
             [:div {:class "table-responsive"}
-             [StaticTable
-              {:table-header [zone-table-header
-                              {:sort-keyword sort-keyword
-                               :sort-reversed? sort-reversed?}]
-               :table-row (zone-row current-zone)}
+             [DynamicTable {:current-item current-zone
+                            :tr-props-fn
+                            (fn [row-item current-item]
+                              (merge
+                               {:class (when (= (:id row-item)
+                                                (:id @current-item))
+                                         "active")
+                                :on-click
+                                (fn [_]
+                                  (reset! current-item
+                                          row-item)
+                                  (reset!
+                                   (r/cursor state
+                                             [:editing?])
+                                   false)
+                                  (reset!
+                                   (r/cursor state
+                                             [:alert-success])
+                                   ""))}
+                               (when (:manually-closed? (:config row-item))
+                                 {:style {:color "#bbb"}})))
+                            :sort-keyword sort-keyword
+                            :sort-reversed? sort-reversed?
+                            :table-vecs
+                            [["Rank" :rank #(str (case (:rank %)
+                                                   100 "Market (100)"
+                                                   1000 "Submarket (1000)"
+                                                   (:rank %)))]
+                             ["Name" :name (fn [zone]
+                                             [:span
+                                              [:i
+                                               {:class "fa fa-circle"
+                                                :style {:color (:color zone)}}]
+                                              " " (:name zone)])]
+                             ["87" #(when-let
+                                        [price-87
+                                         (get-in %
+                                                 [:config :gas-price :87])]
+                                      (cents->$dollars price-87))
+                              #(when-let
+                                   [price-87
+                                    (get-in %
+                                            [:config :gas-price :87])]
+                                 (cents->$dollars price-87))]
+                             ["91"
+                              #(when-let
+                                   [price-91
+                                    (get-in %
+                                            [:config :gas-price :91])]
+                                 (cents->$dollars price-91))
+                              #(when-let
+                                   [price-91
+                                    (get-in %
+                                            [:config :gas-price :91])]
+                                 (cents->$dollars price-91))]
+                             ["Delivery Times"
+                              #(form-time-choices->hrf
+                                (server-time-choices->form-time-choices
+                                 (get-in % [:config :time-choices])))
+                              #(form-time-choices->hrf
+                                (server-time-choices->form-time-choices
+                                 (get-in % [:config :time-choices])))]
+                             ["# Zips" #(:zip_count %) #(:zip_count %)]]}
               (paginated-zones)]]
             [TablePager
              {:total-pages (count (sorted-zones))

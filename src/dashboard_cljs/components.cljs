@@ -23,6 +23,127 @@
      (str " " caption)]))
 
 ;; Table components
+;; Table components
+(defn TableHeadSortable
+  "props is:
+  {
+  :keyword        ; keyword associated with this field to sort by
+  :sort-keyword   ; reagent atom keyword
+  :sort-reversed? ; is the sort being reversed?
+  }
+  text is the text used in field"
+  [props text]
+  (fn [props text]
+    [:th
+     {:class (when-not (empty? text) "fake-link")
+      :on-click (fn [_]
+                  (when (not (empty? text))
+                    (reset! (:sort-keyword props) (:keyword props))
+                    (swap! (:sort-reversed? props) not)))}
+     text
+     (when (= @(:sort-keyword props)
+              (:keyword props))
+       [:i {:class (str "fa fa-fw "
+                        (if @(:sort-reversed? props)
+                          "fa-angle-down"
+                          "fa-angle-up"))}])]))
+
+(defn TableHeader
+  "Props:
+  {:sort-keyword   reagent/atom ; keyword used to sort table
+   :sort-reversed? reagent/atom ; boolean
+   :headers        vector     ; see below}
+
+  headers is
+  [[<str> ; header-txt
+     <fn> ; sort-fn for data
+   ]
+   ...
+  ]
+
+  ex table-map:
+  [[\"Make\"  :make]
+   [\"Model\" :model]]"
+  [props]
+  (fn [props]
+    (let [headers-vec (:headers props)]
+      [:thead
+       [:tr
+        (map (fn [[header-txt sort-fn]]
+               ^{:key header-txt}
+               [TableHeadSortable (assoc props :keyword sort-fn) header-txt])
+             headers-vec)]])))
+
+(defn TableRow
+  "props:
+  {:current-item reagent/atom ; map representing currently active item
+   :cells        hash-map     ; see below
+   :tr-props-fn  fn           ; fn of row-item, current-item for tr props
+  }
+
+  cells is
+  [[<fn> ; a fn of row item to be displayed in cell
+   ]
+   ...
+  ]
+  ex cells:
+  [[\"Make\" :make :make]
+   ...
+   [\"Top Tier\" :top_tier #(if (:only_top_tier %)
+                               \"Yes\"
+                               \"No\")]]"
+  [props]
+  (fn [row-item]
+    (let [{:keys [current-item cells tr-props-fn]} props]
+      ^{:key (:id row-item)}
+      [:tr
+       (tr-props-fn row-item current-item)
+       (doall (map (fn [[cell-fn]]
+                     ^{:key (gensym "key")}
+                     [:td (cell-fn row-item)])
+                   cells))])))
+
+(defn DynamicTable
+  "props:
+  {:current-item   reagent/atom ; map of currently select item
+   :sort-keyword   reagent/atom ; keyword items are being sorted by
+   :sort-reversed? reagent/atom ; boolean
+   :table-vecs     vec of vecs  ; see below
+   :tr-props-fn    fn           ; fn of row-item, current-item for tr props
+  }
+
+  ex table-vecs:
+  [[<str> ; table header
+    <fn>  ; sort-fn for data
+    <fn>  ; a fn of row item to be displayed in cell
+   ]
+   ...
+  ]
+
+  [[\"Make\" :make :make]
+   [\"Model\" :model :model]
+   [\"Top Tier\" :only_top_tier #(if (:only_top_tier %)
+                                 \"Yes\"
+                                 \"No\")]]"
+  [props data]
+  (fn [props data]
+    (let [{:keys [current-item sort-keyword sort-reversed? sort-fn
+                  table-vecs tr-props-fn]
+           :or {sort-fn (partial sort-by :id)}} props
+           table-vecs-filtered (filterv (comp not nil?)
+                                        table-vecs)
+           cell-fns (mapv #(vector (nth % 2)) table-vecs-filtered)]
+      [:table {:class "table table-bordered table-hover table-striped"}
+       [TableHeader {:sort-keyword sort-keyword
+                     :sort-reversed? sort-reversed?
+                     :headers table-vecs-filtered}]
+       [:tbody
+        (doall (map (fn [item]
+                      ^{:key (:id item)}
+                      ((TableRow {:current-item current-item
+                                  :cells cell-fns
+                                  :tr-props-fn tr-props-fn}) item))
+                    data))]])))
 
 (defn StaticTable
   "props contains:
@@ -44,32 +165,33 @@
                ^{:key (:id element)}
                [(:table-row props) element])
              data)]])))
+;; end table components
 
-(defn TableHeadSortable
-  "props is:
+#_ (defn TableHeadSortable
+     "props is:
   {
   :keyword        ; keyword associated with this field to sort by
   :sort-keyword   ; reagent atom keyword
   :sort-reversed? ; is the sort being reversed?
   }
   text is the text used in field"
-  [props text]
-  (fn [props text]
-    [:th
-     {:class "fake-link"
-      :style (merge {:white-space "nowrap"}
-                    (:style props))
-      :title (:title props)
-      :on-click #(do
-                   (reset! (:sort-keyword props) (:keyword props))
-                   (swap! (:sort-reversed? props) not))}
-     text
-     (when (= @(:sort-keyword props)
-              (:keyword props))
-       [:i {:class (str "fa fa-fw "
-                        (if @(:sort-reversed? props)
-                          "fa-angle-down"
-                          "fa-angle-up"))}])]))
+     [props text]
+     (fn [props text]
+       [:th
+        {:class "fake-link"
+         :style (merge {:white-space "nowrap"}
+                       (:style props))
+         :title (:title props)
+         :on-click #(do
+                      (reset! (:sort-keyword props) (:keyword props))
+                      (swap! (:sort-reversed? props) not))}
+        text
+        (when (= @(:sort-keyword props)
+                 (:keyword props))
+          [:i {:class (str "fa fa-fw "
+                           (if @(:sort-reversed? props)
+                             "fa-angle-down"
+                             "fa-angle-up"))}])]))
 (defn RefreshButton
   "props is:
   {
