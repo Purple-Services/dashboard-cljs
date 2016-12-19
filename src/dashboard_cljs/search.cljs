@@ -2,7 +2,7 @@
   (:require [clojure.string :as s]
             [cljs.core.async :refer [put!]]
             [reagent.core :as r]
-            [dashboard-cljs.components :refer [StaticTable TablePager]]
+            [dashboard-cljs.components :refer [DynamicTable TablePager]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.orders :as orders]
             [dashboard-cljs.users :as users]
@@ -64,11 +64,21 @@
                               :state state
                               :gmap-keyword :search-orders}]
          [:div {:class "table-responsive"}
-          [StaticTable
-           {:table-header [orders/order-table-header
-                           {:sort-keyword sort-keyword
-                            :sort-reversed? sort-reversed?}]
-            :table-row (orders/order-row current-order)}
+          [DynamicTable {:current-item current-order
+                         :tr-props-fn
+                         (fn [order current-order]
+                           {:class (str (when (= (:id order)
+                                                 (:id @current-order))
+                                          "active"))
+                            :on-click
+                            (fn [_]
+                              (reset! current-order order)
+                              (reset! (r/cursor state [:editing-notes?]) false))
+                            })
+                         :sort-keyword sort-keyword
+                         :sort-reversed? sort-reversed?
+                         :table-vecs
+                         orders/orders-table-vecs}
            (paginated-orders)]]
          [TablePager
           {:total-pages (count (sorted-orders))

@@ -4,7 +4,7 @@
             [clojure.string :as s]
             [clojure.set :refer [subset?]]
             [reagent.core :as r]
-            [dashboard-cljs.components :refer [StaticTable TableHeadSortable
+            [dashboard-cljs.components :refer [DynamicTable
                                                RefreshButton ErrorComp
                                                TableFilterButton
                                                TableFilterButtonGroup
@@ -90,117 +90,6 @@
                        (reset! current-user (first user))))
     (.scrollTo js/window 0 0)
     (on-click-tab)))
-
-(defn order-row
-  "A table row for an order in a table. current-order is the one currently being
-  viewed"
-  [current-order]
-  (fn [order]
-    [:tr {:class (str (when (= (:id order)
-                               (:id @current-order))
-                        "active"))
-          :on-click (fn [_]
-                      (reset! current-order order)
-                      (reset! (r/cursor state [:editing-notes?]) false))}
-     ;; order status
-     [:td (:status order)]
-     ;; courier assigned
-     [:td (:courier_name order)]
-     ;; order placed
-     [:td (unix-epoch->hrf (:target_time_start order))]
-     ;; order deadline
-     [:td {:style (when-not (contains? #{"complete" "cancelled"} (:status order))
-                    (when (< (- (:target_time_end order)
-                                (now))
-                             (* 60 60))
-                      {:color "#d9534f"}))}
-      (unix-epoch->hrf (:target_time_end order))
-      (when (:tire_pressure_check order)
-        ;; http://www.flaticon.com/free-icon/car-wheel_75660#term=wheel&page=1&position=34
-        [:img {:src (str base-url "/images/car-wheel.png")
-               :alt "tire-check"}])]
-     ;; order completed
-     [:td
-      (when (contains? #{"complete"} (:status order))
-        (let [completed-time
-              (get-event-time (:event_log order) "complete")]
-          [:span {:style
-                  (when (> completed-time
-                           (:target_time_end order)) {:color "#d9534f"})}
-           (unix-epoch->hrf completed-time)]))
-      (when (contains? #{"cancelled"} (:status order))
-        "Cancelled")
-      (when-not (contains? #{"complete" "cancelled"} (:status order))
-        "In-Progress")]
-     ;; delivery time (TODO: this should show minutes if non-zero)
-     [:td (str (.diff (js/moment.unix (:target_time_end order))
-                      (js/moment.unix (:target_time_start order))
-                      "hours")
-               " Hr")]
-     ;; username
-     [:td
-      [UserCrossLink
-       {:on-click (fn [] (user-cross-link-on-click (:user_id order)))}
-       [:span {:style (when-not (= 0 (:subscription_id order))
-                        {:color "#5cb85c"})}  (:customer_name order)]]]
-     ;; phone
-     [:td
-      [TelephoneNumber (:customer_phone_number order)]]
-     ;; email
-     [:td
-      [Mailto (:email order)]]
-     ;; street address
-     [:td [GoogleMapLink (str (:address_street order)
-                              ", " (:address_zip order))
-           (:lat order) (:lng order)]]
-     ;; zone
-     [:td [:i {:class "fa fa-circle"
-               :style {:color (:market-color order)}}]
-      " "
-      (:market order)
-      " - "
-      (:submarket order)
-      ]]))
-
-(defn order-table-header
-  "props is:
-  {
-  :sort-keyword   ; reagent atom keyword used to sort table
-  :sort-reversed? ; reagent atom boolean for determing if the sort is reversed
-  }"
-  [props]
-  (fn [props]
-    [:thead
-     [:tr
-      [TableHeadSortable
-       (conj props {:keyword :status})
-       "Status"]
-      [TableHeadSortable
-       (conj props {:keyword :courier_name})
-       "Courier"]
-      [TableHeadSortable
-       (conj props {:keyword :target_time_start})
-       "Placed"]
-      [TableHeadSortable
-       (conj props {:keyword :target_time_end})
-       "Deadline"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "Completed"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "Limit"]
-      [TableHeadSortable
-       (conj props {:keyword :customer_name})
-       "Name"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "Phone"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "Email"]
-      [TableHeadSortable
-       (conj props {:keyword :address_street})
-       "Address"]
-      [TableHeadSortable
-       (conj props {:keyword :market})
-       "Zone"]]]))
 
 (defn assign-courier
   "Assign order to selected-courier from the list of couriers. error
@@ -898,6 +787,89 @@ as in orders. If not, reset the current-order"
                                 (assoc new-current-order
                                        :etas old-etas))]
         (reset! current-order new-current-order)))))
+(def orders-table-vecs
+  [["Status" :status :status]
+   ["Courier" :courier_name :courier_name]
+   ["Placed" :target_time_start
+    #(unix-epoch->hrf
+      (:target_time_start %))]
+   ["Deadline" :target_time_end
+    (fn [order]
+      [:span
+       {:style (when-not (contains?
+                          #{"complete" "cancelled"}
+                          (:status order))
+                 (when (< (- (:target_time_end order)
+                             (now))
+                          (* 60 60))
+                   {:color "#d9534f"}))}
+       (unix-epoch->hrf (:target_time_end order))
+       (when (:tire_pressure_check order)
+         ;; http://www.flaticon.com/free-icon/car-wheel_75660#term=wheel&page=1&position=34
+         [:img {:src (str base-url "/images/car-wheel.png")
+                :alt "tire-check"}])])]
+   ["Completed"
+    (fn [order]
+      (cond (contains? #{"cancelled"} (:status order))
+            "Cancelled"
+            (contains? #{"complete"} (:status order))
+            (unix-epoch->hrf
+             (get-event-time (:event_log order)
+                             "complete"))
+            :else "In-Progress"))
+    (fn [order]
+      [:span
+       (when (contains? #{"complete"} (:status order))
+         (let [completed-time
+               (get-event-time (:event_log order)
+                               "complete")]
+           [:span {:style
+                   (when (> completed-time
+                            (:target_time_end order))
+                     {:color "#d9534f"})}
+            (unix-epoch->hrf completed-time)]))
+       (when (contains? #{"cancelled"} (:status order))
+         "Cancelled")
+       (when-not (contains? #{"complete" "cancelled"}
+                            (:status order))
+         "In-Progress")])]
+   ["Limit" #(.diff
+              (js/moment.unix (:target_time_end %))
+              (js/moment.unix (:target_time_start %))
+              "hours")
+    #(str
+      (.diff (js/moment.unix (:target_time_end %))
+             (js/moment.unix (:target_time_start %))
+             "hours") " Hr")]
+   ["Name" :customer_name
+    (fn [order]
+      [UserCrossLink
+       {:on-click (fn [] (user-cross-link-on-click
+                          (:user_id order)))}
+       [:span {:style
+               (when-not (= 0
+                            (:subscription_id order))
+                 {:color "#5cb85c"})}
+        (:customer_name order)]])]
+   ["Phone" :customer_phone_number
+    (fn [order]
+      [TelephoneNumber (:customer_phone_number order)])]
+   ["Email" :email (fn [order]
+                     [Mailto (:email order)])]
+   ["Address"
+    :address_street
+    (fn [order]
+      [GoogleMapLink (str (:address_street order)
+                          ", " (:address_zip order))
+       (:lat order) (:lng order)])]
+   ["Zone" #(str (:market %) " - " (:submarket %))
+    (fn [order]
+      [:span [:i {:class "fa fa-circle"
+                  :style {:color (:market-color order)}}]
+       " "
+       (:market order)
+       " - "
+       (:submarket order)])]])
 
 (defn orders-panel
   "Display a table of selectable orders with an indivdual order panel
@@ -998,10 +970,21 @@ as in orders. If not, reset the current-order"
             [RefreshButton {:refresh-fn
                             refresh-fn}]]]]
          [:div {:class "table-responsive"}
-          [StaticTable
-           {:table-header [order-table-header {:sort-keyword sort-keyword
-                                               :sort-reversed? sort-reversed?}]
-            :table-row (order-row current-order)}
+          [DynamicTable {:current-item current-order
+                         :tr-props-fn
+                         (fn [order current-order]
+                           {:class (str (when (= (:id order)
+                                                 (:id @current-order))
+                                          "active"))
+                            :on-click
+                            (fn [_]
+                              (reset! current-order order)
+                              (reset! (r/cursor state [:editing-notes?]) false))
+                            })
+                         :sort-keyword sort-keyword
+                         :sort-reversed? sort-reversed?
+                         :table-vecs
+                         orders-table-vecs}
            (paginated-orders)]]
          [TablePager
           {:total-pages (count (sorted-orders))

@@ -4,9 +4,8 @@
             [dashboard-cljs.utils :refer [base-url unix-epoch->fmt
                                           unix-epoch->hrf cents->$dollars
                                           markets get-event-time]]
-            [dashboard-cljs.components :refer [StaticTable TableHeadSortable
-                                               RefreshButton CountPanel
-                                               TablePager TelephoneNumber]]
+            [dashboard-cljs.components :refer [DynamicTable RefreshButton
+                                               CountPanel TablePager]]
             [dashboard-cljs.orders :as orders]
             goog.string.format
             [clojure.string :as s]))
@@ -60,85 +59,10 @@
           (fn [orders] (/ (count (cancelled-orders orders))
                           (count (completed-orders orders))))]
       [CountPanel {:value (str "%" (* 100 (.toFixed (percent-cancelled
-                                                 @datastore/orders)
-                                                2)))
+                                                     @datastore/orders)
+                                                    2)))
                    :caption "Percent Cancelled Today"
                    :panel-class "panel-primary"}])))
-
-(defn order-row
-  "A table row for an order in a table. current-order is the one currently being
-  viewed"
-  [current-order]
-  (fn [order]
-    [:tr {:class (when (= (:id order)
-                          (:id @current-order))
-                   "active")
-          :on-click #(reset! current-order order)}
-     ;; order status
-     [:td (:status order)]
-     ;; courier assigned
-     [:td (:courier_name order)]
-     ;; order placed
-     [:td (unix-epoch->hrf
-           (:target_time_start order))]
-     ;; delivery time
-     [:td (str (.diff (js/moment.unix (:target_time_end order))
-                      (js/moment.unix (:target_time_start order))
-                      "hours")
-               " Hr")]
-     ;; username
-     [:td (:customer_name order)]
-     ;; phone #
-     [:td [TelephoneNumber (:customer_phone_number order)]]
-     ;; email #
-     [:td (:email order)]
-     ;; street address
-     [:td [:i {:class "fa fa-circle"
-               :style {:color (:zone-color order)}}]
-      " "
-      (:address_street order)]]))
-
-(defn order-table-header
-  "props is:
-  {
-  :sort-keyword   ; reagent atom keyword used to sort table
-  :sort-reversed? ; reagent atom boolean for determing if the sort is reversed
-  }"
-  [props]
-  (fn [props]
-    [:thead
-     [:tr
-      [TableHeadSortable
-       (conj props {:keyword :status
-                    :style {:border-bottom "none"}})
-       "Status"]
-      [TableHeadSortable
-       (conj props {:keyword :courier_name
-                    :style {:border-bottom "none"}})
-       "Courier"
-       ]
-      [TableHeadSortable
-       (conj props {:keyword :target_time_start
-                    :style {:border-bottom "none"}})
-       "Order Placed"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"
-                    :border-bottom "none"}} "Delivery Time"]
-      [TableHeadSortable
-       (conj props {:keyword :customer_name
-                    :style {:border-bottom "none"}})
-       "Username"] 
-      [TableHeadSortable
-       (conj props {:keyword :customer_phone_number
-                    :style {:border-bottom "none"}})
-       "Phone #"] 
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"
-                    :border-bottom "none"}} "Email"]
-      [TableHeadSortable
-       (conj props {:keyword :address_street
-                    :border-bottom "none"})
-       "Street Address"]]]))
 
 (defn current-orders-panel
   "Display the orders that have yet to be completed or cancelled"
@@ -176,11 +100,19 @@
          [:div {:class (when (= (count sorted-orders) 0)
                          "hide")}
           [:div {:class "table-responsive"}
-           [StaticTable
-            {:table-header [orders/order-table-header
-                            {:sort-keyword sort-keyword
-                             :sort-reversed? sort-reversed?}]
-             :table-row (orders/order-row current-order)}
+           [DynamicTable {:current-item current-order
+                          :tr-props-fn
+                          (fn [order current-order]
+                            {:class (str (when (= (:id order)
+                                                  (:id @current-order))
+                                           "active"))
+                             :on-click
+                             (fn [_]
+                               (reset! current-order order))})
+                          :sort-keyword sort-keyword
+                          :sort-reversed? sort-reversed?
+                          :table-vecs
+                          orders/orders-table-vecs}
             paginated-orders]]
           [TablePager
            {:total-pages (count sorted-orders)

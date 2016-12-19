@@ -10,8 +10,7 @@
                                           parse-to-number? accessible-routes
                                           diff-message get-input-value
                                           get-by-id]]
-            [dashboard-cljs.components :refer [DynamicTable StaticTable
-                                               TableHeadSortable
+            [dashboard-cljs.components :refer [DynamicTable
                                                RefreshButton TablePager
                                                FormGroup TextInput KeyVal
                                                EditFormSubmit DismissButton
