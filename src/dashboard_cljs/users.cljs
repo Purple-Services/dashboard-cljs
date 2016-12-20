@@ -16,7 +16,7 @@
                                           subscription-id->name]]
             [dashboard-cljs.state :refer [users-state]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
-            [dashboard-cljs.components :refer [StaticTable TableHeadSortable
+            [dashboard-cljs.components :refer [DynamicTable
                                                RefreshButton KeyVal StarRating
                                                TablePager ConfirmationAlert
                                                FormGroup TextInput
@@ -118,182 +118,6 @@
            [RefreshButton {:refresh-fn (fn []
                                          (refresh-fn saving?))
                            :refreshing? saving?}]]]]]])))
-
-(defn user-row
-  "A table row for an user in a table. current-user is the one currently 
-  being viewed"
-  [current-user state]
-  (fn [user]
-    (let [orders (->> @datastore/orders
-                      (filter (fn [order] (= (:id user)
-                                             (:user_id order)))))
-          user-orders (fn [user]
-                        (->> @datastore/orders
-                             (filter (fn [order]
-                                       (= (:id user)
-                                          (:user_id order))))))]
-      [:tr {:class (when (= (:id user)
-                            (:id @current-user))
-                     "active")
-            :on-click (fn [_]
-                        (reset! current-user user)
-                        (reset! (r/cursor state [:alert-success]) "")
-                        (when (<= (count (user-orders user))
-                                  0)
-                          (select-toggle-key!
-                           (r/cursor state [:tab-content-toggle])
-                           :info-view))
-                        (reset! (r/cursor state [:user-orders-current-page]) 1))}
-       ;; name
-       [:td
-        [UserCrossLink
-         {:on-click (fn [] (user-cross-link-on-click (:id user)))}
-         [:span {:style (when-not (= 0 (:subscription_id user))
-                          {:color "#5cb85c"})}  (:name user)]]]
-       ;; market
-       [:td
-        (-> orders
-            first
-            :zone
-            (quot 50)
-            markets)]
-       ;; orders count
-       [:td (:orders_count user)]
-       ;; email
-       [:td [Mailto (:email user)]]
-       ;; phone
-       [:td [TelephoneNumber (:phone_number user)]]
-       ;; card?
-       [:td (if (s/blank? (:stripe_default_card user))
-              "No"
-              "Yes")]
-       ;; push?
-       [:td (if (s/blank? (:arn_endpoint user))
-              "No"
-              "Yes")]
-       ;; os
-       [:td (:os user)]
-       ;; version
-       [:td (:app_version user)]
-       ;; joined
-       [:td (unix-epoch->fmt (:timestamp_created user) "M/D/YYYY")]])))
-
-(defn user-table-header
-  "props is:
-  {
-  :sort-keyword   ; reagent atom keyword used to sort table
-  :sort-reversed? ; reagent atom boolean for determing if the sort is reversed
-  }"
-  [props]
-  (fn [props]
-    [:thead
-     [:tr
-      [TableHeadSortable
-       (conj props {:keyword :name})
-       "Name"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"}}
-       "Market"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"}}
-       "Orders"]
-      [TableHeadSortable
-       (conj props {:keyword :email})
-       "Email"] 
-      [TableHeadSortable
-       (conj props {:keyword :phone_number})
-       "Phone"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"}}
-       "Card?"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"}}
-       "Push?"]
-      [TableHeadSortable
-       (conj props {:keyword :os})
-       "OS"]
-      [TableHeadSortable
-       (conj props {:keyword :app_version})
-       "Version"]
-      [TableHeadSortable
-       (conj props {:keyword :timestamp_created})
-       "Joined"]]]))
-
-(defn user-orders-header
-  "props is:
-  {
-  :sort-keyword   ; reagent atom keyword used to sort table
-  :sort-reversed? ; reagent atom boolean for determing if the sort is reversed
-  }"
-  [props]
-  (fn [props]
-    [:thead
-     [:tr
-      [TableHeadSortable
-       (conj props {:keyword :status})
-       "Status"]
-      [TableHeadSortable
-       (conj props {:keyword :courier_name})
-       "Courier"]
-      [TableHeadSortable
-       (conj props {:keyword :target_time_start})
-       "Placed"]
-      [TableHeadSortable
-       (conj props {:keyword :target_time_end})
-       "Deadline"]
-      [:th {:style {:font-size "16px"
-                    :font-weight "normal"}} "Completed"]
-      [TableHeadSortable
-       (conj props {:keyword :address_street})
-       "Order Address"]
-      [TableHeadSortable
-       (conj props {:keyword :number_rating})
-       "Courier Rating"]]]))
-
-(defn user-orders-row
-  "Table row to display a users orders"
-  []
-  (fn [order]
-    [:tr
-     ;; order status
-     [:td (:status order)]
-     ;; courier assigned
-     [:td (:courier_name order)]
-     ;; order placed
-     [:td (unix-epoch->hrf (:target_time_start order))]
-     ;; order dealine
-     [:td {:style (when-not (contains? #{"complete" "cancelled"} (:status order))
-                    (when (< (- (:target_time_end order)
-                                (now))
-                             (* 60 60))
-                      {:color "#d9534f"}))}
-      (unix-epoch->hrf (:target_time_end order)) " "
-      (when (:tire_pressure_check order)
-        ;; http://www.flaticon.com/free-icon/car-wheel_75660#term=wheel&page=1&position=34
-        [:img {:src (str base-url "/images/car-wheel.png")
-               :alt "tire-check"}])]
-     ;; order completed
-     [:td
-      (when (contains? #{"complete"} (:status order))
-        (let [completed-time
-              (get-event-time (:event_log order) "complete")]
-          [:span {:style
-                  (when (> completed-time
-                           (:target_time_end order)) {:color "#d9534f"})}
-           (unix-epoch->hrf completed-time)]))
-      (when (contains? #{"cancelled"} (:status order))
-        "Cancelled")
-      (when-not (contains? #{"complete" "cancelled"} (:status order))
-        "In-Progress")]
-     ;; street address
-     [:td [GoogleMapLink (str (:address_street order)
-                              ", " (:address_zip order))
-           (:lat order) (:lng order)]]
-     ;; star rating
-     [:td
-      (let [number-rating (:number_rating order)]
-        (when number-rating
-          [StarRating number-rating]))]]))
 
 (defn user-history-header
   "props
@@ -972,11 +796,75 @@
                     :style (when-not (> (count paginated-orders)
                                         0)
                              {:display "none"})}
-              [StaticTable
-               {:table-header [user-orders-header
-                               {:sort-keyword sort-keyword
-                                :sort-reversed? sort-reversed?}]
-                :table-row (user-orders-row)}
+              [DynamicTable
+               {:current-item (r/atom {})
+                :tr-props-fn (constantly true)
+                :sort-keyword sort-keyword
+                :sort-reversed? sort-reversed?
+                :table-vecs
+                [["Status" :status :status]
+                 ["Courier" :courier_name :courier_name]
+                 ["Placed" :target_time_start
+                  #(unix-epoch->hrf (:target_time_start %))]
+                 ["Deadline" :target_time_end
+                  (fn [order]
+                    [:span
+                     {:style
+                      (when-not (contains?
+                                 #{"complete" "cancelled"}
+                                 (:status order))
+                        (when (< (- (:target_time_end order)
+                                    (now))
+                                 (* 60 60))
+                          {:color "#d9534f"}))}
+                     (unix-epoch->hrf (:target_time_end order))
+                     (when (:tire_pressure_check order)
+                       ;; http://www.flaticon.com/free-icon/car-wheel_75660#term=wheel&page=1&position=34
+                       [:img
+                        {:src
+                         (str base-url "/images/car-wheel.png")
+                         :alt "tire-check"}])])]
+                 ["Completed" (fn [order]
+                                (cond (contains? #{"cancelled"}
+                                                 (:status order))
+                                      "Cancelled"
+                                      (contains? #{"complete"}
+                                                 (:status order))
+                                      (unix-epoch->hrf
+                                       (get-event-time (:event_log order)
+                                                       "complete"))
+                                      :else "In-Progress"))
+                  (fn [order]
+                    [:span
+                     (when (contains? #{"complete"}
+                                      (:status order))
+                       (let [completed-time
+                             (get-event-time (:event_log order)
+                                             "complete")]
+                         [:span {:style
+                                 (when
+                                     (> completed-time
+                                        (:target_time_end order))
+                                   {:color "#d9534f"})}
+                          (unix-epoch->hrf completed-time)]))
+                     (when (contains? #{"cancelled"}
+                                      (:status order))
+                       "Cancelled")
+                     (when-not
+                         (contains? #{"complete" "cancelled"}
+                                    (:status order))
+                       "In-Progress")])]
+                 ["Order Address" :address_street
+                  (fn [order]
+                    [GoogleMapLink
+                     (str (:address_street order)
+                          ", " (:address_zip order))
+                     (:lat order) (:lng order)])]
+                 ["Courier Rating" :number_rating
+                  (fn [order]
+                    (let [number-rating (:number_rating order)]
+                      (when number-rating
+                        [StarRating number-rating])))]]}
                paginated-orders]]
              [:div {:style (when-not (> (count paginated-orders)
                                         0)
@@ -1029,11 +917,88 @@
          [:div {:class "panel"
                 :style {:margin-top "15px"}}
           [:div {:class "table-responsive"}
-           [StaticTable
-            {:table-header [user-table-header
-                            {:sort-keyword sort-keyword
-                             :sort-reversed? sort-reversed?}]
-             :table-row (user-row current-user state)}
+           [DynamicTable
+            {:current-item current-user
+             :tr-props-fn (fn [user current-user]
+                            (let [user-orders
+                                  (fn [user]
+                                    (->> @datastore/orders
+                                         (filter (fn [order]
+                                                   (= (:id user)
+                                                      (:user_id order))))))]
+                              {:class (when (= (:id user)
+                                               (:id @current-user))
+                                        "active")
+                               :on-click (fn [_]
+                                           (reset! current-user user)
+                                           (reset!
+                                            (r/cursor state
+                                                      [:alert-success]) "")
+                                           (when (<= (count (user-orders user))
+                                                     0)
+                                             (select-toggle-key!
+                                              (r/cursor state
+                                                        [:tab-content-toggle])
+                                              :info-view))
+                                           (reset!
+                                            (r/cursor
+                                             state
+                                             [:user-orders-current-page]) 1))}))
+             :sort-keyword sort-keyword
+             :sort-reversed? sort-reversed?
+             :table-vecs [["Name" :name
+                           (fn [user]
+                             [UserCrossLink
+                              {:on-click
+                               (fn [] (user-cross-link-on-click (:id user)))}
+                              [:span
+                               {:style (when-not (= 0 (:subscription_id user))
+                                         {:color "#5cb85c"})}  (:name user)]])]
+                          ["Market" (fn [user]
+                                      (->
+                                       (->> @datastore/orders
+                                            (filter (fn [order]
+                                                      (= (:id user)
+                                                         (:user_id order)))))
+                                       first
+                                       :zone
+                                       (quot 50)
+                                       markets))
+                           (fn [user]
+                             (->
+                              (->> @datastore/orders
+                                   (filter (fn [order]
+                                             (= (:id user)
+                                                (:user_id order)))))
+                              first
+                              :zone
+                              (quot 50)
+                              markets))]
+                          ["Orders" :orders_count :orders_count]
+                          ["Email" :email (fn [user]
+                                            [Mailto (:email user)])]
+                          ["Phone" :phone_number
+                           (fn [user]
+                             [TelephoneNumber (:phone_number user)])]
+                          ["Card?" #(if (s/blank? (:stripe_default_card %))
+                                      "No"
+                                      "Yes")
+                           #(if (s/blank? (:stripe_default_card %))
+                              "No"
+                              "Yes")]
+                          ["Push?"
+                           #(if (s/blank? (:arn_endpoint %))
+                              "No"
+                              "Yes")
+                           #(if (s/blank? (:arn_endpoint %))
+                              "No"
+                              "Yes")]
+                          ["OS" :os :os]
+                          ["Version" :app_version :app_version]
+                          ["Joined"
+                           :timestamp_created
+                           #(unix-epoch->fmt
+                             (:timestamp_created %) "M/D/YYYY")]]}
             (paginated-users)]]]
          [TablePager
           {:total-pages (count (sorted-users))

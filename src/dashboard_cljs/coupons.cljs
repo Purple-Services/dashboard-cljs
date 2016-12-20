@@ -479,49 +479,43 @@
             [RefreshButton {:refresh-fn
                             refresh-fn}]]]]
          [:div {:class "table-responsive"}
-          #_ [StaticTable
-              {:table-header [coupon-table-header
-                              {:sort-keyword sort-keyword
-                               :sort-reversed? sort-reversed?}]
-               :table-row (coupon-row current-coupon)}
-              (paginated-coupons)]]
-         [DynamicTable
-          {:current-item current-coupon
-           :tr-props-fn
-           (fn [coupon current-coupon]
-             {:class (when (= (:id coupon)
-                              (:id @current-coupon))
-                       "active")
-              :on-click (fn [_]
-                          (reset! current-coupon coupon)
-                          (reset! (r/cursor state [:alert-success]) ""))})
-           :sort-keyword sort-keyword
-           :sort-reversed? sort-reversed?
-           :table-vecs
-           [["Coupon Code" :code :code]
-            ["Amount" :value #(cents->$dollars (.abs js/Math (:value %)))]
-            ["Start Date" :timestamp_created
-             #(unix-epoch->fmt (:timestamp_created %) "M/D/YYYY")]
-            ["Expiration Date" :expiration_time
-             #(unix-epoch->fmt (:expiration_time %) "M/D/YYYY")]
-            ["# of Users"
-             (fn [coupon]
-               (-> coupon
-                   :used_by_user_ids
-                   (s/split #",")
-                   (#(remove s/blank? %))
-                   count))
-             (fn [coupon]
-               (-> coupon
-                   :used_by_user_ids
-                   (s/split #",")
-                   (#(remove s/blank? %))
-                   count))]
-            ["First Order Only?" :only_for_first_orders
-             #(if (:only_for_first_orders %)
-                "Yes"
-                "No")]]}
-          (paginated-coupons)]
+          [DynamicTable
+           {:current-item current-coupon
+            :tr-props-fn
+            (fn [coupon current-coupon]
+              {:class (when (= (:id coupon)
+                               (:id @current-coupon))
+                        "active")
+               :on-click (fn [_]
+                           (reset! current-coupon coupon)
+                           (reset! (r/cursor state [:alert-success]) ""))})
+            :sort-keyword sort-keyword
+            :sort-reversed? sort-reversed?
+            :table-vecs
+            [["Coupon Code" :code :code]
+             ["Amount" :value #(cents->$dollars (.abs js/Math (:value %)))]
+             ["Start Date" :timestamp_created
+              #(unix-epoch->fmt (:timestamp_created %) "M/D/YYYY")]
+             ["Expiration Date" :expiration_time
+              #(unix-epoch->fmt (:expiration_time %) "M/D/YYYY")]
+             ["# of Users"
+              (fn [coupon]
+                (-> coupon
+                    :used_by_user_ids
+                    (s/split #",")
+                    (#(remove s/blank? %))
+                    count))
+              (fn [coupon]
+                (-> coupon
+                    :used_by_user_ids
+                    (s/split #",")
+                    (#(remove s/blank? %))
+                    count))]
+             ["First Order Only?" :only_for_first_orders
+              #(if (:only_for_first_orders %)
+                 "Yes"
+                 "No")]]}
+           (paginated-coupons)]]
          [TablePager
           {:total-pages (count (sorted-coupons))
            :current-page current-page
