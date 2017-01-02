@@ -787,6 +787,7 @@ as in orders. If not, reset the current-order"
                                 (assoc new-current-order
                                        :etas old-etas))]
         (reset! current-order new-current-order)))))
+
 (def orders-table-vecs
   [["Status" :status :status]
    ["Courier" :courier_name :courier_name]
@@ -847,9 +848,11 @@ as in orders. If not, reset the current-order"
        {:on-click (fn [] (user-cross-link-on-click
                           (:user_id order)))}
        [:span {:style
-               (when-not (= 0
-                            (:subscription_id order))
-                 {:color "#5cb85c"})}
+               (cond (:first_order? order)
+                     {:color "#F88458"}
+                     (not (= 0
+                             (:subscription_id order)))
+                     {:color "#5cb85c"})}
         (:customer_name order)]])]
    ["Phone" :customer_phone_number
     (fn [order]
