@@ -1,10 +1,12 @@
 # dashboard-cljs
 
-Clojurescript frontend of Purple internal dashboard
+ClojureScript for the internal Purple Dashboard
 
-## Setup
+## Javascript and ClojureScript
 
-When developing, both basic and advanced compilation should be done in parallel and tested. This is because there can be discrepancies in the way the code is compiled between the two modes. One common problem is the way javascript object properties are accessed in clojurescript. For example, in javascript the URL property of document is accessed via:
+ClojureScript uses the Google closure compiler to translate ClojureScript to Javascript. There is a basic and advanced compilation mode. The basic compilation outputs Javascript that is suitable for debugging purposes. The advanced compilation mode produces a single file of minified Javascript with dead code pruned and is suitable for a production release.
+
+There can be discrepancies in the way the code is compiled between the two modes. One common problem is the way javascript object properties are accessed in clojurescript. For example, in javascript the URL property of document is accessed via:
 
 ```javascript
 document.URL
@@ -19,41 +21,69 @@ In clojurescript, this can be accessed in two ways.
 (aget document "URL")
 ```
 
-These two statements are equivalent when using basic compilation. However, in advanced compilation mode the first example will fail due to name mangling. The reason that the second example works and the first one doesn't is that the Google closure compiler in advanced compilation mode (which is used by the clojurescript compiler) will not touch strings.
+The above two statements are equivalent when using basic compilation. However, in advanced compilation mode the first example will fail due to name mangling. The reason that the second example works and the first one doesn't is that the Google closure compiler in advanced compilation mode (which is used by the clojurescript compiler) will not touch strings.
 
-Production code should use the output from advanced compilation. When developing, the basic compilation output is more useful for debugging purposes. It is therefore imperative that both the basic and advanced compilations are developed and tested in parallel.
+Development of the Purple dash is full-stack development work on the dashboard-service and dashboard-cljs repositories. The following outline provides a basic workflow that assumes a directory structure that matches that of the Purple-Services repository.
 
-A common workflow is that a new feature is implemented and tested in basic mode. Once it is working to your satisfaction, test that the advanced compilation of the code works the same way.
+For example:
 
-Use cljsbuild to build both dev and prod environments together.
-
-```bash
-$ lein cljsbuild auto
+```
+Purple-Services
+	|
+	|- dashboard-service
+	|
+	|- dashboard-cljs
 ```
 
-Development environment must be run with a node server using the server.js file.
-The server attempts to find an empty port starting from 8080. You must install
-the portfinder, connect and server-static node nodules.
+# Development Workflow
 
+0. Produce a new route or feature in dashboard-service (optional)
+1. Develop the interface using figwheel
+2. Test the advanced compilation output with dashboard-service
+
+## 1. Develop the interface using figwheel
+
+You will need two terminals open in order to compile and run the code using this workflow.
+
+*Advanced compilation*
 ```bash
-$ sudo npm install -g connect serve-static portfinder
+$ lein cljsbuild auto release
 ```
 
-Run the server
+The dashboard-service server should be running when developing. Start it in the dashboard-service dir:
 
 ```bash
-$ node server.js
-Node Server is listening on port 8000
+$ lein ring server
 ```
 
-Open http://localhost:8000 in your browser
+The advanced compilation target is
+```
+../dashboard-service/src/public/js/dashboard_cljs.js
+```
 
+*Figwheel*
+```bash
+$ rlwrap lein figwheel
+```
 
-If you would like to open up a separate Chrome dev window for development, use the follwing command:
+Note: rlwrap provides a readline wrapper for the figwheel REPL
+
+Connect the browser to the figwheel server by browsing to http://localhost:3449/index.html. After it connects, the figwheel REPL will become active in the terminal. When changes are made to the codebase, Figwheel will automatically update the browser code. If there are errors during compilation, Figwheel will report them.
+
+Figwheel serves index.html from the resources/public dir. The code depends on setting a base-url in the html file that it is served from. For example, index.html and index_dashmap.html both have this div:
+
+```html
+<div id="base-url" value="http://localhost:3001/dashboard/" style="display: none;"></div>
+```
+
+where the attribute 'value' is the base-url. The clojurescript code pulls the value attribute from div#base-url in order to set the base-url used in server calls. The base-url defined in the div above assumes the server is running on the default port of 3001 (defined in dashboard-services/profiles.clj).
+
+If you would like to open up a separate Chrome dev environment for development, use the follwing command:
 
 ```bash
-$  /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --disable-web-security --user-data-dir=/tmp/chrome2/ \ http://localhost:8000
+$  /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --disable-web-security --user-data-dir=/tmp/chrome2/ \ http://localhost:3449/index.html
 ```
+
 Alternatively, create a script named 'chrome-file-open':
 
 ```bash
@@ -65,46 +95,45 @@ Alternatively, create a script named 'chrome-file-open':
 chmod +x this script and put it on your $PATH. You can then open the files with:
 
 ```bash
-$ chrome-file-open http://localhost:8000
+$ chrome-file-open http://localhost:3449/index.html
 ```
 
-The production build is setup to be exported to dashboard-service. Run the server locally
-and test the prod build there.
+### figwheel notes
 
-Check both browser tabs as you are developing to ensure that each compilation results in expected behavior. 
+Most of the dashboard makes use of the Reagent ClojureScript React wrapper. The real-time map is written in ClojureScript, but does not make use of Reagent. The code for the map resides in gmaps.cljs. 
 
+The rest of the notes pertain to development of the main dashboard excluding gmaps.cljs.
 
-The code depends on setting a base-url in the html file that it is served from. For example, index.html and index_release.html both have this div:
+#### You can check the datastore atoms, which contains all of the data downloaded from the server, in the figwheel REPL
 
-```html
-<div id="base-url" value="http://localhost:3001/dashboard/" style="display: none;"></div>
+Ex:
+```clojure
+cljs.user=> (first @dashboard-cljs.datastore/orders)
+{:address_state "", :tire_pressure_check false, :was-late false, :email "jatkins10@gmail.com", :customer_phone_number "8587404160", :target_time_start 1481648369, :payment_info "{\"id\":\"card_18V5D9D0DZN191iCL9EEh9Ks\",\"brand\":\"Discover\",\"exp_month\":6,\"exp_year\":2021,\"last4\":\"5376\"}", :courier_id "8qhjmZ040BhVcPR81i2r", :vehicle_id "SjW1qG3ECRoVRW3TCxW4", :total_price 3589, :stripe_charge_id "ch_19QJcjD0DZN191iCcb7rtqvl", :coupon_code "", :target_time_end 1481666369, :special_instructions "", :event_log "assigned 1481648470|accepted 1481648486|enroute 1481648490|servicing 1481655128|complete 1481655562|", :subscription_id 0, :number_rating nil, :courier_name "Steven Brooks", :status "complete", :id "D1PeEYCgVKabU7EB9Lcy", :notes "", :zones [1 3 359 325], :paid true, :lat 33.0035751221569, :address_zip "92075", :gallons 10, :user_id "P3EKmVDSjz5Nm73yCLZX", :vehicle {:id "SjW1qG3ECRoVRW3TCxW4", :year "2012", :make "Acura", :model "RDX", :color "Gray", :gas_type "91", :license_plate "6UWF118"}, :admin_event_log nil, :market "SD", :first_order? false, :market-color "#4DAF7C", :submarket "Encinitas", :address_street "780 Santa Victoria", :text_rating "", :license_plate "6UWF118", :customer_name "Jesse atkins", :address_city "", :lng -117.251064794872, :timestamp_created "2016-12-13T10:59:30Z", :gas_type "91"}
+cljs.user=>
 ```
 
-where the attribute 'value' is the base-url. The clojurescript code pulls the value attribute from div#base-url in order to set the base-url used in server calls.
+These are the atoms for each dataset used by the dashboard:
 
-The dashboard-service server should be running when developing. Start it in the dashboard-service dir:
-
-```bash
-$ lein ring server
+```
+dashboard-cljs.datastore/orders
+dashboard-cljs.datastore/couriers
+dashboard-cljs.datastore/users
+dashboard-cljs.datastore/coupons
+dashboard-cljs.datastore/zones
 ```
 
-The base-url defined in the div above assumes the server is running on the default port of 3001
+#### on-jsload
 
-## exporting to the server
+When developing a feature for a particular tab on the dashboard (Home, Orders, Coupons, etc.), it is convinient to have figwheel go to that tab on every reload. In dev.cljs (not included in the advanced release compilation), you can change the view that is loaded. For example, to have zones tab selected, use:
 
-The dashboard-cljs repository contains a script that will do an advanced compilation of the clojurescript code and copy it to the appropriate location in dashboard-service
-
-```bash
-$ ./scripts/export_to_dashboard-service
-```
-
-This script assumes that you are developing in a root dir which contains both the dashboard-service and dashboard-cljs repositories. For example, the dir structure that I use for development on my local machine is:
-
-	PurpleInc
-	|
-	|- dashboard-service
-	|
-	- dashboard-cljs
+```clojure
+(defn ^:export on-jsload
+  []
+  (core/init-new-dash)
+  (utils/select-toggle-key! (r/cursor state/landing-state [:tab-content-toggle])
+                            :zones-view))
+```			   
 
 ## Adapating native React libraries for use with Reagent
 
@@ -149,4 +178,4 @@ as in the above case.
 ## License
 
 
-Copyright © 2016 Purple Services Inc
+Copyright © 2017 Purple Services Inc
