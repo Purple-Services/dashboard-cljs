@@ -59,7 +59,7 @@
 
 (def accessible-routes (r/atom #{}))
 
-(def markets
+(def markets ; TODO - deprecated
   {0 "Los Angeles"
    1 "San Diego"
    2 "Orange County"

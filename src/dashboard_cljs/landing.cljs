@@ -18,6 +18,7 @@
             [dashboard-cljs.zones :as zones]
             [dashboard-cljs.marketing :as marketing]
             [dashboard-cljs.orders :as orders]
+            [dashboard-cljs.fleet :as fleet]
             [dashboard-cljs.analytics :as analytics]
             [dashboard-cljs.googlemaps :refer [get-cached-gmaps on-click-tab]]
             [dashboard-cljs.state :refer [landing-state]]))
@@ -149,6 +150,14 @@
                 :toggle (:tab-content-toggle props)
                 :on-click-tab on-click-tab}
            [:div "Zones"]])
+        (when (subset? #{{:uri "/fleet-deliveries-since-date"
+                          :method "POST"}}
+                       @accessible-routes)
+          [Tab {:default? false
+                :toggle-key :fleet-view
+                :toggle (:tab-content-toggle props)
+                :on-click-tab on-click-tab}
+           [:div "Fleet"]])
         (when (subset? #{{:uri "/send-push-to-table-view"
                           :method "POST"}}
                        @accessible-routes)
@@ -254,6 +263,15 @@
                [zones/ZipsSearchBarComp zones/zips-search-state]
                [zones/ZipsSearchResults zones/zips-search-state]
                [zones/zones-panel @datastore/zones]])]
+           ;; fleet page
+           [TabContent
+            {:toggle (r/cursor tab-content-toggle [:fleet-view])}
+            [:div
+             (when (subset? #{{:uri "/fleet-deliveries-since-date"
+                               :method "POST"}}
+                            @accessible-routes)
+               [:div
+                [fleet/fleet-panel @datastore/fleet-deliveries fleet/state]])]]           
            ;; orders page
            [TabContent
             {:toggle (r/cursor tab-content-toggle [:orders-view])}
