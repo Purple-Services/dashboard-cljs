@@ -40,11 +40,12 @@
                     :alert-success ""}))
 
 (def orders-table-vecs
-  [["Location" :fleet_location_name :fleet_location_name]
+  [["" :timestamp_created "checkbox"]
+   ["Location" :fleet_location_name :fleet_location_name]
    ["Plate/Stock" :license_plate :license_plate]
    ["VIN" :vin :vin]
    ["Gallons" :gallons :gallons]
-   ["Octane" :gas_type :gas_type]
+   ["Type" :gas_type :gas_type]
    ["Top Tier?" :is_top_tier :is_top_tier]
    ["PPG" :gas_price #(cents->$dollars (:gas_price %))]
    ["Fee" :service_fee #(cents->$dollars (:service_fee %))]
@@ -55,48 +56,38 @@
 
 (defn account-names
   [orders]
-  (keys (group-by :account_name orders))
-  ;; ["Jim Falk Lexus"
-  ;;  "AA Global"
-  ;;  "Green Guard Services"
-  ;;  "SKURT"
-  ;;  "Pacific BMW"
-  ;;  "Environmental Landscape Development"
-  ;;  "Bemus"]
-  )
+  (keys (group-by :account_name orders)))
 
+;; excuse the misnomer "orders" and "order" (actually "deliveries")
 (defn fleet-panel
   [orders state]
   (let [current-order (r/cursor state [:current-order])
-        sort-keyword (r/atom :timestamp_created)
+        default-sort-keyword :timestamp_created
+        sort-keyword (r/atom default-sort-keyword)
         sort-reversed? (r/atom false)
         current-page (r/atom 1)
         page-size 20
-        selected-filter (r/atom (:account_name (first orders)))
-        filters (into {}
-                      (map (fn [x] [x #(= (:account_name %) x)])
-                           (account-names orders)))
-        
-        ;; {(:account_name (first orders)) (constantly true)
-        ;;  "Also Always True" (constantly true)}
-
-        ]
+        selected-primary-filter (r/atom "In Review")
+        primary-filters {"In Review" (complement #(:approved %))
+                         "Approved" #(:approved %)}
+        selected-account-filter (r/atom (:account_name (first orders)))
+        account-filters (->> orders
+                             account-names
+                             (map (fn [x] [x #(= (:account_name %) x)]))
+                             (into {}))]
     (fn [orders]
       (let [sort-fn (fn []
                       (if @sort-reversed?
                         (partial sort-by @sort-keyword)
                         (comp reverse (partial sort-by @sort-keyword))))
-
-            
-            displayed-orders ;; (filter #(<= (:target_time_start %)
-            ;;              (:target_time_start
-            ;;               @datastore/last-acknowledged-order))
-            orders ;)
-
-            
+            displayed-orders (filter #(<= (:timestamp_created %)
+                                          (:timestamp_created
+                                           @datastore/last-acknowledged-fleet-delivery))
+                                     orders)
             sorted-orders  (fn []
                              (->> displayed-orders
-                                  (filter (get filters @selected-filter))
+                                  (filter (get primary-filters @selected-primary-filter))
+                                  (filter (get account-filters @selected-account-filter))
                                   ((sort-fn))
                                   (partition-all page-size)))
             paginated-orders (fn []
@@ -107,8 +98,7 @@
                                    (reset! current-order
                                            (first (paginated-orders))))
             table-filter-button-on-click (fn []
-                                           (reset! sort-keyword
-                                                   :timestamp_created)
+                                           (reset! sort-keyword default-sort-keyword)
                                            (reset! current-page 1)
                                            (table-pager-on-click))]
         (when (nil? @current-order)
@@ -119,14 +109,30 @@
           [:div {:class "btn-toolbar"
                  :role "toolbar"}
            [:div {:class "btn-group" :role "group"}
-            (for [f filters]
-              [TableFilterButton {:text (first f)
-                                  :filter-fn (second f)
-                                  :hide-count false
-                                  :on-click (fn []
-                                              (table-filter-button-on-click))
-                                  :data orders
-                                  :selected-filter selected-filter}])]]]
+            (doall
+             (for [f primary-filters]
+               ^{:key (first f)}
+               [TableFilterButton {:text (first f)
+                                   :filter-fn (second f)
+                                   :hide-count false
+                                   :on-click (fn [] (table-filter-button-on-click))
+                                   :data orders
+                                   :selected-filter selected-primary-filter}]))]]]
+         [:div {:class "panel-body"
+                :style {:margin-top "15px"}}
+          [:div {:class "btn-toolbar"
+                 :role "toolbar"}
+           [:div {:class "btn-group" :role "group"}
+            (doall
+             (for [f account-filters]
+               ^{:key (first f)}
+               [TableFilterButton {:text (first f)
+                                   :filter-fn (second f)
+                                   :hide-count false
+                                   :on-click (fn [] (table-filter-button-on-click))
+                                   :data (filter (get primary-filters @selected-primary-filter)
+                                                 orders)
+                                   :selected-filter selected-account-filter}]))]]]
          [:div {:class "table-responsive"}
           [DynamicTable {:current-item current-order
                          :tr-props-fn
@@ -134,13 +140,10 @@
                            {:class (str (when (= (:id order)
                                                  (:id @current-order))
                                           "active"))
-                            :on-click
-                            (fn [_]
-                              (reset! current-order order))})
+                            :on-click (fn [_] (reset! current-order order))})
                          :sort-keyword sort-keyword
                          :sort-reversed? sort-reversed?
-                         :table-vecs
-                         orders-table-vecs}
+                         :table-vecs orders-table-vecs}
            (paginated-orders)]]
          [TablePager
           {:total-pages (count (sorted-orders))

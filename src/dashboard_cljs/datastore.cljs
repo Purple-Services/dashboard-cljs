@@ -117,6 +117,7 @@
 
 ;; fleet
 (def fleet-deliveries (r/atom #{}))
+(def last-acknowledged-fleet-delivery (r/atom {}))
 
 ;; couriers
 (def couriers (r/atom #{}))
@@ -250,7 +251,7 @@
                                         true)})))))
     ;; fleet
     (when (subset? #{{:uri "/fleet-deliveries-since-date"
-                    :method "POST"}} @accessible-routes)
+                      :method "POST"}} @accessible-routes)
       ;; keep data synced with the data channel
       (sync-state! fleet-deliveries (sub read-data-chan "fleet-deliveries" (chan)))
       ;; initialize orders
@@ -259,16 +260,19 @@
        "POST"
        (js/JSON.stringify
         (clj->js
-         ;; just retrieve the last 30 days
+         ;; just retrieve the last 30 day
          {:date (-> (js/moment)
-                    (.subtract 7 "days")
+                    (.subtract 30 "days")
                     (.format "YYYY-MM-DD"))}))
        (partial xhrio-wrapper
                 (fn [response]
-                  (put! modify-data-chan
-                        {:topic "fleet-deliveries"
-                         :data (js->clj response :keywordize-keys
-                                        true)})))))
+                  (let [parsed-data (js->clj response :keywordize-keys true)]
+                    (put! modify-data-chan
+                          {:topic "fleet-deliveries"
+                           :data parsed-data})
+                    (reset!
+                     last-acknowledged-fleet-delivery
+                     (last (sort-by :timestamp_created parsed-data))))))))
     ;; zones
     (when (subset? #{{:uri "/zones"
                       :method "GET"}} @accessible-routes)
