@@ -70,8 +70,11 @@
       [:thead
        [:tr
         (map (fn [[header-txt sort-fn]]
-               ^{:key header-txt}
-               [TableHeadSortable (assoc props :keyword sort-fn) header-txt])
+               (if sort-fn
+                 ^{:key header-txt}
+                 [TableHeadSortable (assoc props :keyword sort-fn) header-txt]
+                 ^{:key header-txt}
+                 [:th header-txt]))
              headers-vec)]])))
 
 (defn TableRow

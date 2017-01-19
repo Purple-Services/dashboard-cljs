@@ -5,6 +5,11 @@
             [clojure.string :as s]
             [reagent.core :as r]))
 
+(defn in? 
+  "true if seq contains elm"
+  [seq elm]  
+  (boolean (some #(= elm %) seq)))
+
 (def timezone (r/atom "America/Los_Angeles"))
 
 (defn unix-epoch->fmt
