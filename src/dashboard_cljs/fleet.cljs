@@ -76,12 +76,14 @@
   (let [selected-orders (r/cursor state [:selected-orders])
         currently-viewed-orders (r/cursor state [:currently-viewed-orders])]
     (if (-> evt .-target .-checked)
-      (reset! selected-orders @currently-viewed-orders)
-      (swap! selected-orders empty))))
+      (swap! selected-orders (comp set concat) @currently-viewed-orders)
+      (swap! selected-orders (partial apply disj) @currently-viewed-orders))))
 
 (def orders-table-vecs
   [[[:input {:type "checkbox"
-             :on-click evt-select-deselect-all}]
+             :id "select-deselect-all-checkbox"
+             :on-click evt-select-deselect-all
+             :style {:cursor "pointer"}}]
     nil (fn [order] [OrderCheckbox order])]
    ["Location" :fleet_location_name :fleet_location_name]
    ["Plate/Stock" :license_plate :license_plate]
@@ -159,9 +161,11 @@
                                              {:topic "fleet-deliveries"
                                               :data parsed-data})
                                        (reset! refreshing? false))))))
-            table-pager-on-click (fn []
-                                   (reset! current-order
-                                           (first (paginated-orders))))
+            table-pager-on-click
+            (fn []
+              (reset! current-order (first (paginated-orders)))
+              (some-> (.getElementById js/document "select-deselect-all-checkbox")
+                      (aset "checked" "")))
             table-filter-button-on-click (fn []
                                            (reset! sort-keyword default-sort-keyword)
                                            (reset! current-page 1)
@@ -225,42 +229,42 @@
                                                (refresh-fn busy?))
                                            (do (.log js/console "success false")
                                                (reset! busy? false))))))))}
-              "Approve"]
+              (str "Approve"
+                   (when (pos? (count @selected-orders))
+                     (str " (" (count @selected-orders) ")")))]
              [:button {:type "submit"
                        :class "btn btn-danger"
                        :disabled (< (count @selected-orders) 1)
                        :on-click (fn [e]
                                    (.preventDefault e)
                                    (reset! delete-confirming? true))}
-              "Delete"]
-             [:button {:type "submit"
-                       :class "btn btn-default"
-                       :disabled (< (count @selected-orders) 1)
-                       :on-click (fn [e]
-                                   (.preventDefault e)
-                                   (reset! busy? true)
-                                   (retrieve-url
-                                    (str base-url "download-fleet-deliveries")
-                                    "POST"
-                                    (js/JSON.stringify
-                                     (clj->js {:fleet-delivery-ids @selected-orders}))
-                                    (partial
-                                     xhrio-wrapper
-                                     (fn [r]
-                                       (let [response (js->clj r :keywordize-keys true)]
-                                         (if (:success response)
-                                           (do (swap! selected-orders empty)
-                                               (refresh-fn busy?))
-                                           (do (.log js/console "success false")
-                                               (reset! busy? false))))))))}
-              "Download CSV"]
-             [:button {:type "submit"
-                       :class "btn btn-default"
-                       :disabled (< (count @selected-orders) 1)
-                       :on-click (fn [e]
-                                   (.preventDefault e)
-                                   (println "Email CSV"))}
-              "Email CSV"]])]
+              (str "Delete"
+                   (when (pos? (count @selected-orders))
+                     (str " (" (count @selected-orders) ")")))]
+             [:form {:method "POST"
+                     :style {:display "inline-block"
+                             :float "left"
+                             :margin-left "5px"}
+                     :action (str base-url "download-fleet-deliveries")}
+              [:input {:type "hidden"
+                       :name "fleet-delivery-ids"
+                       :value (js/JSON.stringify (clj->js @selected-orders))}]
+              [:button {:type "submit"
+                        :class "btn btn-default"
+                        :disabled (< (count @selected-orders) 1)}
+               (str "Download CSV"
+                    (when (pos? (count @selected-orders))
+                      (str " (" (count @selected-orders) ")")))]]
+             ;; [:button {:type "submit"
+             ;;           :class "btn btn-default"
+             ;;           :disabled (< (count @selected-orders) 1)
+             ;;           :on-click (fn [e]
+             ;;                       (.preventDefault e)
+             ;;                       (println "Email CSV"))}
+             ;;  (str "Email CSV"
+             ;;       (when (pos? (count @selected-orders))
+             ;;         (str " (" (count @selected-orders) ")")))]
+             ])]
 
          
          (when @delete-confirming?
