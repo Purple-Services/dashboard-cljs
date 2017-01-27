@@ -133,9 +133,9 @@
     (let [{:keys [current-item sort-keyword sort-reversed? sort-fn
                   table-vecs tr-props-fn]
            :or {sort-fn (partial sort-by :id)}} props
-           table-vecs-filtered (filterv (comp not nil?)
-                                        table-vecs)
-           cell-fns (mapv #(vector (nth % 2)) table-vecs-filtered)]
+          table-vecs-filtered (filterv (comp not nil?)
+                                       table-vecs)
+          cell-fns (mapv #(vector (nth % 2)) table-vecs-filtered)]
       [:table {:class "table table-bordered table-hover table-striped"}
        [TableHeader {:sort-keyword sort-keyword
                      :sort-reversed? sort-reversed?
@@ -292,6 +292,7 @@
                                       (-> (js/moment input)
                                           (.endOf "day")
                                           (.unix))))}])})))
+
 (defn TablePager
   "props is:
   {:total-pages  integer ; the amount of pages

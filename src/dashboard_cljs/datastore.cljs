@@ -105,6 +105,17 @@
       (reset-meta! atom {:processed true}))
     (recur (:data (<! chan)))))
 
+(defn sync-state-always-reset!
+  "Same as sync-state!, but just always resets the entire data rather than taking
+  a union."
+  [atom chan]
+  (go-loop [data (:data (<! chan))]
+    (let [old-state @atom
+          new-state data]
+      (reset! atom new-state)
+      (reset-meta! atom {:processed true}))
+    (recur (:data (<! chan)))))
+
 ;; below are the definitions for the app's datastore
 
 (def modify-data-chan (chan))
@@ -117,7 +128,6 @@
 
 ;; fleet
 (def fleet-deliveries (r/atom #{}))
-(def last-acknowledged-fleet-delivery (r/atom {}))
 
 ;; couriers
 (def couriers (r/atom #{}))
@@ -253,26 +263,26 @@
     (when (subset? #{{:uri "/fleet-deliveries-since-date"
                       :method "POST"}} @accessible-routes)
       ;; keep data synced with the data channel
-      (sync-state! fleet-deliveries (sub read-data-chan "fleet-deliveries" (chan)))
+      (sync-state-always-reset! fleet-deliveries (sub read-data-chan "fleet-deliveries" (chan)))
       ;; initialize orders
       (retrieve-url
        (str base-url "fleet-deliveries-since-date")
        "POST"
        (js/JSON.stringify
         (clj->js
-         ;; just retrieve the last 30 day
-         {:date (-> (js/moment)
-                    (.subtract 30 "days")
-                    (.format "YYYY-MM-DD"))}))
+         {:from-date (-> (js/moment)
+                         (.subtract 30 "days")
+                         (.endOf "day")
+                         (.format "YYYY-MM-DD"))
+          :to-date (-> (js/moment)
+                         (.endOf "day")
+                         (.format "YYYY-MM-DD"))}))
        (partial xhrio-wrapper
                 (fn [response]
                   (let [parsed-data (js->clj response :keywordize-keys true)]
                     (put! modify-data-chan
                           {:topic "fleet-deliveries"
-                           :data parsed-data})
-                    (reset!
-                     last-acknowledged-fleet-delivery
-                     (last (sort-by :timestamp_created parsed-data))))))))
+                           :data parsed-data}))))))
     ;; zones
     (when (subset? #{{:uri "/zones"
                       :method "GET"}} @accessible-routes)

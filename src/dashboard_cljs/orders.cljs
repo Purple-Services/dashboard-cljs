@@ -923,8 +923,7 @@ as in orders. If not, reset the current-order"
                              (let [orders (js->clj
                                            response
                                            :keywordize-keys true)]
-                               (when (> (count orders)
-                                        0)
+                               (when (pos? (count orders))
                                  (datastore/process-orders orders true))
                                (reset! saving? false))))))
             table-pager-on-click (fn []

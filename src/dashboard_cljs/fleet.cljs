@@ -1,5 +1,5 @@
 (ns dashboard-cljs.fleet
-  (:require [cljs.core.async :refer [put!]]
+  (:require [cljs.core.async :refer [put! take!]]
             [cljsjs.moment]
             [clojure.string :as s]
             [clojure.set :refer [subset?]]
@@ -14,7 +14,7 @@
                                                SubmitDismissGroup Select
                                                TelephoneNumber
                                                Mailto GoogleMapLink
-                                               UserCrossLink]]
+                                               UserCrossLink DatePicker]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error retrieve-entity]]
@@ -105,44 +105,49 @@
 ;; excuse the misnomer "orders" and "order" (actually "deliveries")
 (defn fleet-panel
   [orders state]
-  (let [current-order (r/cursor state [:current-order])
-        currently-viewed-orders (r/cursor state [:currently-viewed-orders])
+  (let [currently-viewed-orders (r/cursor state [:currently-viewed-orders])
         default-sort-keyword :timestamp_created
         sort-keyword (r/atom default-sort-keyword)
         sort-reversed? (r/atom false)
         current-page (r/atom 1)
         page-size 20
+        from-date (r/atom (-> (js/moment)
+                              (.subtract 30 "days")
+                              (.unix)))
+        to-date (r/atom (now))
         selected-primary-filter (r/atom "In Review")
         primary-filters {"In Review" #(and (not (:approved %)) (not (:deleted %)))
                          "Approved" #(and (:approved %) (not (:deleted %)))
                          "Deleted" #(:deleted %)}
-        selected-account-filter (r/atom (:account_name (first orders)))
-        account-filters (->> orders
-                             account-names
-                             (map (fn [x] [x #(= (:account_name %) x)]))
-                             (into {}))
+        selected-account-filter (r/atom (:account_name (first orders)))        
         selected-orders (r/cursor state [:selected-orders])
         delete-confirming? (r/cursor state [:delete-confirming?])
         busy? (r/cursor state [:busy?])]
     (fn [orders]
-      (let [sort-fn (fn []
-                      (if @sort-reversed?
-                        (partial sort-by @sort-keyword)
-                        (comp reverse (partial sort-by @sort-keyword))))
-            displayed-orders (filter #(<= (:timestamp_created %)
-                                          (:timestamp_created
-                                           @datastore/last-acknowledged-fleet-delivery))
-                                     orders)
-            sorted-orders  (fn []
-                             (->> displayed-orders
-                                  (filter (get primary-filters @selected-primary-filter))
-                                  (filter (get account-filters @selected-account-filter))
-                                  ((sort-fn))
-                                  (partition-all page-size)))
-            paginated-orders (fn []
-                               (-> (sorted-orders)
-                                   (nth (- @current-page 1)
-                                        '())))
+      (let [orders-filtered-primary (filter (get primary-filters @selected-primary-filter) orders)
+            account-filters (->> orders-filtered-primary
+                                 account-names
+                                 sort
+                                 (map (fn [x] [x #(= (:account_name %) x)]))
+                                 (into {}))
+            _ (when (not (in? (keys account-filters) @selected-account-filter))
+                (reset! selected-account-filter (:account_name (first orders-filtered-primary))))
+            orders-filtered-secondary (filter (get account-filters @selected-account-filter) orders-filtered-primary)
+            orders-sorted ((if @sort-reversed?
+                             (partial sort-by @sort-keyword)
+                             (comp reverse (partial sort-by @sort-keyword)))
+                           orders-filtered-secondary)
+            orders-partitioned (partition-all page-size orders-sorted)
+            orders-paginated (nth orders-partitioned (- @current-page 1) '())
+            ;; currently-viewed-orders keeps track of the orders that are visible on table at
+            ;; any given time. it is used for the Select All feature
+            _ (reset! currently-viewed-orders (set (map :id orders-paginated)))
+            table-pager-on-click (fn [] (some-> (.getElementById js/document "select-deselect-all-checkbox")
+                                                (aset "checked" "")))
+            table-filter-button-on-click (fn []
+                                           (reset! sort-keyword default-sort-keyword)
+                                           (reset! current-page 1)
+                                           (table-pager-on-click))
             refresh-fn (fn [refreshing?]
                          (reset! refreshing? true)
                          (retrieve-url
@@ -150,31 +155,48 @@
                           "POST"
                           (js/JSON.stringify
                            (clj->js
-                            ;; just retrieve the last 30 day
-                            {:date (-> (js/moment)
-                                       (.subtract 30 "days")
-                                       (.format "YYYY-MM-DD"))}))
+                            {:from-date (-> @from-date
+                                            (js/moment.unix)
+                                            (.endOf "day")
+                                            (.format "YYYY-MM-DD"))
+                             :to-date (-> @to-date
+                                          (js/moment.unix)
+                                          (.endOf "day")
+                                          (.format "YYYY-MM-DD"))}))
                           (partial xhrio-wrapper
                                    (fn [response]
                                      (let [parsed-data (js->clj response :keywordize-keys true)]
                                        (put! datastore/modify-data-chan
                                              {:topic "fleet-deliveries"
                                               :data parsed-data})
-                                       (reset! refreshing? false))))))
-            table-pager-on-click
-            (fn []
-              (reset! current-order (first (paginated-orders)))
-              (some-> (.getElementById js/document "select-deselect-all-checkbox")
-                      (aset "checked" "")))
-            table-filter-button-on-click (fn []
-                                           (reset! sort-keyword default-sort-keyword)
-                                           (reset! current-page 1)
-                                           (table-pager-on-click))]
-        (when (nil? @current-order)
-          (table-pager-on-click))
+                                       (reset! refreshing? false))))))]
+        (add-watch from-date :from-date-watch
+                   (fn [_ _ old-value new-value]
+                     (when (not= old-value new-value)
+                       (refresh-fn busy?))))
+        (add-watch to-date :to-date-watch
+                   (fn [_ _ old-value new-value]
+                     (when (not= old-value new-value)
+                       (refresh-fn busy?))))
         [:div {:class "panel panel-default"}
+         [:div {:class "form-group"
+                :style {:margin-left "1px"}}
+          [:label {:for "expires?"
+                   :class "control-label"}
+           [:div {:style {:display "inline-block"}}
+            [:div
+             [:div {:class "input-group"}
+              [DatePicker from-date]]]]]
+          [:span {:style {:font-size "3em"
+                          :color "grey"}} " - "]
+          [:label {:for "expires?"
+                   :class "control-label"}
+           [:div {:style {:display "inline-block"}}
+            [:div
+             [:div {:class "input-group"}
+              [DatePicker to-date]]]]]]
          [:div {:class "panel-body"
-                :style {:margin-top "15px"}}
+                :style {:margin-top "-15px"}}
           [:div {:class "btn-toolbar"
                  :role "toolbar"}
            [:div {:class "btn-group" :role "group"}
@@ -199,8 +221,7 @@
                                    :filter-fn (second f)
                                    :hide-count false
                                    :on-click (fn [] (table-filter-button-on-click))
-                                   :data (filter (get primary-filters @selected-primary-filter)
-                                                 orders)
+                                   :data orders-filtered-primary
                                    :selected-filter selected-account-filter}]))]]]
          [:div {:class "panel-body"
                 :style {:margin-top "15px"}}
@@ -208,7 +229,8 @@
             [:i {:class "fa fa-lg fa-refresh fa-pulse"}]
             [:div {:class "btn-toolbar"
                    :role "toolbar"}
-             [RefreshButton {:refresh-fn refresh-fn}]
+             [RefreshButton {:refresh-fn refresh-fn
+                             :refreshing? busy?}]
              [:button {:type "submit"
                        :class "btn btn-success"
                        :disabled (< (count @selected-orders) 1)
@@ -265,8 +287,6 @@
              ;;       (when (pos? (count @selected-orders))
              ;;         (str " (" (count @selected-orders) ")")))]
              ])]
-
-         
          (when @delete-confirming?
            [:div {:class "panel-body"
                   :style {:margin-top "15px"}}
@@ -298,22 +318,16 @@
                                           (do (.log js/console "success false")
                                               (reset! busy? false))))))))
               :retrieving? busy?}]])
-
-         
          [:div {:class "table-responsive"}
-          [DynamicTable {:current-item current-order
-                         :tr-props-fn
-                         (fn [order current-order]
-                           {:class (str (when (in-selected-orders? (:id order))
-                                          "active"))
+          [DynamicTable {:tr-props-fn
+                         (fn [order _]
+                           {:class (str (when (in-selected-orders? (:id order)) "active"))
                             :on-click #(toggle-select-order order)})
                          :sort-keyword sort-keyword
                          :sort-reversed? sort-reversed?
                          :table-vecs orders-table-vecs}
-           (let [po (paginated-orders)
-                 _ (reset! currently-viewed-orders (set (map :id po)))]
-             po)]]
+           orders-paginated]]
          [TablePager
-          {:total-pages (count (sorted-orders))
+          {:total-pages (count orders-partitioned)
            :current-page current-page
            :on-click table-pager-on-click}]]))))
