@@ -14,7 +14,7 @@
                                                SubmitDismissGroup Select
                                                TelephoneNumber
                                                Mailto GoogleMapLink
-                                               UserCrossLink DatePicker]]
+                                               UserCrossLink DatePicker TextInput]]
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error retrieve-entity]]
@@ -39,24 +39,45 @@
 (enable-console-print!)
 
 (def state (r/atom {:selected-orders #{}
+                    :editing-fields #{}
+                    :editing-value ""
                     :currently-viewed-orders #{}
+                    :from-date (-> (js/moment)
+                                   (.subtract 30 "days")
+                                   (.unix))
+                    :to-date (now)
                     :delete-confirming? false
                     :busy false
                     :alert-success ""}))
 
+(defn in-xatom-items?
+  [atom id]
+  (in? @atom id))
+
+(defn toggle-xatom-select-item
+  [atom item]
+  (swap! atom
+         #(if (in-xatom-items? atom item)
+            (disj % item)
+            (conj % item))
+         nil))
+
 (defn in-selected-orders?
   [id]
-  (let [selected-orders (r/cursor state [:selected-orders])]
-    (in? @selected-orders id)))
+  (in-xatom-items? (r/cursor state [:selected-orders]) id))
 
 (defn toggle-select-order
   [order]
-  (let [selected-orders (r/cursor state [:selected-orders])]
-    (swap! selected-orders
-           #(if (in-selected-orders? (:id order))
-              (disj % (:id order))
-              (conj % (:id order)))
-           (:id order))))
+  (toggle-xatom-select-item (r/cursor state [:selected-orders]) (:id order)))
+
+(defn in-editing-fields?
+  [order-id field-name]
+  (in-xatom-items? (r/cursor state [:editing-fields]) [order-id field-name]))
+
+(defn toggle-edit-field
+  [order-id field-name]
+  (swap! (r/cursor state [:editing-fields]) (comp set (partial filter (partial = [order-id field-name])))) ; only edit one at a time
+  (toggle-xatom-select-item (r/cursor state [:editing-fields]) [order-id field-name]))
 
 (defn OrderCheckbox
   [order]
@@ -79,6 +100,70 @@
       (swap! selected-orders (comp set concat) @currently-viewed-orders)
       (swap! selected-orders (partial apply disj) @currently-viewed-orders))))
 
+(defn refresh-fn
+  [refreshing? from-date to-date]
+  (reset! refreshing? true)
+  (retrieve-url
+   (str base-url "fleet-deliveries-since-date")
+   "POST"
+   (js/JSON.stringify
+    (clj->js
+     {:from-date (-> from-date
+                     (js/moment.unix)
+                     (.endOf "day")
+                     (.format "YYYY-MM-DD"))
+      :to-date (-> to-date
+                   (js/moment.unix)
+                   (.endOf "day")
+                   (.format "YYYY-MM-DD"))}))
+   (partial xhrio-wrapper
+            (fn [response]
+              (let [parsed-data (js->clj response :keywordize-keys true)]
+                (put! datastore/modify-data-chan
+                      {:topic "fleet-deliveries"
+                       :data parsed-data})
+                (reset! refreshing? false))))))
+
+(defn text-input
+  [field-name placeholder width order]
+  [:div {:class "input-group"
+         :style {:width (str width "px")}}
+   [:input {:type "text"
+            :id (str field-name "-input-" (:id order))
+            :class "form-control"
+            :defaultValue ((keyword field-name) order)
+            ;; look into adding submit upon hitting Enter
+            :placeholder placeholder}]
+   [:span {:class "input-group-btn"}
+    [:button {:type "submit"
+              :class "btn btn-success"
+              :on-click (fn [e]
+                          (.preventDefault e)
+                          (let [new-value (aget (.getElementById js/document (str field-name "-input-" (:id order))) "value")]
+                            (if (not= new-value ((keyword field-name) order))
+                              (let [busy? (r/cursor state [:busy?])]
+                                (reset! busy? true)
+                                (retrieve-url
+                                 (str base-url "update-fleet-delivery-field")
+                                 "PUT"
+                                 (js/JSON.stringify
+                                  (clj->js {:fleet-delivery-id (:id order)
+                                            :field-name field-name
+                                            :value new-value}))
+                                 (partial
+                                  xhrio-wrapper
+                                  (fn [r]
+                                    (let [response (js->clj r :keywordize-keys true)]
+                                      (if (:success response)
+                                        (do (toggle-edit-field (:id order) field-name)
+                                            (refresh-fn busy?
+                                                        (deref (r/cursor state [:from-date]))
+                                                        (deref (r/cursor state [:to-date]))))
+                                        (do (.log js/console "success false")
+                                            (reset! busy? false))))))))
+                              (toggle-edit-field (:id order) field-name))))
+              :dangerouslySetInnerHTML {:__html "&#10003;"}}]]])
+
 (def orders-table-vecs
   [[[:input {:type "checkbox"
              :id "select-deselect-all-checkbox"
@@ -86,13 +171,14 @@
              :style {:cursor "pointer"}}]
     nil (fn [order] [OrderCheckbox order])]
    ["Location" :fleet_location_name :fleet_location_name]
-   ["Plate/Stock" :license_plate :license_plate]
-   ["VIN" :vin :vin]
-   ["Gallons" :gallons :gallons]
+   ["Plate/Stock" :license_plate :license_plate "license_plate"
+    (partial text-input "license_plate" "License Plate" 130)]
+   ["VIN" :vin :vin "vin" (partial text-input "vin" "VIN" 200)]
+   ["Gallons" :gallons :gallons "gallons" (partial text-input "gallons" "Gallons" 90)]
    ["Type" :gas_type :gas_type]
    ["Top Tier?" :is_top_tier :is_top_tier]
-   ["PPG" :gas_price #(cents->$dollars (:gas_price %))]
-   ["Fee" :service_fee #(cents->$dollars (:service_fee %))]
+   ["PPG" :gas_price #(cents->$dollars (:gas_price %)) "gas_price" (partial text-input "gas_price" "PPG" 90)]
+   ["Fee" :service_fee #(cents->$dollars (:service_fee %)) "service_fee" (partial text-input "service_fee" "Fee" 90)]
    ["Total" :total_price #(cents->$dollars (:total_price %))]
    ["Date" :timestamp_created #(unix-epoch->hrf
                                 (/ (.getTime (js/Date. (:timestamp_created %)))
@@ -111,12 +197,11 @@
         sort-reversed? (r/atom false)
         current-page (r/atom 1)
         page-size 20
-        from-date (r/atom (-> (js/moment)
-                              (.subtract 30 "days")
-                              (.unix)))
-        to-date (r/atom (now))
+        from-date (r/cursor state [:from-date])
+        to-date (r/cursor state [:to-date])
         selected-primary-filter (r/atom "In Review")
-        primary-filters {"In Review" #(and (not (:approved %)) (not (:deleted %)))
+        primary-filters {"Show All" (constantly true)
+                         "In Review" #(and (not (:approved %)) (not (:deleted %)))
                          "Approved" #(and (:approved %) (not (:deleted %)))
                          "Deleted" #(:deleted %)}
         selected-account-filter (r/atom (:account_name (first orders)))        
@@ -148,36 +233,15 @@
                                            (reset! sort-keyword default-sort-keyword)
                                            (reset! current-page 1)
                                            (table-pager-on-click))
-            refresh-fn (fn [refreshing?]
-                         (reset! refreshing? true)
-                         (retrieve-url
-                          (str base-url "fleet-deliveries-since-date")
-                          "POST"
-                          (js/JSON.stringify
-                           (clj->js
-                            {:from-date (-> @from-date
-                                            (js/moment.unix)
-                                            (.endOf "day")
-                                            (.format "YYYY-MM-DD"))
-                             :to-date (-> @to-date
-                                          (js/moment.unix)
-                                          (.endOf "day")
-                                          (.format "YYYY-MM-DD"))}))
-                          (partial xhrio-wrapper
-                                   (fn [response]
-                                     (let [parsed-data (js->clj response :keywordize-keys true)]
-                                       (put! datastore/modify-data-chan
-                                             {:topic "fleet-deliveries"
-                                              :data parsed-data})
-                                       (reset! refreshing? false))))))]
+            any-cells-editing? (not (empty? (deref (r/cursor state [:editing-fields]))))]
         (add-watch from-date :from-date-watch
                    (fn [_ _ old-value new-value]
                      (when (not= old-value new-value)
-                       (refresh-fn busy?))))
+                       (refresh-fn busy? @from-date @to-date))))
         (add-watch to-date :to-date-watch
                    (fn [_ _ old-value new-value]
                      (when (not= old-value new-value)
-                       (refresh-fn busy?))))
+                       (refresh-fn busy? @from-date @to-date))))
         [:div {:class "panel panel-default"}
          [:div {:class "form-group"
                 :style {:margin-left "1px"}}
@@ -187,8 +251,13 @@
             [:div
              [:div {:class "input-group"}
               [DatePicker from-date]]]]]
-          [:span {:style {:font-size "3em"
-                          :color "grey"}} " - "]
+          [:span {:style {:font-size "24px"
+                          :color "grey"
+                          :padding "0px 11px"
+                          :display "inline-block"
+                          :position "relative"
+                          :top "-10px"}}
+           " - "]
           [:label {:for "expires?"
                    :class "control-label"}
            [:div {:style {:display "inline-block"}}
@@ -223,17 +292,20 @@
                                    :on-click (fn [] (table-filter-button-on-click))
                                    :data orders-filtered-primary
                                    :selected-filter selected-account-filter}]))]]]
+         
          [:div {:class "panel-body"
                 :style {:margin-top "15px"}}
           (if @busy?
             [:i {:class "fa fa-lg fa-refresh fa-pulse"}]
             [:div {:class "btn-toolbar"
                    :role "toolbar"}
-             [RefreshButton {:refresh-fn refresh-fn
-                             :refreshing? busy?}]
+             [RefreshButton {:refresh-fn #(refresh-fn % @from-date @to-date)
+                             :refreshing? busy?
+                             :disabled any-cells-editing?}]
              [:button {:type "submit"
                        :class "btn btn-success"
-                       :disabled (< (count @selected-orders) 1)
+                       :disabled (or (< (count @selected-orders) 1)
+                                     any-cells-editing?)
                        :on-click (fn [e]
                                    (.preventDefault e)
                                    (reset! busy? true)
@@ -248,7 +320,7 @@
                                        (let [response (js->clj r :keywordize-keys true)]
                                          (if (:success response)
                                            (do (swap! selected-orders empty)
-                                               (refresh-fn busy?))
+                                               (refresh-fn busy? @from-date @to-date))
                                            (do (.log js/console "success false")
                                                (reset! busy? false))))))))}
               (str "Approve"
@@ -256,7 +328,8 @@
                      (str " (" (count @selected-orders) ")")))]
              [:button {:type "submit"
                        :class "btn btn-danger"
-                       :disabled (< (count @selected-orders) 1)
+                       :disabled (or (< (count @selected-orders) 1)
+                                     any-cells-editing?)
                        :on-click (fn [e]
                                    (.preventDefault e)
                                    (reset! delete-confirming? true))}
@@ -273,13 +346,15 @@
                        :value (js/JSON.stringify (clj->js @selected-orders))}]
               [:button {:type "submit"
                         :class "btn btn-default"
-                        :disabled (< (count @selected-orders) 1)}
+                        :disabled (or (< (count @selected-orders) 1)
+                                      any-cells-editing?)}
                (str "Download CSV"
                     (when (pos? (count @selected-orders))
                       (str " (" (count @selected-orders) ")")))]]
              ;; [:button {:type "submit"
              ;;           :class "btn btn-default"
-             ;;           :disabled (< (count @selected-orders) 1)
+             ;;           :disabled (or (< (count @selected-orders) 1)
+             ;;                            any-cells-editing?)
              ;;           :on-click (fn [e]
              ;;                       (.preventDefault e)
              ;;                       (println "Email CSV"))}
@@ -314,15 +389,24 @@
                                       (let [response (js->clj r :keywordize-keys true)]
                                         (if (:success response)
                                           (do (swap! selected-orders empty)
-                                              (refresh-fn busy?))
+                                              (refresh-fn busy? @from-date @to-date))
                                           (do (.log js/console "success false")
                                               (reset! busy? false))))))))
               :retrieving? busy?}]])
          [:div {:class "table-responsive"}
           [DynamicTable {:tr-props-fn
-                         (fn [order _]
-                           {:class (str (when (in-selected-orders? (:id order)) "active"))
-                            :on-click #(toggle-select-order order)})
+                         (fn [order current-item]
+                           {:class (str (when (in-selected-orders? (:id order)) " active")
+                                        ;; (when (in-editing-orders? (:id order)) " editing")
+                                        )
+                            :on-click #(when-not any-cells-editing?
+                                         (toggle-select-order order))})
+                         :cell-props-fn
+                         (fn [order field-name]
+                           {:on-double-click #(when (not (nil? field-name))
+                                                (toggle-edit-field (:id order) field-name))})
+                         :is-cell-editing? (fn [order field-name]
+                                             (in-editing-fields? (:id order) field-name))
                          :sort-keyword sort-keyword
                          :sort-reversed? sort-reversed?
                          :table-vecs orders-table-vecs}

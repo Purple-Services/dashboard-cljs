@@ -97,13 +97,21 @@
                                \"No\")]]"
   [props]
   (fn [row-item]
-    (let [{:keys [current-item cells tr-props-fn]} props]
+    (let [{:keys [current-item cells tr-props-fn cell-props-fn
+                  is-cell-editing?]} props]
       ^{:key (:id row-item)}
       [:tr
        (tr-props-fn row-item current-item)
-       (doall (map (fn [[cell-fn]]
+       (doall (map (fn [[header sort-fn cell-fn field-name cell-editing-fn]]
                      ^{:key (gensym "key")}
-                     [:td (cell-fn row-item)])
+                     [:td
+                      (or (when cell-props-fn
+                            (cell-props-fn row-item field-name))
+                          {})
+                      (if (when is-cell-editing?
+                            (is-cell-editing? row-item field-name))
+                        (cell-editing-fn row-item field-name)
+                        (cell-fn row-item))])
                    cells))])))
 
 (defn DynamicTable
@@ -131,11 +139,11 @@
   [props data]
   (fn [props data]
     (let [{:keys [current-item sort-keyword sort-reversed? sort-fn
-                  table-vecs tr-props-fn]
+                  table-vecs tr-props-fn cell-props-fn is-cell-editing?]
            :or {sort-fn (partial sort-by :id)}} props
           table-vecs-filtered (filterv (comp not nil?)
                                        table-vecs)
-          cell-fns (mapv #(vector (nth % 2)) table-vecs-filtered)]
+          cell-fns (mapv #(identity %) table-vecs-filtered)]
       [:table {:class "table table-bordered table-hover table-striped"}
        [TableHeader {:sort-keyword sort-keyword
                      :sort-reversed? sort-reversed?
@@ -145,7 +153,9 @@
                       ^{:key (:id item)}
                       ((TableRow {:current-item current-item
                                   :cells cell-fns
-                                  :tr-props-fn tr-props-fn}) item))
+                                  :tr-props-fn tr-props-fn
+                                  :cell-props-fn cell-props-fn
+                                  :is-cell-editing? is-cell-editing?}) item))
                     data))]])))
 
 (defn StaticTable
@@ -208,11 +218,13 @@
                         (r/atom false))]
     (fn [props]
       [:button
-       {:type "button"
-        :class "btn btn-default"
-        :on-click
-        #(when (not @refreshing?)
-           ((:refresh-fn props) refreshing?))}
+       (merge {:type "button"
+               :class "btn btn-default"
+               :on-click
+               #(when (not @refreshing?)
+                  ((:refresh-fn props) refreshing?))}
+              (when (:disabled props)
+                {:disabled true}))
        [:i {:class (str "fa fa-lg fa-refresh "
                         (when @refreshing?
                           "fa-pulse"))}]])))
