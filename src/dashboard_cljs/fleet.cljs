@@ -43,7 +43,7 @@
                     :editing-value ""
                     :currently-viewed-orders #{}
                     :from-date (-> (js/moment)
-                                   (.subtract 30 "days")
+                                   (.subtract 10 "days")
                                    (.unix))
                     :to-date (now)
                     :delete-confirming? false
@@ -124,6 +124,47 @@
                        :data parsed-data})
                 (reset! refreshing? false))))))
 
+(defn cell-save-button
+  [order field-name]
+  [:span {:class "input-group-btn"}
+   [:button {:type "submit"
+             :class "btn btn-success"
+             :on-click (fn [e]
+                         (.preventDefault e)
+                         (let [get-input-el #(.getElementById js/document (str field-name "-input-" (:id order)))
+                               new-value (aget (get-input-el) "value")
+                               _ (aset (get-input-el) "disabled" true)]
+                           (if (not= new-value ((keyword field-name) order))
+                             (let [busy? (r/cursor state [:busy?])]
+                               (reset! busy? true)
+                               (aset (get-input-el) "value" new-value)
+                               (retrieve-url
+                                (str base-url "update-fleet-delivery-field")
+                                "PUT"
+                                (js/JSON.stringify
+                                 (clj->js {:fleet-delivery-id (:id order)
+                                           :field-name field-name
+                                           :value new-value}))
+                                (partial
+                                 xhrio-wrapper
+                                 (fn [r]
+                                   (let [response (js->clj r :keywordize-keys true)]
+                                     (if (:success response)
+                                       (do (toggle-edit-field (:id order) field-name)
+                                           (refresh-fn busy?
+                                                       (deref (r/cursor state [:from-date]))
+                                                       (deref (r/cursor state [:to-date]))))
+                                       (do (.log js/console "success false")
+                                           (reset! busy? false)
+                                           (js/setTimeout
+                                            (fn []
+                                              (aset (get-input-el) "value" new-value)
+                                              (js/alert (:message response)))
+                                            250)
+                                           )))))))
+                             (toggle-edit-field (:id order) field-name))))
+             :dangerouslySetInnerHTML {:__html "&#10003;"}}]])
+
 (defn text-input
   [field-name placeholder width order]
   [:div {:class "input-group"
@@ -133,36 +174,25 @@
             :class "form-control"
             :defaultValue ((keyword field-name) order)
             ;; look into adding submit upon hitting Enter
-            :placeholder placeholder}]
-   [:span {:class "input-group-btn"}
-    [:button {:type "submit"
-              :class "btn btn-success"
-              :on-click (fn [e]
-                          (.preventDefault e)
-                          (let [new-value (aget (.getElementById js/document (str field-name "-input-" (:id order))) "value")]
-                            (if (not= new-value ((keyword field-name) order))
-                              (let [busy? (r/cursor state [:busy?])]
-                                (reset! busy? true)
-                                (retrieve-url
-                                 (str base-url "update-fleet-delivery-field")
-                                 "PUT"
-                                 (js/JSON.stringify
-                                  (clj->js {:fleet-delivery-id (:id order)
-                                            :field-name field-name
-                                            :value new-value}))
-                                 (partial
-                                  xhrio-wrapper
-                                  (fn [r]
-                                    (let [response (js->clj r :keywordize-keys true)]
-                                      (if (:success response)
-                                        (do (toggle-edit-field (:id order) field-name)
-                                            (refresh-fn busy?
-                                                        (deref (r/cursor state [:from-date]))
-                                                        (deref (r/cursor state [:to-date]))))
-                                        (do (.log js/console "success false")
-                                            (reset! busy? false))))))))
-                              (toggle-edit-field (:id order) field-name))))
-              :dangerouslySetInnerHTML {:__html "&#10003;"}}]]])
+            :placeholder placeholder
+            :style {:font-size "13px"}
+            :on-double-click (fn [e]
+                               (.preventDefault e)
+                               (.stopPropagation e))}]
+   (cell-save-button order field-name)])
+
+(defn select-input
+  [field-name options width order]
+  [:div {:class "input-group"
+         :style {:width (str width "px")}}
+   [:select {:id (str field-name "-input-" (:id order))
+             :class "form-control"
+             :defaultValue ((keyword field-name) order)}
+    (doall
+     (for [[option-value option-text ] options]
+       ^{:key (gensym "key")}
+       [:option {:value option-value} option-text]))]
+   (cell-save-button order field-name)])
 
 (def orders-table-vecs
   [[[:input {:type "checkbox"
@@ -174,11 +204,23 @@
    ["Plate/Stock" :license_plate :license_plate "license_plate"
     (partial text-input "license_plate" "License Plate" 130)]
    ["VIN" :vin :vin "vin" (partial text-input "vin" "VIN" 200)]
-   ["Gallons" :gallons :gallons "gallons" (partial text-input "gallons" "Gallons" 90)]
-   ["Type" :gas_type :gas_type]
-   ["Top Tier?" :is_top_tier :is_top_tier]
-   ["PPG" :gas_price #(cents->$dollars (:gas_price %)) "gas_price" (partial text-input "gas_price" "PPG" 90)]
-   ["Fee" :service_fee #(cents->$dollars (:service_fee %)) "service_fee" (partial text-input "service_fee" "Fee" 90)]
+   ["Gallons" :gallons :gallons "gallons" (partial text-input "gallons" "Gallons" 105)]
+   ["Type" :gas_type :gas_type "gas_type"
+    ;; if changing options, also consider updating app:view/Fleet.coffee:151
+    (partial select-input "gas_type"
+             [["87" "87"]
+              ["89" "89"]
+              ["91" "91"]
+              ["Regular Diesel" "Regular Diesel"]
+              ["Dyed Diesel" "Dyed Diesel"]]
+             110)]
+   ["Top Tier?" :is_top_tier #(if (:is_top_tier %) "Yes" "No") "is_top_tier"
+    (partial select-input "is_top_tier"
+             [[true "Yes"]
+              [false "No"]]
+             90)]
+   ["PPG" :gas_price #(cents->$dollars (:gas_price %)) "gas_price" (partial text-input "gas_price" "PPG" 105)]
+   ["Fee" :service_fee #(cents->$dollars (:service_fee %)) "service_fee" (partial text-input "service_fee" "Fee" 105)]
    ["Total" :total_price #(cents->$dollars (:total_price %))]
    ["Date" :timestamp_created #(unix-epoch->hrf
                                 (/ (.getTime (js/Date. (:timestamp_created %)))
@@ -409,7 +451,8 @@
                                              (in-editing-fields? (:id order) field-name))
                          :sort-keyword sort-keyword
                          :sort-reversed? sort-reversed?
-                         :table-vecs orders-table-vecs}
+                         :table-vecs orders-table-vecs
+                         :style {:white-space "nowrap"}}
            orders-paginated]]
          [TablePager
           {:total-pages (count orders-partitioned)

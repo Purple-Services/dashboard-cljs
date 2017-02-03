@@ -139,12 +139,14 @@
   [props data]
   (fn [props data]
     (let [{:keys [current-item sort-keyword sort-reversed? sort-fn
-                  table-vecs tr-props-fn cell-props-fn is-cell-editing?]
+                  table-vecs tr-props-fn cell-props-fn is-cell-editing?
+                  style]
            :or {sort-fn (partial sort-by :id)}} props
           table-vecs-filtered (filterv (comp not nil?)
                                        table-vecs)
           cell-fns (mapv #(identity %) table-vecs-filtered)]
-      [:table {:class "table table-bordered table-hover table-striped"}
+      [:table {:class "table table-bordered table-hover table-striped"
+               :style style}
        [TableHeader {:sort-keyword sort-keyword
                      :sort-reversed? sort-reversed?
                      :headers table-vecs-filtered}]

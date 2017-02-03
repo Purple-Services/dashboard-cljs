@@ -271,7 +271,7 @@
        (js/JSON.stringify
         (clj->js
          {:from-date (-> (js/moment)
-                         (.subtract 30 "days")
+                         (.subtract 10 "days")
                          (.endOf "day")
                          (.format "YYYY-MM-DD"))
           :to-date (-> (js/moment)
