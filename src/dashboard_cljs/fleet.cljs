@@ -238,7 +238,7 @@
         sort-keyword (r/atom default-sort-keyword)
         sort-reversed? (r/atom false)
         current-page (r/atom 1)
-        page-size 20
+        page-size 15
         from-date (r/cursor state [:from-date])
         to-date (r/cursor state [:to-date])
         selected-primary-filter (r/atom "In Review")

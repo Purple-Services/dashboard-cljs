@@ -64,11 +64,47 @@
                     :retrieving? false
 
                     :total-orders-per-day
-                    {:data {:x ["2016-01-01"]
+                    {:data {:x ["2017-02-01"]
                             :y [0]}
                      :from-date nil
                      :to-date nil
                      :layout {:yaxis {:title "Completed Orders"
+                                      :fixedrange true
+                                      }
+                              :xaxis {:rangeselector selector-options
+                                      :rangeslider {}
+                                      :tickmode "auto"
+                                      :tickformat "%a, %b %d"
+                                      }}
+                     :config {:modeBarButtonsToRemove
+                              ["toImage","sendDataToCloud"]
+                              :autosizable true
+                              :displaylogo false}}
+
+                    :b2b-gallons-per-day
+                    {:data {:x ["2017-02-01"]
+                            :y [0]}
+                     :from-date nil
+                     :to-date nil
+                     :layout {:yaxis {:title "Gallons"
+                                      :fixedrange true
+                                      }
+                              :xaxis {:rangeselector selector-options
+                                      :rangeslider {}
+                                      :tickmode "auto"
+                                      :tickformat "%a, %b %d"
+                                      }}
+                     :config {:modeBarButtonsToRemove
+                              ["toImage","sendDataToCloud"]
+                              :autosizable true
+                              :displaylogo false}}
+
+                    :b2b-revenue-per-day
+                    {:data {:x ["2017-02-01"]
+                            :y [0]}
+                     :from-date nil
+                     :to-date nil
+                     :layout {:yaxis {:title "Revenue ($)"
                                       :fixedrange true
                                       }
                               :xaxis {:rangeselector selector-options
@@ -173,9 +209,8 @@
                                      :refresh-fn #(reset! refreshing? false)}))]
     [:div {:class "table-responsive"
            :style {:border "none !important"}}
-     [:h1 "Completed orders per day "
-      [RefreshButton {:refresh-fn
-                      refresh-fn}]]
+     [:h3 "B2C Orders Daily "
+      [RefreshButton {:refresh-fn refresh-fn}]]
      [Plotly {:data  [(merge @data
                              {:type "scatter"})]
               :layout  @(r/cursor
@@ -183,6 +218,62 @@
                          [:total-orders-per-day :layout])
               :config  @(r/cursor
                          state [:total-orders-per-day :config])}]]))
+
+(defn b2b-gallons-per-day-chart
+  []
+  (let [data  (r/cursor state [:b2b-gallons-per-day :data])
+        _ (retrieve-json {:url "analytics/b2b-gallons"
+                          :data-atom data
+                          :timeframe "daily"
+                          :from-date "2017-02-01"
+                          :to-date (unix-epoch->YYYY-MM-DD (now))})
+        refresh-fn (fn [refreshing?]
+                     (reset! refreshing? true)
+                     (retrieve-json {:url "analytics/b2b-gallons"
+                                     :data-atom data
+                                     :timeframe "daily"
+                                     :from-date "2017-02-01"
+                                     :to-date (unix-epoch->YYYY-MM-DD (now))
+                                     :refresh-fn #(reset! refreshing? false)}))]
+    [:div {:class "table-responsive"
+           :style {:border "none !important"}}
+     [:h3 "B2B Gallons Daily "
+      [RefreshButton {:refresh-fn refresh-fn}]]
+     [Plotly {:data  [(merge @data
+                             {:type "scatter"})]
+              :layout  @(r/cursor
+                         state
+                         [:b2b-gallons-per-day :layout])
+              :config  @(r/cursor
+                         state [:b2b-gallons-per-day :config])}]]))
+
+(defn b2b-revenue-per-day-chart
+  []
+  (let [data  (r/cursor state [:b2b-revenue-per-day :data])
+        _ (retrieve-json {:url "analytics/b2b-revenue"
+                          :data-atom data
+                          :timeframe "daily"
+                          :from-date "2017-02-01"
+                          :to-date (unix-epoch->YYYY-MM-DD (now))})
+        refresh-fn (fn [refreshing?]
+                     (reset! refreshing? true)
+                     (retrieve-json {:url "analytics/b2b-revenue"
+                                     :data-atom data
+                                     :timeframe "daily"
+                                     :from-date "2017-02-01"
+                                     :to-date (unix-epoch->YYYY-MM-DD (now))
+                                     :refresh-fn #(reset! refreshing? false)}))]
+    [:div {:class "table-responsive"
+           :style {:border "none !important"}}
+     [:h3 "B2B Revenue Daily "
+      [RefreshButton {:refresh-fn refresh-fn}]]
+     [Plotly {:data  [(merge @data
+                             {:type "scatter"})]
+              :layout  @(r/cursor
+                         state
+                         [:b2b-revenue-per-day :layout])
+              :config  @(r/cursor
+                         state [:b2b-revenue-per-day :config])}]]))
 
 (defn retrieve-csv
   "Retrieve analytics csv from server using url"
@@ -220,31 +311,31 @@
                             (.startOf "month")
                             (.unix))
               to-date (now)}} props
-              data (r/atom (csv-data-default "daily"))
-              from-date (r/cursor data [:from-date])
-              to-date   (r/cursor data [:to-date])
-              timeframe-id->timeframe-str {"t0" "hourly"
-                                           "t1" "daily"
-                                           "t2" "weekly"
-                                           "t3" "monthly"}
-              timeframe-id (r/atom "t1")
-              file-status  (r/atom {:status ""
-                                    :timestamp ""})
-              status (r/cursor file-status [:status])
-              timestamp (r/cursor file-status [:timestamp])
-              alert-danger (r/atom "")
-              get-file-status
-              (fn []
-                (retrieve-url
-                 (str base-url (str "status-file/" filename))
-                 "GET"
-                 {}
-                 (partial xhrio-wrapper
-                          #(let [response (js->clj % :keywordize-keys true)]
-                             ;; reset the state
-                             (reset! file-status
-                                     {:status (:status response)
-                                      :timestamp  (:timestamp response)})))))]
+        data (r/atom (csv-data-default "daily"))
+        from-date (r/cursor data [:from-date])
+        to-date   (r/cursor data [:to-date])
+        timeframe-id->timeframe-str {"t0" "hourly"
+                                     "t1" "daily"
+                                     "t2" "weekly"
+                                     "t3" "monthly"}
+        timeframe-id (r/atom "t1")
+        file-status  (r/atom {:status ""
+                              :timestamp ""})
+        status (r/cursor file-status [:status])
+        timestamp (r/cursor file-status [:timestamp])
+        alert-danger (r/atom "")
+        get-file-status
+        (fn []
+          (retrieve-url
+           (str base-url (str "status-file/" filename))
+           "GET"
+           {}
+           (partial xhrio-wrapper
+                    #(let [response (js->clj % :keywordize-keys true)]
+                       ;; reset the state
+                       (reset! file-status
+                               {:status (:status response)
+                                :timestamp  (:timestamp response)})))))]
     (r/create-class
      {:component-did-mount
       (fn [this]
@@ -405,10 +496,12 @@
   []
   (fn []
     [:div
+     [total-orders-per-day-chart]
+     [b2b-gallons-per-day-chart]
+     [b2b-revenue-per-day-chart]
      [DownloadXLSX {:filename "stats.xlsx"
                     :use-timeframe? false
                     :use-datepicker? false}]
-     [total-orders-per-day-chart]
      [DownloadXLSX {:filename "totals.xlsx"}]
      [DownloadXLSX {:filename "couriers-totals.xlsx"}]
      [DownloadXLSX {:filename "managed-accounts.xlsx"
