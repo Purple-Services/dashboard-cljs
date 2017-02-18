@@ -252,11 +252,12 @@
         busy? (r/cursor state [:busy?])]
     (fn [orders]
       (let [orders-filtered-primary (filter (get primary-filters @selected-primary-filter) orders)
-            account-filters (->> orders-filtered-primary
-                                 account-names
-                                 sort
-                                 (map (fn [x] [x #(= (:account_name %) x)]))
-                                 (into {}))
+            account-filters (merge {"Show All" (constantly true)}
+                                   (->> orders-filtered-primary
+                                        account-names
+                                        sort
+                                        (map (fn [x] [x #(= (:account_name %) x)]))
+                                        (into {})))
             _ (when (not (in? (keys account-filters) @selected-account-filter))
                 (reset! selected-account-filter (:account_name (first orders-filtered-primary))))
             orders-filtered-secondary (filter (get account-filters @selected-account-filter) orders-filtered-primary)
@@ -403,7 +404,31 @@
              ;;  (str "Email CSV"
              ;;       (when (pos? (count @selected-orders))
              ;;         (str " (" (count @selected-orders) ")")))]
-             ])]
+             [:button {:type "submit"
+                       :class "btn btn-info"
+                       :on-click (fn [e]
+                                   (.preventDefault e)
+                                   (reset! busy? true)
+                                   (retrieve-url
+                                    (str base-url "add-blank-fleet-delivery")
+                                    "PUT"
+                                    (js/JSON.stringify
+                                     ;; todo variable
+                                     (clj->js {:fleet-location-id "UxE0goGbIOqQ3cQkSVG8"}))
+                                    (partial
+                                     xhrio-wrapper
+                                     (fn [r]
+                                       (let [response (js->clj r :keywordize-keys true)]
+                                         (if (:success response)
+                                           (do (reset! selected-primary-filter "In Review")
+                                               (reset! selected-account-filter "Show All")
+                                               (reset! sort-keyword :timestamp_created)
+                                               (reset! current-page 1)
+                                               (table-pager-on-click)
+                                               (refresh-fn busy? @from-date @to-date))
+                                           (do (.log js/console "success false")
+                                               (reset! busy? false))))))))}
+              [:i {:class "fa fa-lg fa-plus"}]]])]
          (when @delete-confirming?
            [:div {:class "panel-body"
                   :style {:margin-top "15px"}}
