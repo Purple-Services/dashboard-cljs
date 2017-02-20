@@ -128,6 +128,7 @@
 
 ;; fleet
 (def fleet-deliveries (r/atom #{}))
+(def fleet-locations (r/atom #{}))
 
 ;; couriers
 (def couriers (r/atom #{}))
@@ -275,14 +276,28 @@
                          (.endOf "day")
                          (.format "YYYY-MM-DD"))
           :to-date (-> (js/moment)
-                         (.endOf "day")
-                         (.format "YYYY-MM-DD"))}))
+                       (.endOf "day")
+                       (.format "YYYY-MM-DD"))}))
        (partial xhrio-wrapper
                 (fn [response]
                   (let [parsed-data (js->clj response :keywordize-keys true)]
                     (put! modify-data-chan
                           {:topic "fleet-deliveries"
                            :data parsed-data}))))))
+    (when (subset? #{{:uri "/all-fleet-locations"
+                      :method "GET"}} @accessible-routes)
+      (sync-state-always-reset! fleet-locations (sub read-data-chan "fleet-locations" (chan)))
+      ;; initialize coupons
+      (retrieve-url
+       (str base-url "all-fleet-locations")
+       "GET"
+       {}
+       (partial xhrio-wrapper
+                (fn [response]
+                  (put! modify-data-chan
+                        {:topic "fleet-locations"
+                         :data (js->clj response :keywordize-keys
+                                        true)})))))
     ;; zones
     (when (subset? #{{:uri "/zones"
                       :method "GET"}} @accessible-routes)

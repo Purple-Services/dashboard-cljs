@@ -194,13 +194,16 @@
        [:option {:value option-value} option-text]))]
    (cell-save-button order field-name)])
 
-(def orders-table-vecs
+(defn orders-table-vecs
+  [fleet-locations]
+  (println fleet-locations)
   [[[:input {:type "checkbox"
              :id "select-deselect-all-checkbox"
              :on-click evt-select-deselect-all
              :style {:cursor "pointer"}}]
     nil (fn [order] [OrderCheckbox order])]
-   ["Location" :fleet_location_name :fleet_location_name]
+   ["Location" :fleet_location_name :fleet_location_name "fleet_location_id"
+    (partial select-input "fleet_location_id" fleet-locations 300)]
    ["Plate/Stock" :license_plate :license_plate "license_plate"
     (partial text-input "license_plate" "License Plate" 130)]
    ["VIN" :vin :vin "vin" (partial text-input "vin" "VIN" 200)]
@@ -413,8 +416,8 @@
                                     (str base-url "add-blank-fleet-delivery")
                                     "PUT"
                                     (js/JSON.stringify
-                                     ;; todo variable
-                                     (clj->js {:fleet-location-id "UxE0goGbIOqQ3cQkSVG8"}))
+                                     ;; create new fleet deliveries with just a blank Fleet Location
+                                     (clj->js {:fleet-location-id ""}))
                                     (partial
                                      xhrio-wrapper
                                      (fn [r]
@@ -476,7 +479,7 @@
                                              (in-editing-fields? (:id order) field-name))
                          :sort-keyword sort-keyword
                          :sort-reversed? sort-reversed?
-                         :table-vecs orders-table-vecs
+                         :table-vecs (orders-table-vecs (map (juxt :id :name) @datastore/fleet-locations))
                          :style {:white-space "nowrap"}}
            orders-paginated]]
          [TablePager
