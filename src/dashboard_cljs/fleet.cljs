@@ -196,7 +196,6 @@
 
 (defn orders-table-vecs
   [fleet-locations]
-  (println fleet-locations)
   [[[:input {:type "checkbox"
              :id "select-deselect-all-checkbox"
              :on-click evt-select-deselect-all
@@ -331,7 +330,7 @@
            [:div {:class "btn-group" :role "group"}
             (doall
              (for [f account-filters]
-               ^{:key (first f)}
+               ^{:key (gensym (first f))}
                [TableFilterButton {:text (first f)
                                    :filter-fn (second f)
                                    :hide-count false
