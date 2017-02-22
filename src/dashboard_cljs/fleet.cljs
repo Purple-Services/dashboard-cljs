@@ -248,7 +248,7 @@
                          "In Review" #(and (not (:approved %)) (not (:deleted %)))
                          "Approved" #(and (:approved %) (not (:deleted %)))
                          "Deleted" #(:deleted %)}
-        selected-account-filter (r/atom (:account_name (first orders)))        
+        selected-account-filter (r/atom (:account_name (first orders)))
         selected-orders (r/cursor state [:selected-orders])
         delete-confirming? (r/cursor state [:delete-confirming?])
         busy? (r/cursor state [:busy?])]

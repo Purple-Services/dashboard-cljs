@@ -9,7 +9,7 @@
                                           cents->dollars dollars->cents
                                           parse-to-number? accessible-routes
                                           diff-message get-input-value
-                                          get-by-id]]
+                                          get-by-id in?]]
             [dashboard-cljs.components :refer [DynamicTable
                                                RefreshButton TablePager
                                                FormGroup TextInput KeyVal
@@ -1228,21 +1228,29 @@
         selected (r/cursor state [:selected])
         current-page (r/atom 1)
         page-size 15
-        selected-filter (r/atom "Active")
-        filters {"Active" :active
-                 "Inactive" (complement :active)}]
+        selected-primary-filter (r/atom "Active")
+        primary-filters {"Show All" #(not= (:id %) 1) ; we're not displaying the Earth Zone
+                         "Active" (every-pred #(not= (:id %) 1) :active)
+                         "Inactive" (every-pred #(not= (:id %) 1) (complement :active))}
+        selected-market-filter (r/atom "Show All")]
     (fn [zones]
-      (let [sort-fn (if @sort-reversed?
+      (let [zones-filtered-primary (filter (get primary-filters @selected-primary-filter) zones)
+            market-filters (merge {"Show All" (constantly true)}
+                                  (->> zones-filtered-primary
+                                       (filter (comp (partial = 100) :rank))
+                                       (sort-by :name)
+                                       (map (fn [x] [(:name x) #(= (:market_id %) (:id x))]))
+                                       (into {})))
+            _ (when (not (in? (keys market-filters) @selected-market-filter))
+                (reset! selected-market-filter "Show All"))
+            zones-filtered-secondary (filter (get market-filters @selected-market-filter) zones-filtered-primary)
+            sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
-            displayed-zones zones
             sorted-zones (fn []
-                           (->> displayed-zones
+                           (->> zones-filtered-secondary
+                                (sort-by :name) ; to maintain internal order at each sorting level
                                 sort-fn
-                                ;; we're not displaying the Earth Zone
-                                (filter (every-pred
-                                         #(not= (:id %) 1)
-                                         (get filters @selected-filter)))
                                 (partition-all page-size)))
             paginated-zones (fn []
                               (-> (sorted-zones)
@@ -1289,30 +1297,38 @@
               (str " " (:name @current-zone))]
              [EditZoneFormComp current-zone]]]]
           [:br]
-          [:div {:class "row"}
-           [:div {:class "col-lg-12"}
-            [:div {:class "btn-toolbar"
-                   :role "toolbar"}
-             [:div {:class "btn-group" :role "group"}
-              [TableFilterButton {:text "Active"
-                                  :filter-fn :active
-                                  :on-click  (fn []
-                                               (reset! sort-reversed? false)
-                                               (table-filter-button-on-click))
-                                  :data zones
-                                  :selected-filter selected-filter}]
-              [TableFilterButton {:text "Inactive"
-                                  :filter-fn (complement :active)
-                                        ;:hide-count false
-                                  :on-click (fn []
-                                              (reset! sort-reversed? true)
-                                              (table-filter-button-on-click))
-                                  :data zones
-                                  :selected-filter selected-filter}]]
-             [:div {:class "btn-group"
-                    :role "group"}
-              [RefreshButton {:refresh-fn
-                              refresh-fn}]]]]]
+          [:div {:class "panel-body"
+                 :style {:margin-top "0px"}}
+           [:div {:class "btn-toolbar"
+                  :role "toolbar"}
+            [:div {:class "btn-group"
+                   :role "group"}
+             [RefreshButton {:refresh-fn
+                             refresh-fn}]]
+            [:div {:class "btn-group" :role "group"}
+             (doall
+              (for [f primary-filters]
+                ^{:key (first f)}
+                [TableFilterButton {:text (first f)
+                                    :filter-fn (second f)
+                                    :hide-count false
+                                    :on-click (fn [] (table-filter-button-on-click))
+                                    :data zones
+                                    :selected-filter selected-primary-filter}]))]]]
+          [:div {:class "panel-body"
+                 :style {:margin-top "15px"}}
+           [:div {:class "btn-toolbar"
+                  :role "toolbar"}
+            [:div {:class "btn-group" :role "group"}
+             (doall
+              (for [f market-filters]
+                ^{:key (first f)}
+                [TableFilterButton {:text (first f)
+                                    :filter-fn (second f)
+                                    :hide-count false
+                                    :on-click (fn [] (table-filter-button-on-click))
+                                    :data zones-filtered-primary
+                                    :selected-filter selected-market-filter}]))]]]
           [:div {:class "row"}
            [:div {:class "col-lg-12"}
             [:div {:class "table-responsive"}
