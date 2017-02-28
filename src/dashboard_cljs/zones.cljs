@@ -721,29 +721,49 @@
                            :on-click
                            (fn [e]
                              (.preventDefault e)
-                             (reset! closed-message
-                                     (str @name " is currently closed")))}
+                             (reset! closed-message (str @name " is currently closed")))}
                   "Add Custom Closed Message"]]
            ;; closed message defined
-           [:div [:button {:type "button"
-                           :class "btn btn-sm btn-default"
-                           :on-click (fn [e]
-                                       (.preventDefault e)
-                                       (swap! config dissoc :closed-message))}
-                  "Remove Custom Closed Message"]
-            [:br]
-            [:br]
+           [:div
+            [:button {:type "button"
+                      :class "btn btn-sm btn-default"
+                      :on-click (fn [e]
+                                  (.preventDefault e)
+                                  (reset! closed-message "We are currently experiencing high demand. There are no available couriers in your area."))}
+             "High Demand"]
+            " "
+            [:button {:type "button"
+                      :class "btn btn-sm btn-default"
+                      :on-click (fn [e]
+                                  (.preventDefault e)
+                                  (reset! closed-message "Due to inclement weather, we are not accepting orders at this time."))}
+             "Inclement Weather"]
+            " "
+            [:button {:type "button"
+                      :class "btn btn-sm btn-default"
+                      :on-click (fn [e]
+                                  (.preventDefault e)
+                                  (reset! closed-message "We are closed for the holiday."))}
+             "Holiday - General"]
+            [:div {:style {:height "8px"}}]
             ;; Close message
             [TextInput {:value @closed-message
                         :on-change #(reset! closed-message
                                             (-> %
                                                 (aget "target")
-                                                (aget "value")))}]])]
+                                                (aget "value")))}]
+            [:div {:style {:height "8px"}}]
+            [:button {:type "button"
+                      :class "btn btn-sm btn-danger"
+                      :on-click (fn [e]
+                                  (.preventDefault e)
+                                  (swap! config dissoc :closed-message))}
+             "Remove Custom Closed Message"]])]
         ;; time choices
         [FormGroup {:label "Delivery Times Available"
                     :errors (get-in @errors [:config :time-choices])}
          (if-not @time-choices
-           ;; time-choices not define
+           ;; time-choices not defined
            [:div [:button {:type "button"
                            :class "btn btn-sm btn-default"
                            :on-click
@@ -772,12 +792,6 @@
                   (str (minute-count->standard-hours
                         (get-in @time-choices [choice :minutes])) " Hour ")
                   [:input {:type "checkbox"
-                           :disabled
-                           (if (> (minute-count->standard-hours
-                                   (get-in @time-choices [choice :minutes]))
-                                  1)
-                             true
-                             false)
                            :checked (get-in @time-choices [choice :selected])
                            :on-change (fn [e]
                                         (reset!

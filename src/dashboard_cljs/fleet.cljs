@@ -46,6 +46,7 @@
                                    (.subtract 10 "days")
                                    (.unix))
                     :to-date (now)
+                    :search-term ""
                     :delete-confirming? false
                     :busy false
                     :alert-success ""}))
@@ -100,29 +101,37 @@
       (swap! selected-orders (comp set concat) @currently-viewed-orders)
       (swap! selected-orders (partial apply disj) @currently-viewed-orders))))
 
+;; Hacky way of keeping track the most recent refresh call.
+;; Ideally, this system would be replaced with one that actually aborts all the current XHR requests.
+(def most-recent-refresh-call-id (atom nil))
+
 (defn refresh-fn
-  [refreshing? from-date to-date]
-  (reset! refreshing? true)
-  (retrieve-url
-   (str base-url "fleet-deliveries-since-date")
-   "POST"
-   (js/JSON.stringify
-    (clj->js
-     {:from-date (-> from-date
+  [refreshing? from-date to-date search-term]
+  (let [refresh-call-id (gensym "refresh-call")]
+    (reset! most-recent-refresh-call-id refresh-call-id)
+    (reset! refreshing? true)
+    (retrieve-url
+     (str base-url "fleet-deliveries-since-date")
+     "POST"
+     (js/JSON.stringify
+      (clj->js
+       {:from-date (-> from-date
+                       (js/moment.unix)
+                       (.endOf "day")
+                       (.format "YYYY-MM-DD"))
+        :to-date (-> to-date
                      (js/moment.unix)
                      (.endOf "day")
                      (.format "YYYY-MM-DD"))
-      :to-date (-> to-date
-                   (js/moment.unix)
-                   (.endOf "day")
-                   (.format "YYYY-MM-DD"))}))
-   (partial xhrio-wrapper
-            (fn [response]
-              (let [parsed-data (js->clj response :keywordize-keys true)]
-                (put! datastore/modify-data-chan
-                      {:topic "fleet-deliveries"
-                       :data parsed-data})
-                (reset! refreshing? false))))))
+        :search-term search-term}))
+     (partial xhrio-wrapper
+              (fn [response]
+                (when (= refresh-call-id @most-recent-refresh-call-id)
+                  (let [parsed-data (js->clj response :keywordize-keys true)]
+                    (put! datastore/modify-data-chan
+                          {:topic "fleet-deliveries"
+                           :data parsed-data})
+                    (reset! refreshing? false))))))))
 
 (defn cell-save-button
   [order field-name]
@@ -153,7 +162,8 @@
                                        (do (toggle-edit-field (:id order) field-name)
                                            (refresh-fn busy?
                                                        (deref (r/cursor state [:from-date]))
-                                                       (deref (r/cursor state [:to-date]))))
+                                                       (deref (r/cursor state [:to-date]))
+                                                       (deref (r/cursor state [:search-term]))))
                                        (do (.log js/console "success false")
                                            (reset! busy? false)
                                            (js/setTimeout
@@ -243,8 +253,9 @@
         page-size 15
         from-date (r/cursor state [:from-date])
         to-date (r/cursor state [:to-date])
+        search-term (r/cursor state [:search-term])
         selected-primary-filter (r/atom "In Review")
-        primary-filters {"Show All" (constantly true)
+        primary-filters {"Show All" #(not (:deleted %))
                          "In Review" #(and (not (:approved %)) (not (:deleted %)))
                          "Approved" #(and (:approved %) (not (:deleted %)))
                          "Deleted" #(:deleted %)}
@@ -252,6 +263,18 @@
         selected-orders (r/cursor state [:selected-orders])
         delete-confirming? (r/cursor state [:delete-confirming?])
         busy? (r/cursor state [:busy?])]
+    (add-watch from-date :from-date-watch
+               (fn [_ _ old-value new-value]
+                 (when (not= old-value new-value)
+                   (refresh-fn busy? new-value @to-date @search-term))))
+    (add-watch to-date :to-date-watch
+               (fn [_ _ old-value new-value]
+                 (when (not= old-value new-value)
+                   (refresh-fn busy? @from-date new-value @search-term))))
+    (add-watch search-term :search-term-watch
+               (fn [_ _ old-value new-value]
+                 (when (not= old-value new-value)
+                   (refresh-fn busy? @from-date @to-date new-value))))
     (fn [orders]
       (let [orders-filtered-primary (filter (get primary-filters @selected-primary-filter) orders)
             account-filters (merge {"Show All" (constantly true)}
@@ -279,36 +302,52 @@
                                            (reset! current-page 1)
                                            (table-pager-on-click))
             any-cells-editing? (not (empty? (deref (r/cursor state [:editing-fields]))))]
-        (add-watch from-date :from-date-watch
-                   (fn [_ _ old-value new-value]
-                     (when (not= old-value new-value)
-                       (refresh-fn busy? @from-date @to-date))))
-        (add-watch to-date :to-date-watch
-                   (fn [_ _ old-value new-value]
-                     (when (not= old-value new-value)
-                       (refresh-fn busy? @from-date @to-date))))
         [:div {:class "panel panel-default"}
-         [:div {:class "form-group"
-                :style {:margin-left "1px"}}
+         [:div {:class "form-group"}
+          [:span {:style {:font-size "17px"
+                          :color "grey"
+                          :padding "0px 11px 0px 0px"
+                          :display "inline-block"
+                          :position "relative"
+                          :top "-11px"}}
+           "from "]
           [:label {:for "expires?"
                    :class "control-label"}
            [:div {:style {:display "inline-block"}}
             [:div
              [:div {:class "input-group"}
               [DatePicker from-date]]]]]
-          [:span {:style {:font-size "24px"
+          [:span {:style {:font-size "17px"
                           :color "grey"
                           :padding "0px 11px"
                           :display "inline-block"
                           :position "relative"
-                          :top "-10px"}}
-           " - "]
+                          :top "-11px"}}
+           " to "]
           [:label {:for "expires?"
                    :class "control-label"}
            [:div {:style {:display "inline-block"}}
             [:div
              [:div {:class "input-group"}
-              [DatePicker to-date]]]]]]
+              [DatePicker to-date]]]]]
+          [:span {:style {:font-size "17px"
+                          :color "grey"
+                          :padding "0px 11px"
+                          :display "inline-block"
+                          :position "relative"
+                          :top "-11px"}}
+           " and contains "]
+          [:div {:style {:display "inline-block"}}
+           [:div
+            [:div {:class "input-group"}
+             [:input {:type "text"
+                      :class "form-control"
+                      :placeholder "Search VIN / Plate"
+                      :on-change (fn [e]
+                                   (reset! search-term
+                                           (-> e
+                                               (aget "target")
+                                               (aget "value"))))}]]]]]
          [:div {:class "panel-body"
                 :style {:margin-top "-15px"}}
           [:div {:class "btn-toolbar"
@@ -344,9 +383,22 @@
             [:i {:class "fa fa-lg fa-refresh fa-pulse"}]
             [:div {:class "btn-toolbar"
                    :role "toolbar"}
-             [RefreshButton {:refresh-fn #(refresh-fn % @from-date @to-date)
+             [RefreshButton {:refresh-fn #(refresh-fn % @from-date @to-date @search-term)
                              :refreshing? busy?
                              :disabled any-cells-editing?}]
+             [:button {:type "submit"
+                       :class "btn btn-default"
+                       :on-click (fn [e]
+                                   (.preventDefault e)
+                                   (swap! selected-orders (comp set concat) (map :id orders-sorted)))}
+              "Select All Pages"] ;; not to be confused with the select-all terminology we are using elsewhere
+             ;;                which refers to "all" the deliveries on just the current page
+             [:button {:type "submit"
+                       :class "btn btn-default"
+                       :on-click (fn [e]
+                                   (.preventDefault e)
+                                   (swap! selected-orders empty))}
+              "Deselect All"]
              [:button {:type "submit"
                        :class "btn btn-success"
                        :disabled (or (< (count @selected-orders) 1)
@@ -365,7 +417,7 @@
                                        (let [response (js->clj r :keywordize-keys true)]
                                          (if (:success response)
                                            (do (swap! selected-orders empty)
-                                               (refresh-fn busy? @from-date @to-date))
+                                               (refresh-fn busy? @from-date @to-date @search-term))
                                            (do (.log js/console "success false")
                                                (reset! busy? false))))))))}
               (str "Approve"
@@ -427,7 +479,7 @@
                                                (reset! sort-keyword :timestamp_created)
                                                (reset! current-page 1)
                                                (table-pager-on-click)
-                                               (refresh-fn busy? @from-date @to-date))
+                                               (refresh-fn busy? @from-date @to-date @search-term))
                                            (do (.log js/console "success false")
                                                (reset! busy? false))))))))}
               [:i {:class "fa fa-lg fa-plus"}]]])]
@@ -458,7 +510,7 @@
                                       (let [response (js->clj r :keywordize-keys true)]
                                         (if (:success response)
                                           (do (swap! selected-orders empty)
-                                              (refresh-fn busy? @from-date @to-date))
+                                              (refresh-fn busy? @from-date @to-date @search-term))
                                           (do (.log js/console "success false")
                                               (reset! busy? false))))))))
               :retrieving? busy?}]])
