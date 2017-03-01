@@ -2,7 +2,7 @@
   (:require [reagent.core :as r]
             [cljsjs.pikaday.with-moment]
             [dashboard-cljs.datastore :as datastore]
-            [dashboard-cljs.utils :refer [update-values]]))
+            [dashboard-cljs.utils :refer [update-values commaize-thousands]]))
 
 ;; Reagent components
 
@@ -435,7 +435,7 @@
                           (when on-click (on-click)))}
      text
      (when-not hide-count
-       (str " (" (count (filter filter-fn data)) ")"))]))
+       (str " (" (commaize-thousands (count (filter filter-fn data))) ")"))]))
 
 (defn TableFilterButtonGroup
   "Group of filter buttons for a table."

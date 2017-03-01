@@ -28,10 +28,14 @@
   [unix-epoch]
   (unix-epoch->fmt unix-epoch "M/D/YYYY h:mm A"))
 
+(defn commaize-thousands
+  [x]
+  (s/replace (str x) #"\B(?=(\d{3})+(?!\d))" ","))
+
 (defn cents->dollars
   "Converts an integer value of cents to dollars"
   [cents]
-  (str (-> cents (/ 100) (.toFixed 2))))
+  (-> cents (/ 100) (.toFixed 2) commaize-thousands))
 
 (defn dollars->cents
   "Convert a dollar amount into cents"

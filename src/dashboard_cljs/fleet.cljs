@@ -2,6 +2,8 @@
   (:require [cljs.core.async :refer [put! take!]]
             [cljsjs.moment]
             [clojure.string :as s]
+            [goog.string :as gstring]
+            [goog.string.format]
             [clojure.set :refer [subset?]]
             [reagent.core :as r]
             [dashboard-cljs.components :refer [DynamicTable
@@ -30,7 +32,8 @@
                                           get-event-time
                                           get-by-id now update-values
                                           select-toggle-key!
-                                          subscription-id->name]]
+                                          subscription-id->name
+                                          commaize-thousands]]
             [dashboard-cljs.xhr :refer [retrieve-url xhrio-wrapper]]
             [dashboard-cljs.googlemaps :refer [gmap get-cached-gmaps
                                                on-click-tab]]
@@ -266,15 +269,18 @@
     (add-watch from-date :from-date-watch
                (fn [_ _ old-value new-value]
                  (when (not= old-value new-value)
-                   (refresh-fn busy? new-value @to-date @search-term))))
+                   (do (swap! selected-orders empty)
+                       (refresh-fn busy? new-value @to-date @search-term)))))
     (add-watch to-date :to-date-watch
                (fn [_ _ old-value new-value]
                  (when (not= old-value new-value)
-                   (refresh-fn busy? @from-date new-value @search-term))))
+                   (do (swap! selected-orders empty)
+                       (refresh-fn busy? @from-date new-value @search-term)))))
     (add-watch search-term :search-term-watch
                (fn [_ _ old-value new-value]
                  (when (not= old-value new-value)
-                   (refresh-fn busy? @from-date @to-date new-value))))
+                   (do (swap! selected-orders empty)
+                       (refresh-fn busy? @from-date @to-date new-value)))))
     (fn [orders]
       (let [orders-filtered-primary (filter (get primary-filters @selected-primary-filter) orders)
             account-filters (merge {"Show All" (constantly true)}
@@ -301,7 +307,8 @@
                                            (reset! sort-keyword default-sort-keyword)
                                            (reset! current-page 1)
                                            (table-pager-on-click))
-            any-cells-editing? (not (empty? (deref (r/cursor state [:editing-fields]))))]
+            any-cells-editing? (not (empty? (deref (r/cursor state [:editing-fields]))))
+            orders-selected (filter (comp @selected-orders :id) orders)]
         [:div {:class "panel panel-default"}
          [:div {:class "form-group"}
           [:span {:style {:font-size "17px"
@@ -392,7 +399,7 @@
                                    (.preventDefault e)
                                    (swap! selected-orders (comp set concat) (map :id orders-sorted)))}
               "Select All Pages"] ;; not to be confused with the select-all terminology we are using elsewhere
-             ;;                which refers to "all" the deliveries on just the current page
+             ;;                      which refers to "all" the deliveries on just the current page
              [:button {:type "submit"
                        :class "btn btn-default"
                        :on-click (fn [e]
@@ -422,7 +429,7 @@
                                                (reset! busy? false))))))))}
               (str "Approve"
                    (when (pos? (count @selected-orders))
-                     (str " (" (count @selected-orders) ")")))]
+                     (str " (" (commaize-thousands (count @selected-orders)) ")")))]
              [:button {:type "submit"
                        :class "btn btn-danger"
                        :disabled (or (< (count @selected-orders) 1)
@@ -432,7 +439,7 @@
                                    (reset! delete-confirming? true))}
               (str "Delete"
                    (when (pos? (count @selected-orders))
-                     (str " (" (count @selected-orders) ")")))]
+                     (str " (" (commaize-thousands (count @selected-orders)) ")")))]
              [:form {:method "POST"
                      :style {:display "inline-block"
                              :float "left"
@@ -447,7 +454,7 @@
                                       any-cells-editing?)}
                (str "Download CSV"
                     (when (pos? (count @selected-orders))
-                      (str " (" (count @selected-orders) ")")))]]
+                      (str " (" (commaize-thousands (count @selected-orders)) ")")))]]
              ;; [:button {:type "submit"
              ;;           :class "btn btn-default"
              ;;           :disabled (or (< (count @selected-orders) 1)
@@ -457,7 +464,7 @@
              ;;                       (println "Email CSV"))}
              ;;  (str "Email CSV"
              ;;       (when (pos? (count @selected-orders))
-             ;;         (str " (" (count @selected-orders) ")")))]
+             ;;         (str " (" (commaize-thousands (count @selected-orders)) ")")))]
              [:button {:type "submit"
                        :class "btn btn-info"
                        :on-click (fn [e]
@@ -482,7 +489,27 @@
                                                (refresh-fn busy? @from-date @to-date @search-term))
                                            (do (.log js/console "success false")
                                                (reset! busy? false))))))))}
-              [:i {:class "fa fa-lg fa-plus"}]]])]
+              [:i {:class "fa fa-lg fa-plus"}]]
+             [:div {:style {:float "right"
+                            :font-size "11px"
+                            :line-height "13px"
+                            :position "relative"
+                            :top "-2px"
+                            :text-align "right"}}
+              [:span
+               (commaize-thousands (count orders-selected)) " selected"
+               [:br]
+               (->> orders-selected
+                    (map :gallons)
+                    (reduce +)
+                    (gstring/format "%.2f")
+                    commaize-thousands)
+               " gal."
+               [:br]
+               (->> orders-selected
+                    (map :total_price)
+                    (reduce +)
+                    cents->$dollars)]]])]
          (when @delete-confirming?
            [:div {:class "panel-body"
                   :style {:margin-top "15px"}}
