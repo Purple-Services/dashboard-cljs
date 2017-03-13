@@ -749,6 +749,8 @@
             ;; cancellation reason
             (when (= "cancelled" (:status @order))
               [cancel-reason-comp order state])
+            ;;
+            [KeyVal "Auto-Assign?" (:auto_assign_note @order)]
             ;; notes
             [order-notes-comp order state]
             [:div {:class "pull-right hidden-xs"}]]]]]))))
