@@ -18,7 +18,7 @@
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error retrieve-entity]]
-            [dashboard-cljs.utils :refer [unix-epoch->hrf base-url
+            [dashboard-cljs.utils :refer [unix-epoch->hrf unix-epoch->fuller base-url
                                           cents->$dollars json-string->clj
                                           accessible-routes
                                           new-orders-count
@@ -110,8 +110,7 @@
                   (let [order-status (if (= (:status @order)
                                             "unassigned")
                                        "assigned"
-                                       (:status @order))
-                        
+                                       (:status @order))               
                         updated-order  (assoc
                                         @order
                                         :courier_id @selected-courier
@@ -121,7 +120,8 @@
                                                           (= @selected-courier
                                                              (:id courier)))
                                                         couriers)))
-                                        :status order-status)]
+                                        :status order-status
+                                        :auto_assign_note nil)]
                     (reset! order updated-order)
                     (reset! editing? false)
                     (reset! error "")
@@ -602,9 +602,9 @@
                              (second (get-cached-gmaps gmap-keyword))}))))
         ;; populate the current order with additional information
         [:div
-         [:div {:class "row"}
-          [:div {:class "col-xs-12 col-lg-12"}
-           [:h2 {:style {:margin-top 0}} "Order Details"]]]
+         ;; [:div {:class "row"}
+         ;;  [:div {:class "col-xs-12 col-lg-12"}
+         ;;   [:h2 {:style {:margin-top 0}} "Order Details"]]]
          [:div {:class "row"}
           [:div {:class "col-xs-12 col-lg-6"}
            [:div {:id "customer-info"
@@ -626,6 +626,7 @@
                    (str " "
                         (subscription-id->name (:subscription_id @order))
                         " Plan")])]
+               [KeyVal "User ID" (:user_id @order)]
                ;;  email
                [:h5 [Mailto (:email @order)]]
                ;;  phone number
@@ -667,29 +668,27 @@
                   :style {:border "solid 2px #ddd"
                           :padding-left "1em"
                           :padding-bottom "1em"}}
-            ;; zone
-            [KeyVal "Zone"
-             [:span
-              [:i {:class "fa fa-circle"
-                   :style {:color (:market-color @order)}}]
-              " "
-              (:market @order)
-              " - "
-              (:submarket @order)
-              ]]
             [KeyVal "Address" [:span [GoogleMapLink
                                       (:address_street @order)
                                       (:lat @order)
-                                      (:lng @order)] ", " (:address_zip @order)]]
+                                      (:lng @order)]
+                               ", " (:address_zip @order)
+                               " "
+                               [:i {:class "fa fa-circle"
+                                    :style {:color (:market-color @order)}}]
+                               " "
+                               (:market @order)
+                               " - "
+                               (:submarket @order)]]
             ;; order id
-            [KeyVal "ID" (:id @order)]
+            [KeyVal "Order ID" (:id @order)]
             ;; time order was placed
-            [KeyVal "Placed" (unix-epoch->hrf (:target_time_start
-                                               @order))]
+            [KeyVal "Placed" (unix-epoch->fuller (:target_time_start
+                                                  @order))]
             ;; completion time
             (when-let [completion-time (get-event-time
                                         (:event_log @order) "complete")]
-              [KeyVal "Completion Time" (unix-epoch->hrf completion-time)])
+              [KeyVal "Completion Time" (unix-epoch->fuller completion-time)])
             ;; delivery time
             [KeyVal "Time Limit"
              (str (.diff (js/moment.unix (:target_time_end @order))
@@ -749,8 +748,8 @@
             ;; cancellation reason
             (when (= "cancelled" (:status @order))
               [cancel-reason-comp order state])
-            ;;
-            [KeyVal "Auto-Assign?" (:auto_assign_note @order)]
+            (when (:auto_assign_note @order)
+              [KeyVal "Assigned By" (:auto_assign_note @order)])
             ;; notes
             [order-notes-comp order state]
             [:div {:class "pull-right hidden-xs"}]]]]]))))

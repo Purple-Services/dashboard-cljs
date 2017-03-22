@@ -64,7 +64,8 @@
                                   :config {:autosizable true
                                            :dismisslog false}
                                   :selected-timeframe "t0"}
-                    :courier-orders-current-page 1}))
+                    :courier-orders-current-page 1
+                    :courier-activity-current-page 1}))
 (defn zones->str
   "Convert a vector of zones into a comma-seperated string"
   [zones]
@@ -231,7 +232,10 @@
   (let [google-marker (atom nil)
         sort-keyword (r/atom :target_time_start)
         sort-reversed? (r/atom false)
+        sort-keyword-activity (r/atom :day)
+        sort-reversed-activity? (r/atom false)
         current-page (r/cursor state [:courier-orders-current-page])
+        current-page-activity (r/cursor state [:courier-activity-current-page])
         page-size 5
         toggle (r/cursor state [:tab-content-toggle])
         orders-view-toggle? (r/cursor toggle [:orders-view])
@@ -246,23 +250,37 @@
             sort-fn (if @sort-reversed?
                       (partial sort-by @sort-keyword)
                       (comp reverse (partial sort-by @sort-keyword)))
-            
-            orders
-            ;; filter out the orders to only those assigned
-            ;; to the courier
-            (->> @datastore/orders
-                 (filter (fn [order]
-                           (= (:id @current-courier)
-                              (:courier_id order)))))
-            sorted-orders (->> orders
-                               sort-fn
-                               (partition-all page-size))
-            paginated-orders (pager-helper! sorted-orders current-page)
+            sort-fn-activity (if @sort-reversed-activity?
+                               (partial sort-by @sort-keyword-activity)
+                               (comp reverse (partial sort-by @sort-keyword-activity)))
+            orders (->> @datastore/orders
+                        (filter (fn [order] ; filter out the orders to only those assigned to the courier
+                                  (= (:id @current-courier)
+                                     (:courier_id order)))))
+            sorted-orders (sort-fn orders)
+            partitioned-orders (partition-all page-size sorted-orders)
+            paginated-orders (pager-helper! partitioned-orders current-page)
             show-orders? (fn []
                            (and (subset? #{{:uri "/orders-since-date"
                                             :method "POST"}}
                                          @accessible-routes)
-                                (> (count paginated-orders) 0)))]
+                                (> (count paginated-orders) 0)))
+            sorted-activity (->> orders ; todo: need to use assigned time, not target_time_start
+                                 (group-by #(unix-epoch->fmt (:target_time_start %) "YYYY-MM-DD"))
+                                 (map #(into {} [[:id (gensym "day")] ; to make reagent happy (see components.cljs#155)
+                                                 [:day (key %)]
+                                                 [:first_order_time_assigned (->> (val %)
+                                                                                  (sort-by :target_time_start)
+                                                                                  first
+                                                                                  :target_time_start)]
+                                                 [:last_order_time_completed (->> (val %)
+                                                                                  (sort-by :target_time_end)
+                                                                                  first
+                                                                                  :target_time_end)]]))
+                                 sort-fn-activity)
+            partitioned-activity (partition-all page-size sorted-activity)
+            paginated-activity (pager-helper! partitioned-activity current-page-activity)
+            ]
         ;; create and insert courier marker
         (when (:lat @current-courier)
           (when @google-marker
@@ -310,11 +328,10 @@
                     :toggle-key :push-view
                     :toggle toggle}
                "Push Notification"])
-            ;; [Tab {:default? true
-            ;;       :toggle-key :history-view
-            ;;       :toggle toggle}
-            ;;  "History"]
-            ]
+            [Tab {:default? false
+                  :toggle-key :history-view
+                  :toggle toggle}
+             "Historical Activity"]]
            ;; main display panel
            [:div {:class "tab-content"}
             [TabContent
@@ -423,12 +440,44 @@
                                        [StarRating number-rating])))]]}
                  paginated-orders]]
                [TablePager
-                {:total-pages (count sorted-orders )
+                {:total-pages (count partitioned-orders)
                  :current-page current-page}]]]]
-            ;; [TabContent
-            ;;  {:toggle (r/cursor toggle [:history-view])}
-            ;;  [orders-per-courier]]
-            ]]]]))))
+            [TabContent
+             {:toggle (r/cursor toggle [:history-view])}
+             [:div {:class "row"}
+              [:div {:class "col-lg-12 col-xs-12"}
+               [:div {:class "btn-toolbar"
+                      :role "toolbar"
+                      :style {:margin-top "10px"}}
+                [:form {:method "POST"
+                        :style {:display "inline-block"
+                                :float "left"
+                                :margin-left "5px"}
+                        :action (str base-url "download-courier-orders")}
+                 [:input {:type "hidden"
+                          :name "payload"
+                          :value (js/JSON.stringify
+                                  (clj->js {:id (:id @current-courier)
+                                            :name (:name @current-courier)}))}]
+                 [:button {:type "submit"
+                           :class "btn btn-default"}
+                  "Download CSV of All Orders"]]]
+               [:div {:class "table-responsive"}
+                [DynamicTable {:current-item current-courier
+                               :tr-props-fn (constantly true)
+                               :sort-keyword sort-keyword-activity
+                               :sort-reversed? sort-reversed-activity?
+                               :table-vecs
+                               [["Day" :day :day]
+                                ["First Order - Time Assigned" :first_order_time_assigned
+                                 #(unix-epoch->hrf (:first_order_time_assigned %))]
+                                ["Last Order - Time Completed" :last_order_time_completed
+                                 #(unix-epoch->hrf (:last_order_time_completed %))]]}
+                 paginated-activity]]
+               [TablePager
+                {:total-pages (count partitioned-activity)
+                 :current-page current-page-activity}]
+               ]]]]]]]))))
 
 (defn couriers-panel
   "Display a table of selectable couriers with an indivdual courier panel

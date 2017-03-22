@@ -456,19 +456,19 @@
   ""
   []
   (fn []
-    [:div {:style {:width "100%"
-                   :height "100%"
+    [:div {:style {:width "100px"
+                   :height "100px"
                    :color "white"
                    :z-index "999"
-                   :position "fixed"}}
-     [:div {:style {:left "40%"
-                    :top "40%"
-                    :height "2em"
-                    :position "fixed"}}
-      [:h2 {:style {:display "inline-block"
-                    :color "black"}}
-       "Loading   " [:i {:class "fa fa-spinner fa-pulse"
-                         :style {:color "black"}}]]]]))
+                   :text-align "center"
+                   :position "absolute"
+                   :top "0"
+                   :left "0"
+                   :right "0"
+                   :bottom "0"
+                   :margin "auto"}}
+     [:i {:class "fa fa-cog fa-spin fa-4x"
+          :style {:color "#4E4084"}}]]))
 
 (defn AlertSuccess
   "An alert for when an action is successfully completed
