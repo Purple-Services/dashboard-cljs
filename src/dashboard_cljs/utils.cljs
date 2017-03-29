@@ -1,5 +1,5 @@
 (ns dashboard-cljs.utils
-  (:require [cljsjs.moment]
+  (:require [cljsjs.moment-timezone]
             [cljs.reader :refer [read-string]]
             [clojure.data :refer [diff]]
             [clojure.string :as s]
@@ -27,6 +27,16 @@
   "Convert a unix epoch (in seconds)"
   [unix-epoch]
   (unix-epoch->fmt unix-epoch "M/D/YYYY h:mm A"))
+
+(defn unix-epoch->standard
+  [unix-epoch]
+  (unix-epoch->fmt unix-epoch "YYYY-MM-DD HH:mm"))
+
+(defn standard->unix-epoch
+  [date]
+  (-> (js/moment. date)
+      (.tz @timezone)
+      (.unix)))
 
 (defn commaize-thousands
   [x]
