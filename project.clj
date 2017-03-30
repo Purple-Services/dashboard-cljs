@@ -7,6 +7,7 @@
                  [org.clojure/core.async "0.2.374"]
                  [cljsjs/google-maps "3.18-1"]
                  [cljsjs/moment "2.10.6-0"]
+                 [cljsjs/moment-timezone "0.5.11-0"]
                  [cljsjs/pikaday "1.3.2-0"]
                  [cljsjs/plotly "1.10.0-0"]
                  [crate "0.2.5"]

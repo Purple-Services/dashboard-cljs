@@ -20,7 +20,8 @@
             [dashboard-cljs.datastore :as datastore]
             [dashboard-cljs.forms :refer [entity-save edit-on-success
                                           edit-on-error retrieve-entity]]
-            [dashboard-cljs.utils :refer [unix-epoch->hrf base-url in?
+            [dashboard-cljs.utils :refer [unix-epoch->hrf unix-epoch->standard
+                                          base-url in? standard->unix-epoch
                                           cents->$dollars json-string->clj
                                           accessible-routes
                                           new-orders-count
@@ -137,14 +138,15 @@
                     (reset! refreshing? false))))))))
 
 (defn cell-save-button
-  [order field-name]
+  [order field-name & {:keys [reverse-transform-fn]}]
   [:span {:class "input-group-btn"}
    [:button {:type "submit"
              :class "btn btn-success"
              :on-click (fn [e]
                          (.preventDefault e)
                          (let [get-input-el #(.getElementById js/document (str field-name "-input-" (:id order)))
-                               new-value (aget (get-input-el) "value")
+                               new-value ((or reverse-transform-fn identity)
+                                          (aget (get-input-el) "value"))
                                _ (aset (get-input-el) "disabled" true)]
                            (if (not= new-value ((keyword field-name) order))
                              (let [busy? (r/cursor state [:busy?])]
@@ -179,20 +181,28 @@
              :dangerouslySetInnerHTML {:__html "&#10003;"}}]])
 
 (defn text-input
-  [field-name placeholder width order]
+  [field-name placeholder width order
+   & {:keys [transform-fn reverse-transform-fn]}]
   [:div {:class "input-group"
          :style {:width (str width "px")}}
    [:input {:type "text"
             :id (str field-name "-input-" (:id order))
             :class "form-control"
-            :defaultValue ((keyword field-name) order)
+            :defaultValue ((or transform-fn identity)
+                           ((keyword field-name) order))
             ;; look into adding submit upon hitting Enter
             :placeholder placeholder
             :style {:font-size "13px"}
             :on-double-click (fn [e]
                                (.preventDefault e)
                                (.stopPropagation e))}]
-   (cell-save-button order field-name)])
+   (cell-save-button order field-name :reverse-transform-fn reverse-transform-fn)])
+
+(defn datetime-input
+  [field-name placeholder width transform-fn reverse-transform-fn order]
+  (text-input field-name placeholder width order
+              :transform-fn transform-fn
+              :reverse-transform-fn reverse-transform-fn))
 
 (defn select-input
   [field-name options width order]
@@ -237,9 +247,11 @@
    ["PPG" :gas_price #(cents->$dollars (:gas_price %)) "gas_price" (partial text-input "gas_price" "PPG" 105)]
    ["Fee" :service_fee #(cents->$dollars (:service_fee %)) "service_fee" (partial text-input "service_fee" "Fee" 105)]
    ["Total" :total_price #(cents->$dollars (:total_price %))]
-   ["Date" :timestamp_created #(unix-epoch->hrf
-                                (/ (.getTime (js/Date. (:timestamp_created %)))
-                                   1000))]])
+   ["Recorded" :timestamp_recorded #(unix-epoch->hrf (:timestamp_recorded %)) "timestamp_recorded"
+    (partial datetime-input "timestamp_recorded" "YYYY-MM-DD HH:mm" 167
+             unix-epoch->standard standard->unix-epoch)]
+   ;; ["Date" :timestamp_created #(unix-epoch->hrf (/ (.getTime (js/Date. (:timestamp_created %))) 1000))]
+   ])
 
 (defn account-names
   [orders]
@@ -249,7 +261,7 @@
 (defn fleet-panel
   [orders state]
   (let [currently-viewed-orders (r/cursor state [:currently-viewed-orders])
-        default-sort-keyword :timestamp_created
+        default-sort-keyword :timestamp_recorded
         sort-keyword (r/atom default-sort-keyword)
         sort-reversed? (r/atom false)
         current-page (r/atom 1)
@@ -483,7 +495,7 @@
                                          (if (:success response)
                                            (do (reset! selected-primary-filter "In Review")
                                                (reset! selected-account-filter "Show All")
-                                               (reset! sort-keyword :timestamp_created)
+                                               (reset! sort-keyword :timestamp_recorded)
                                                (reset! current-page 1)
                                                (table-pager-on-click)
                                                (refresh-fn busy? @from-date @to-date @search-term))
