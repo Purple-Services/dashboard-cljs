@@ -308,7 +308,7 @@
       (sync-state-always-reset! gas-purchases (sub read-data-chan "gas-purchases" (chan)))
       ;; initialize orders
       (retrieve-url
-       (str base-url "fleet-deliveries-since-date")
+       (str base-url "gas-purchases-since-date")
        "POST"
        (js/JSON.stringify
         (clj->js

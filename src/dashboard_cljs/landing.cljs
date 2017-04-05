@@ -19,6 +19,7 @@
             [dashboard-cljs.marketing :as marketing]
             [dashboard-cljs.orders :as orders]
             [dashboard-cljs.fleet :as fleet]
+            [dashboard-cljs.gas-purchases :as gas-purchases]
             [dashboard-cljs.analytics :as analytics]
             [dashboard-cljs.googlemaps :refer [get-cached-gmaps on-click-tab]]
             [dashboard-cljs.state :refer [landing-state]]))
@@ -158,6 +159,14 @@
                 :toggle (:tab-content-toggle props)
                 :on-click-tab on-click-tab}
            [:div "Fleet"]])
+        (when (subset? #{{:uri "/gas-purchases-since-date"
+                          :method "POST"}}
+                       @accessible-routes)
+          [Tab {:default? false
+                :toggle-key :gas-purchases-view
+                :toggle (:tab-content-toggle props)
+                :on-click-tab on-click-tab}
+           [:div "Gas Purchases"]])
         (when (subset? #{{:uri "/send-push-to-table-view"
                           :method "POST"}}
                        @accessible-routes)
@@ -271,7 +280,16 @@
                                :method "POST"}}
                             @accessible-routes)
                [:div
-                [fleet/fleet-panel @datastore/fleet-deliveries fleet/state]])]]           
+                [fleet/fleet-panel @datastore/fleet-deliveries fleet/state]])]]
+           ;; gas purchases page
+           [TabContent
+            {:toggle (r/cursor tab-content-toggle [:gas-purchases-view])}
+            [:div
+             (when (subset? #{{:uri "/gas-purchases-since-date"
+                               :method "POST"}}
+                            @accessible-routes)
+               [:div
+                [gas-purchases/gas-purchases-panel @datastore/gas-purchases gas-purchases/state]])]]           
            ;; orders page
            [TabContent
             {:toggle (r/cursor tab-content-toggle [:orders-view])}
