@@ -217,6 +217,14 @@
        [:option {:value option-value} option-text]))]
    (cell-save-button order field-name)])
 
+(defn courier-id->name
+  [id]
+  (:name (first (filter (fn [x] (= id (:id x))) @datastore/couriers))))
+
+(defn courier-names
+  [orders]
+  (map courier-id->name (keys (group-by :courier_id orders))))
+
 (defn orders-table-vecs
   []
   [[[:input {:type "checkbox"
@@ -225,23 +233,19 @@
              :style {:cursor "pointer"}}]
     nil (fn [order] [OrderCheckbox order])]
    ;;;; todo: maybe put in a link to google maps with lat lng
+   ["Courier" (comp courier-id->name :courier_id) (comp courier-id->name :courier_id)]
    ["Gallons" :gallons :gallons "gallons" (partial text-input "gallons" "Gallons" 105)]
    ["Type" :gas_type :gas_type "gas_type"]
    ;; calculate this on the fly
    ["PPG" #(/ (:total_price %) (:gallons %))
     #(cents->$dollars (/ (:total_price %) (:gallons %)))]
-   ["Total" :total_price #(cents->$dollars (:total_price %))]
-   ["Recorded" :timestamp_recorded #(unix-epoch->hrf (:timestamp_recorded %)) "timestamp_recorded"
+   ["Total" :total_price (comp cents->$dollars :total_price)]
+   ["Location" nil #(when (not= 0 (:lat %))
+                      (GoogleMapLink "View On Map" (:lat %) (:lng %)))]
+   ["Recorded" :timestamp_recorded
+    (comp unix-epoch->hrf :timestamp_recorded) "timestamp_recorded"
     (partial datetime-input "timestamp_recorded" "YYYY-MM-DD HH:mm" 167
              unix-epoch->standard standard->unix-epoch)]])
-
-(defn courier-id->name
-  [id]
-  (:name (first (filter (fn [x] (= id (:id x))) @datastore/couriers))))
-
-(defn courier-names
-  [orders]
-  (map courier-id->name (keys (group-by :courier_id orders))))
 
 ;; excuse the misnomer "orders" and "order" (actually "gas purchases")
 (defn gas-purchases-panel
