@@ -890,6 +890,17 @@
                          :on-change #(reset! price-87 (-> %
                                                           (aget "target")
                                                           (aget "value")))}]]
+
+            (when @price-89
+              [FormGroup {:label "89 price"
+                          :errors (get-in @errors [:gas-price "89"])
+                          :input-group-addon [:div {:class "input-group-addon"}
+                                              "$"]}
+               [TextInput {:value @price-89
+                           :on-change #(reset! price-89 (-> %
+                                                            (aget "target")
+                                                            (aget "value")))}]])
+            
             ;; 91 price
             [FormGroup {:label-for "91 price"
                         :label "91 Octane"
@@ -910,6 +921,19 @@
                            :on-change #(reset! price-regular-diesel (-> %
                                                                         (aget "target")
                                                                         (aget "value")))}]])
+
+            (when @price-dyed-diesel
+              [FormGroup {:label "Dyed Diesel"
+                          :errors (get-in @errors [:gas-price "Dyed Diesel"])
+                          :input-group-addon [:div {:class "input-group-addon"}
+                                              "$"]}
+               [TextInput {:value @price-dyed-diesel
+                           :on-change #(reset! price-dyed-diesel (-> %
+                                                                     (aget "target")
+                                                                     (aget "value")))}]])
+
+            
+            
             ])]
         ;; zips
         [FormGroup {:label "Zip Codes"
