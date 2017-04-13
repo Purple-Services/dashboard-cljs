@@ -309,26 +309,23 @@
 ;; is used
 (defn server-config-gas-price->form-config-gas-price
   [server-config-gas-price]
-  (let [price-87 (server-config-gas-price :87)
-        price-91 (server-config-gas-price :91)]
-    {"87" (cents->dollars price-87)
-     "91" (cents->dollars price-91)}))
+  (into {}
+        (map (juxt (comp name key)
+                   (comp cents->dollars val))
+             server-config-gas-price)))
 
 (defn form-config-gas-price->hrf-string
   [form-config-gas-price]
-  (let [price-87 (form-config-gas-price "87")
-        price-91 (form-config-gas-price "91")]
-    (str "87 Octane: $" price-87 " "
-         "91 Octane: $" price-91)))
+  (apply str (interpose " "
+                        (map #(str (key %) ": $" (val %))
+                             form-config-gas-price))))
 
 (defn form-config-gas-price->hrf-html
   [form-config-gas-price]
-  (let [price-87 (form-config-gas-price "87")
-        price-91 (form-config-gas-price "91")]
-    [:div
-     "87 Octane: $" price-87
-     [:br]
-     "91 Octane: $" price-91]))
+  [:div
+   (interpose [:br]
+              (map #(str (key %) ": $" (val %))
+                   form-config-gas-price))])
 
 (defn form-hours->server-hours
   [form-hours]
@@ -375,18 +372,12 @@
        (assoc-in % [:config :hours]
                  (form-day-hours->server-day-hours hours))
        %))
-   (#(if-let [gas-price (get-in % [:config :gas-price])]
-       (let [price-87 (gas-price "87")
-             price-91 (gas-price "91")]
-         (assoc-in % [:config :gas-price]
-                   {"87"  (if (parse-to-number? price-87)
-                            (dollars->cents
-                             price-87)
-                            price-87)
-                    "91" (if (parse-to-number? price-91)
-                           (dollars->cents
-                            price-91)
-                           price-91)}))
+   (#(if-let [gas-prices (get-in % [:config :gas-price])]
+       (assoc-in % [:config :gas-price]
+                 (into {}
+                       (map (fn [[k v]]
+                              [k (if (parse-to-number? v) (dollars->cents v) v)])
+                            gas-prices)))
        %))
    (#(if-let [delivery-fee (get-in % [:config :delivery-fee])]
        (let [service-fee-60 (delivery-fee "60")
@@ -428,8 +419,6 @@
   [zone]
   (fn [zone]
     (let [hours (get-in zone [:config :hours])
-          gas-price-87 (get-in zone [:config :gas-price :87])
-          gas-price-91 (get-in zone [:config :gas-price :91])
           time-choices (get-in zone [:config :time-choices])
           default-time-choice (get-in zone [:config :default-time-choice])
           delivery-fee (get-in zone [:config :delivery-fee])
@@ -461,18 +450,30 @@
           [KeyVal "Delivery Fees" (form-delivery-fee->hrf
                                    (server-delivery-fee->form-delivery-fee
                                     delivery-fee))])
-        (when (or gas-price-87
-                  gas-price-91)
+        (when (not (empty? (get-in zone [:config :gas-price])))
           [KeyVal "Gas Price" [:div
-                               "87 Octane: "
-                               (if (int? gas-price-87)
-                                 (str "$" (cents->dollars gas-price-87))
-                                 gas-price-87)
-                               [:br]
-                               "91 Octane: "
-                               (if (int? gas-price-91)
-                                 (str "$" (cents->dollars gas-price-91))
-                                 gas-price-91)]])
+
+                               (interpose [:br]
+                                          (map #(str (name (key %)) ": $" (cents->dollars (val %)))
+                                               (get-in zone [:config :gas-price])))
+                               
+                               ;; "87 Octane: "
+                               ;; (if (int? gas-price-87)
+                               ;;   (str "$" (cents->dollars gas-price-87))
+                               ;;   gas-price-87)
+                               ;; [:br]
+                               ;; "91 Octane: "
+                               ;; (if (int? gas-price-91)
+                               ;;   (str "$" (cents->dollars gas-price-91))
+                               ;;   gas-price-91)
+                               ;; [:br]
+                               ;; "Regular Diesel: "
+                               ;; (if (int? gas-price-regular-diesel)
+                               ;;   (str "$" (cents->dollars gas-price-regular-diesel))
+                               ;;   gas-price-regular-diesel)
+
+
+                               ]])
         [KeyVal "Zip Codes" (:zips zone)]
         (when (get-in zone [:config :hours])
           [KeyVal "Hours" [:div
@@ -663,7 +664,10 @@
           hours (r/cursor config [:hours])
           gas-price (r/cursor config [:gas-price])
           price-87 (r/cursor gas-price ["87"])
+          price-89 (r/cursor gas-price ["89"])
           price-91 (r/cursor gas-price ["91"])
+          price-regular-diesel (r/cursor gas-price ["Regular Diesel"])
+          price-dyed-diesel (r/cursor gas-price ["Dyed Diesel"])
           manually-closed? (r/cursor config [:manually-closed?])
           closed-message (r/cursor config [:closed-message])
           time-choices (r/cursor config [:time-choices])
@@ -895,7 +899,18 @@
              [TextInput {:value @price-91
                          :on-change #(reset! price-91 (-> %
                                                           (aget "target")
-                                                          (aget "value")))}]]])]
+                                                          (aget "value")))}]]
+            ;; Regular Diesel price
+            (when @price-regular-diesel
+              [FormGroup {:label "Regular Diesel"
+                          :errors (get-in @errors [:gas-price "Regular Diesel"])
+                          :input-group-addon [:div {:class "input-group-addon"}
+                                              "$"]}
+               [TextInput {:value @price-regular-diesel
+                           :on-change #(reset! price-regular-diesel (-> %
+                                                                        (aget "target")
+                                                                        (aget "value")))}]])
+            ])]
         ;; zips
         [FormGroup {:label "Zip Codes"
                     :errors (:zips @errors)}
