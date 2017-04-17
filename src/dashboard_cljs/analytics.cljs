@@ -511,4 +511,22 @@
      [DownloadXLSX {:filename "fleet-accounts.xlsx"
                     :use-timeframe? false
                     :from-date (-> (js/moment)
-                                   (.subtract 1 "day"))}]]))
+                                   (.subtract 1 "day"))}]
+     [:div {:class "row"}
+      [:div {:class "col-lg-12 col-xs-12"}
+       [:div {:class "btn-toolbar"
+              :role "toolbar"
+              :style {:margin-top "10px"}}
+        [:form {:method "POST"
+                :style {:display "inline-block"
+                        :float "left"
+                        :margin-left "5px"}
+                :action (str base-url "download-courier-statistics")}
+         [:input {:type "hidden"
+                  :name "payload"
+                  :value (js/JSON.stringify
+                          (clj->js {:from-date "2017-03-01"
+                                    :to-date "2017-04-15"}))}]
+         [:button {:type "submit"
+                   :class "btn btn-default"}
+          "Download Statistics CSV"]]]]]]))

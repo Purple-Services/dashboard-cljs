@@ -130,6 +130,9 @@
 (def fleet-deliveries (r/atom #{}))
 (def fleet-locations (r/atom #{}))
 
+;; gas purchases
+(def gas-purchases (r/atom #{}))
+
 ;; couriers
 (def couriers (r/atom #{}))
 
@@ -298,6 +301,30 @@
                         {:topic "fleet-locations"
                          :data (js->clj response :keywordize-keys
                                         true)})))))
+    ;; gas purchases
+    (when (subset? #{{:uri "/gas-purchases-since-date"
+                      :method "POST"}} @accessible-routes)
+      ;; keep data synced with the data channel
+      (sync-state-always-reset! gas-purchases (sub read-data-chan "gas-purchases" (chan)))
+      ;; initialize orders
+      (retrieve-url
+       (str base-url "gas-purchases-since-date")
+       "POST"
+       (js/JSON.stringify
+        (clj->js
+         {:from-date (-> (js/moment)
+                         (.subtract 10 "days")
+                         (.endOf "day")
+                         (.format "YYYY-MM-DD"))
+          :to-date (-> (js/moment)
+                       (.endOf "day")
+                       (.format "YYYY-MM-DD"))}))
+       (partial xhrio-wrapper
+                (fn [response]
+                  (let [parsed-data (js->clj response :keywordize-keys true)]
+                    (put! modify-data-chan
+                          {:topic "gas-purchases"
+                           :data parsed-data}))))))
     ;; zones
     (when (subset? #{{:uri "/zones"
                       :method "GET"}} @accessible-routes)

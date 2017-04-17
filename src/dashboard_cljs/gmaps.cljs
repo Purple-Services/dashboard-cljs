@@ -379,7 +379,8 @@
         on-duty?   (aget courier "on_duty")
         connected? (aget courier "connected")
         selected?  (get-in @state [:couriers-control :selected?])]
-    (and connected? active? on-duty? selected?)))
+    (and connected? active? ;; on-duty?
+         selected?)))
 
 (defn display-selected-couriers!
   "Given the state, display selected couriers"
@@ -394,12 +395,16 @@
   "Given a courier, indicate whether or not they are busy"
   [obj]
   (let [busy? (aget obj "busy")
+        on-duty? (aget obj "on_duty")
         circle (aget obj "circle")]
-    (if busy?
-      ;; set red stroke
+    (cond
+      (not on-duty?) ;; set blue stroke
+      (.setOptions circle
+                   (clj->js {:options {:strokeColor "#ffffff"}}))
+      busy?       ;; set red stroke
       (.setOptions circle
                    (clj->js {:options {:strokeColor "#ff0000"}}))
-      ;; set green stroke
+      (not busy?) ;; set green stroke
       (.setOptions circle
                    (clj->js {:options {:strokeColor "#00ff00"}})))))
 
@@ -949,6 +954,11 @@
                        (legend-symbol (get-in @state
                                               [:couriers-control :color])
                                       "#00ff00")
+                       [:br]
+                       "Off Duty"
+                       (legend-symbol (get-in @state
+                                              [:couriers-control :color])
+                                      "#ffffff")
                        ])]
     (.addEventListener
      checkbox "click" #(do (if (aget checkbox "checked")
