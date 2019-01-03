@@ -512,21 +512,72 @@
                     :use-timeframe? false
                     :from-date (-> (js/moment)
                                    (.subtract 1 "day"))}]
+     [:h2 {:style {:margin-top "10px"}}
+      "Courier Statistics"]
      [:div {:class "row"}
       [:div {:class "col-lg-12 col-xs-12"}
        [:div {:class "btn-toolbar"
               :role "toolbar"
               :style {:margin-top "10px"}}
-        [:form {:method "POST"
-                :style {:display "inline-block"
-                        :float "left"
-                        :margin-left "5px"}
-                :action (str base-url "download-courier-statistics")}
-         [:input {:type "hidden"
-                  :name "payload"
-                  :value (js/JSON.stringify
-                          (clj->js {:from-date "2017-03-01"
-                                    :to-date "2017-04-15"}))}]
-         [:button {:type "submit"
-                   :class "btn btn-default"}
-          "Download Statistics CSV"]]]]]]))
+        (let [from-date (atom (-> (js/moment)
+                                  (.subtract 10 "days")
+                                  (.unix)))
+              to-date (atom (now))
+              update-date-values #(aset (.getElementById js/document "courier-statistics-payload")
+                                        "value"
+                                        (js/JSON.stringify
+                                         (clj->js {:from-date (-> @from-date
+                                                                  (js/moment.unix)
+                                                                  (.endOf "day")
+                                                                  (.format "YYYY-MM-DD"))
+                                                   :to-date (-> @to-date
+                                                                (js/moment.unix)
+                                                                (.endOf "day")
+                                                                (.format "YYYY-MM-DD"))})))]
+          (add-watch from-date :from-date-watch
+                     (fn [_ _ old-value new-value]
+                       (when (not= old-value new-value)
+                         (update-date-values))))
+          (add-watch to-date :to-date-watch
+                     (fn [_ _ old-value new-value]
+                       (when (not= old-value new-value)
+                         (update-date-values))))
+          [:form {:method "POST"
+                  :style {:display "inline-block"
+                          :float "left"
+                          :margin-left "5px"}
+                  :action (str base-url "download-courier-statistics")}
+           [:input {:type "hidden"
+                    :id "courier-statistics-payload"
+                    :name "payload"
+                    :value (js/JSON.stringify
+                            (clj->js {:from-date (-> @from-date
+                                                     (js/moment.unix)
+                                                     (.endOf "day")
+                                                     (.format "YYYY-MM-DD"))
+                                      :to-date (-> @to-date
+                                                   (js/moment.unix)
+                                                   (.endOf "day")
+                                                   (.format "YYYY-MM-DD"))}))}]
+           [:div {:class "form-group"
+                  :style {:margin-left "1px"}}
+            [:label {:for "expires?"
+                     :class "control-label"}
+             [:div {:style {:display "inline-block"}}
+              [:div
+               [:div {:class "input-group"}
+                [DatePicker from-date]]]]]
+            [:span {:style {:font-size "3em"
+                            :color "grey"}} " - "]
+            [:label {:for "expires?"
+                     :class "control-label"}
+             [:div {:style {:display "inline-block"}}
+              [:div
+               [:div {:class "input-group"}
+                [DatePicker to-date]]]]]]
+           [:button {:type "submit"
+                     :class "btn btn-default"}
+            "Download Statistics CSV"]
+           ])
+        ]]]
+     ]))
